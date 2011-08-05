@@ -34,11 +34,31 @@
   :tag "Org-X"
   :group 'org)
 
-(defcustom org-x-backends nil
+(defvar org-x-backends-loaded nil)
+
+(defun org-x-set-backends (var value)
+  "Set VAR to VALUE and load all requested backends."
+  (set var value)
+  (when (featurep 'ox)
+    (mapc
+     (lambda (ext)
+       (condition-case nil (require ext)
+	 (error (message "Problems while trying to load Org-X backend `%s'"
+			 ext))))
+     org-x-backends)
+    (setq org-x-backends-loaded t)))
+
+(defcustom org-x-backends '(ox-org)
   "Org-X backends to be used."
+  :set 'org-x-set-backends
   :type
   '(set :greedy t
-	(const :tag "redmine:           Link to Redmine issues" ox-redmine)
+	(const :tag "org:               Backend used to communicate with Org-mode" ox-org)
+	(const :tag "redmine:           Redmine issue tracker" ox-redmine)
+	(const :tag "bugzilla:          [NOT DONE] Bugzilla bug tracking system" ox-bugzilla)
+	(const :tag "dired:             [NOT DONE] Files within a diectory" ox-dired)
+	(const :tag "gnus:              [NOT DONE] Messages within a Gnus group" ox-gnus)
+	(const :tag "wordpress:         [NOT DONE] WordPress posts and comments" ox-wordpress)
 	(repeat :tag "External backends" :inline t
 		(symbol :tag "Backend")))
   :group 'org-x)
