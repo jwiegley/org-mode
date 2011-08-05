@@ -283,42 +283,69 @@ IDENTIFIER is how that backend knows this entry."
 	  (org-x-propagate entry (intern (concat "set-" (symbol-name symbol)))
 			   data)))))
 
+(defun org-x-eraser (entry symbol &optional propagate no-overwrite)
+  (let ((cell (assq symbol entry)))
+    (unless (and (cdr cell) no-overwrite)
+      (if cell
+	  (setcdr entry (delq cell (cdr entry))))
+      (if propagate
+	  (org-x-propagate entry (intern (concat "remove-"
+						 (symbol-name symbol))))))))
+
 (defun org-x-set-title (entry title &optional propagate no-overwrite)
   (assert (stringp title) t "Org-X entry title must be a string")
   (org-x-setter entry 'title title propagate no-overwrite))
+(defun org-x-clear-title (entry &optional propagate)
+  (org-x-eraser entry 'title propagate))
 
 (defun org-x-set-body (entry body &optional propagate no-overwrite)
   (assert (stringp body) t "Org-X entry body must be a string")
   (org-x-setter entry 'body body propagate no-overwrite))
+(defun org-x-clear-body (entry &optional propagate)
+  (org-x-eraser entry 'body propagate))
 
 (defun org-x-set-depth (entry depth &optional propagate no-overwrite)
   (assert (integerp depth) t "Org-X entry depth must be an integer")
   (org-x-setter entry 'depth depth propagate no-overwrite))
+(defun org-x-clear-depth (entry &optional propagate)
+  (org-x-eraser entry 'depth propagate))
 
 (defun org-x-set-state (entry state &optional propagate no-overwrite)
   (assert (member state org-x-states) t
 	  (format "Org-X entry state must be one of: %s" org-x-states))
   (org-x-setter entry 'state state propagate no-overwrite))
+(defun org-x-clear-state (entry &optional propagate)
+  (org-x-eraser entry 'state propagate))
 
 (defun org-x-set-priority (entry priority &optional propagate no-overwrite)
   (assert (integerp priority) t "Org-X entry priority must be an integer")
   (org-x-setter entry 'priority priority propagate no-overwrite))
+(defun org-x-clear-priority (entry &optional propagate)
+  (org-x-eraser entry 'priority propagate))
 
 (defun org-x-set-scheduled (entry scheduled &optional propagate no-overwrite)
   (org-x-setter entry 'scheduled scheduled propagate no-overwrite))
+(defun org-x-clear-scheduled (entry &optional propagate)
+  (org-x-eraser entry 'scheduled propagate))
 
 (defun org-x-set-scheduled-repeat
   (entry repeat &optional propagate no-overwrite)
   (assert (stringp repeat) t "Org-X log scheduled repeat must be a string")
   (org-x-setter entry 'scheduled-repeat repeat propagate no-overwrite))
+(defun org-x-clear-scheduled-repeat (entry &optional propagate)
+  (org-x-eraser entry 'scheduled-repeat propagate))
 
 (defun org-x-set-deadline (entry deadline &optional propagate no-overwrite)
   (org-x-setter entry 'deadline deadline propagate no-overwrite))
+(defun org-x-clear-deadline (entry &optional propagate)
+  (org-x-eraser entry 'deadline propagate))
 
 (defun org-x-set-deadline-repeat
   (entry repeat &optional propagate no-overwrite)
   (assert (stringp repeat) t "Org-X log deadline repeat must be a string")
   (org-x-setter entry 'deadline-repeat repeat propagate no-overwrite))
+(defun org-x-clear-deadline-repeat (entry &optional propagate)
+  (org-x-eraser entry 'deadline-repeat propagate))
 
 ;;; Entry property setters:
 
