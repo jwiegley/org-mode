@@ -77,7 +77,8 @@
   :type '(alist :key-type symbol :value-type function)
   :group 'org-x)
 
-(defcustom org-x-states '("TODO" "STARTED" "WAITING" "CANCELED" "DONE")
+(defcustom org-x-states
+  '("TODO" "STARTED" "WAITING" "CANCELED" "DONE" "NOTE")
   "The set of todo states which Org-X knows about.
 Note that adding to this list only affects backends you may write, it
 will not make existing backends sensitive to those states."
