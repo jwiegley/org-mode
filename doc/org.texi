@@ -13222,7 +13222,42 @@ emacs -Q --batch -l $ORGINSTALL \
        (kill-buffer)) '($FILES)))" 2>&1 |grep tangled
 @end example
 
-@node Miscellaneous, Hacking, Working With Source Code, Top
+@node External Data, Miscellaneous, Working With Source Code, Top
+@chapter Org-X: External Data
+
+Sometimes, there is data on external systems that you'd like to associate
+with Org-mode, so that you only have to consider one set of data.  For
+instance, if you work on a project whose issues are in Bugzilla, it would be
+nice to see those issue in your Agenda, and have them updated with the latest
+comments when you're ready to start working on one.  Then, after you mark the
+task as DONE in Org-mode, it would set the corresponding Bugzilla issue to
+Resolved.  This is what the @code{org-x} module does.
+
+In addition to providing several association modules for systems like
+Bugzilla, @code{org-x} also provides a simple API library to make it easy to
+add new external data sources of any type.  For example:
+
+@itemize @bullet
+@item Bug-trackers, such as Bugzilla, Trac, Redmine, Fogbugz
+@item Lines marked TODO in a set of source code files
+@item Ticked files in your Gnus INBOX
+@item Files in your downloads directory
+@end itemize
+
+@node
+@section Extending Org-X
+
+The idea behind Org-X is to work with data in an abstract, Lisp-y format,
+then render it or communicate it to a given system through a ``backend''.
+The reference backend is for Org-mode itself, and it knows how to parse Org
+entries and how to write them out again.
+
+One thing Org-X tries to do is provide all data to the programmer in the most
+natural Emacs form possible.  For example, all dates are Emacs dates.  It is
+the job of each backend to render this date in the form appropriate for that
+system.
+
+@node Miscellaneous, Hacking, External Data, Top
 @chapter Miscellaneous
 
 @menu
