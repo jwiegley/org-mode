@@ -24,7 +24,7 @@
 
 ;;; Code:
 
-(require 'ox)
+(require 'org-x)
 
 (eval-when-compile
   (require 'cl))

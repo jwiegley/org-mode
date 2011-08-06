@@ -1,4 +1,4 @@
-;;; ox.el --- working with Org data in a modular awy
+;;; org-x.el --- working with Org data in a modular awy
 
 ;; Copyright (C) 2011 Free Software Foundation, Inc.
 
@@ -39,7 +39,7 @@
 (defun org-x-set-backends (var value)
   "Set VAR to VALUE and load all requested backends."
   (set var value)
-  (when (featurep 'ox)
+  (when (featurep 'org-x)
     (mapc
      (lambda (ext)
        (condition-case nil (require ext)
@@ -94,7 +94,7 @@ the majority of dispatch API functions.")
 
 (defun org-x-dispatch (backend symbol &optional context arg)
   (let ((be (symbol-value (cdr (assq backend org-x-backends))))
-	(org-x-dispatch-context (or context (point-marker))))
+	(org-x-dispatch-context context))
     (if be
 	(funcall (cdr (assq symbol be)) arg))))
 
@@ -281,7 +281,8 @@ IDENTIFIER is how that backend knows this entry."
 	(nconc entry (list (cons symbol data))))
       (if propagate
 	  (org-x-propagate entry (intern (concat "set-" (symbol-name symbol)))
-			   data)))))
+			   data))))
+  data)
 
 (defun org-x-eraser (entry symbol &optional propagate no-overwrite)
   (let ((cell (assq symbol entry)))
@@ -289,8 +290,9 @@ IDENTIFIER is how that backend knows this entry."
       (if cell
 	  (setcdr entry (delq cell (cdr entry))))
       (if propagate
-	  (org-x-propagate entry (intern (concat "remove-"
-						 (symbol-name symbol))))))))
+	  (org-x-propagate entry
+			   (intern (concat "remove-" (symbol-name symbol)))
+			   nil)))))
 
 (defun org-x-set-title (entry title &optional propagate no-overwrite)
   (assert (stringp title) t "Org-X entry title must be a string")
@@ -358,7 +360,8 @@ IDENTIFIER is how that backend knows this entry."
 	(nconc (org-x-properties entry)
 	       (list (cons name value))))
       (if propagate
-	  (org-x-propagate entry 'set-property (cons name value))))))
+	  (org-x-propagate entry 'set-property (cons name value)))))
+  value)
 
 (defsubst org-x-remove-property (entry name value &optional propagate)
   (let* ((properties (assq 'properties entry))
@@ -375,7 +378,8 @@ IDENTIFIER is how that backend knows this entry."
     (unless cell
       (nconc (org-x-tags entry) (list name))
       (if propagate
-	  (org-x-propagate entry 'add-tag name)))))
+	  (org-x-propagate entry 'add-tag name))))
+  name)
 
 (defun org-x-remove-tag (entry name &optional propagate)
   (let* ((tags (assq 'tags entry))
@@ -458,8 +462,8 @@ IDENTIFIER is how that backend knows this entry."
   (log-entry is-note &optional propagate no-overwrite)
   (org-x-log-setter log-entry 'note is-note propagate no-overwrite))
 
-(provide 'ox)
+(provide 'org-x)
 
 ;; arch-tag: 
 
-;;; ox.el ends here
+;;; org-x.el ends here
