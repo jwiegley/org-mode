@@ -35,8 +35,9 @@
   :group 'org-x)
 
 (defcustom org-x-redmine-dispatchers
-  '((read-entry  . org-x-redmine-fetch)
-    (write-entry . org-x-redmine-push))
+  '((read-entry	   . org-x-redmine-fetch)
+    (write-entry   . org-x-redmine-push)
+    (add-log-entry . org-x-redmine-add-log-entry))
   "An Org-X backend for Redmine."
   :type '(alist :key-type symbol :value-type function)
   :group 'org-x-redmine)
@@ -142,33 +143,31 @@ These are keyed by the related Org mode state."
 	    (org-x-add-log-entry entry timestamp body t))))))
     entry))
 
-(defun org-x-redmine-context (name &optional mandatory)
-  (assert (markerp org-x-dispatch-context))
-  (with-current-buffer (marker-buffer org-x-dispatch-context)
-    (or (org-entry-get org-x-dispatch-context name t)
-	(if mandatory
-	    (error "Property %s not visible from Org context" name)))))
-
-(defun org-x-redmine-fetch (issue-id &optional data)
-  (let ((root-url (org-x-redmine-context "Redmine_URL" t))
-	(api-key (org-x-redmine-context "Redmine_APIKey" t)))
-    (org-x-redmine-parse-entry
-     (org-x-redmine-rest-api "GET" root-url (format "issues/%s.xml" issue-id)
-			     api-key nil "include=journals"))))
-
 (defsubst org-x-redmine-property (entry name)
   (let ((property-name (concat "Redmine_" name)))
-    (or (org-x-get-property entry name t)
-	(org-x-redmine-context name t))))
+    (org-x-get-property entry property-name t)))
+
+(defun org-x-redmine-fetch (issue-id context)
+  (let ((root-url (org-x-redmine-property context "URL"))
+	(api-key (org-x-redmine-property context "APIKey")))
+    (org-x-redmine-parse-entry
+     (org-x-redmine-rest-api "GET" root-url (format "issues/%d.xml" issue-id)
+			     api-key nil "include=journals"))))
 
 (defun org-x-redmine-push (entry)
-  (let* ((root-url (org-x-redmine-property entry "URL"))
+  (let* ((issue-id (org-x-redmine-get-identifier entry))
+	 (root-url (org-x-redmine-property entry "URL"))
 	 (api-key (org-x-redmine-property entry "APIKey"))
 	 (project (org-x-redmine-property entry "Project"))
 	 (result
           (org-x-redmine-rest-api
-           "POST" root-url "issues.xml" api-key
-           (format "<?xml version=\"1.0\"?>
+           (if issue-id "PUT" "POST")
+	   root-url (if issue-id
+			(format "issues/%d.xml"
+				(string-to-number issue-id))
+		      "issues.xml")
+	   api-key
+	   (format "<?xml version=\"1.0\"?>
 <issue>
   <project_id>%s</project_id>
   <subject>%s</subject>
@@ -177,18 +176,17 @@ These are keyed by the related Org mode state."
   <priority_id>%d</priority_id>
   %s
 </issue>"
-                   project
-                   (xml-escape-string (org-x-title entry))
+		   project
+		   (xml-escape-string (org-x-title entry))
 		   (cdr (assoc
-			 (or (org-x-redmine-property entry "Tracker")
-			     "Bug")
+			 (or (org-x-redmine-property entry "Tracker") "Bug")
 			 org-x-redmine-trackers))
 		   (let ((user-id (org-x-redmine-property entry "UserId")))
 		     (if user-id
 			 (concat "<assigned_to_id>" user-id
 				 "</assigned_to_id>")
 		       ""))
-                   (or (org-x-priority entry) 2)
+		   (or (org-x-priority entry) 2)
 		   (if (org-x-body entry)
 		       (concat "<description>"
 			       (xml-escape-string (org-x-body entry))
@@ -196,41 +194,33 @@ These are keyed by the related Org mode state."
 		     ""))))
          (id (nth 2 (assq 'id result))))
     (if id
-        (progn
-	  (org-x-set-property entry "Redmine_Id" id)
-	  id)
+        (org-x-set-property entry "Redmine_Id" (string-to-number id))
       (error "Failed to push Org-X entry to Redmine project %s" project))))
 
-;;(defun org-x-redmine-add-note (issue-id note)
-;;  (org-x-redmine-rest-api
-;;   "PUT" (format "issues/%d.xml" issue-id)
-;;   (format "<?xml version=\"1.0\"?>
-;;<issue>
-;;  <notes>%s</notes>
-;;</issue>" (xml-escape-string note))))
-;;
-;;(defun org-x-redmine-modify-status (issue-id status-id &optional note)
-;;  (org-x-redmine-rest-api
-;;   "PUT" (format "issues/%d.xml" issue-id)
-;;   (format "<?xml version=\"1.0\"?>
-;;<issue>
-;;  <status_id>%s</status_id>
-;;%s</issue>"
-;;           status-id
-;;           (if note
-;;               (concat "  <notes>" (xml-escape-string note)
-;;                       "</notes>\n")
-;;             ""))))
-;;
-;;(defun org-x-redmine-update ()
-;;  (interactive)
-;;  (let* ((heading (nth 4 (org-heading-components)))
-;;         (id (and (string-match "\\[\\[redmine:\\([0-9]+\\)\\]" heading)
-;;                  (string-to-number (match-string 1 heading)))))
-;;    (if id
-;;        (org-replace-entry
-;;         (org-x-redmine-convert-to-org (org-x-redmine-get-issue id)
-;;				       (org-parse-entry))))))
+(defsubst org-x-redmine-get-identifier (entry)
+  (let ((id (org-x-get-property entry "Redmine_Id")))
+    (and id (string-to-number id))))
+
+(defun org-x-redmine-add-log-entry (entry timestamp body is-note
+					  to-state from-state)
+  ;; jww (2011-08-05): Need to propagate the timestamp somehow, and
+  ;; any state changes.
+  (org-x-redmine-rest-api
+   "PUT" (format "issues/%d.xml" (org-x-redmine-get-identifier entry))
+   (format "<?xml version=\"1.0\"?>
+<issue>
+  <notes>%s</notes>
+</issue>" (xml-escape-string body))))
+
+(defun org-x-redmine-set-state (entry state note)
+  (org-x-redmine-rest-api
+   "PUT" (format "issues/%d.xml" (org-x-redmine-get-identifier entry))
+   (format "<?xml version=\"1.0\"?>
+<issue>
+  <status_id>%s</status_id>
+</issue>"
+           (cddr (assoc state org-redmine-statuses)))))
+
 
 (provide 'ox-redmine)
 
