@@ -330,6 +330,7 @@ with contributions by David O'Toole, Bastien Guerry, Philip Rooke, Dan Davison, 
 * Exporting::                   Sharing and publishing of notes
 * Publishing::                  Create a web site of linked Org files
 * Working With Source Code::    Export, evaluate, and tangle code blocks
+* External Data::               
 * Miscellaneous::               All the rest which did not fit elsewhere
 * Hacking::                     How to hack your way around
 * MobileOrg::                   Viewing and capture on a mobile device
@@ -701,6 +702,10 @@ Specific header arguments
 * rownames::                    Handle row names in tables
 * shebang::                     Make tangled files executable
 * eval::                        Limit evaluation of specific code blocks
+
+Org-X: External Data
+
+* Extending Org-X::             
 
 Miscellaneous
 
@@ -11576,7 +11581,7 @@ This may be necessary in particular if files include other files via
 @comment  node-name,  next,  previous,  up
 @comment Working With Source Code, Miscellaneous, Publishing, Top
 
-@node Working With Source Code, Miscellaneous, Publishing, Top
+@node Working With Source Code, External Data, Publishing, Top
 @chapter Working with source code
 @cindex Schulte, Eric
 @cindex Davison, Dan
@@ -13244,7 +13249,11 @@ add new external data sources of any type.  For example:
 @item Files in your downloads directory
 @end itemize
 
-@node
+@menu
+* Extending Org-X::             
+@end menu
+
+@node Extending Org-X,  , External Data, External Data
 @section Extending Org-X
 
 The idea behind Org-X is to work with data in an abstract, Lisp-y format,
