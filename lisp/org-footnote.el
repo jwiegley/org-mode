@@ -51,7 +51,7 @@
 (declare-function org-end-of-subtree "org"  (&optional invisible-ok to-heading))
 (declare-function org-in-verbatim-emphasis "org" ())
 (declare-function org-inside-latex-macro-p "org" ())
-(declare-function org-id-uuid "org" ())
+(declare-function org-id-uuid "org-id" ())
 (declare-function org-fill-paragraph "org" (&optional justify))
 (declare-function org-export-preprocess-string "org-exp"
 		  (string &rest parameters))
@@ -408,7 +408,8 @@ and value definition."
 
 (defun org-footnote-unique-label (&optional current)
   "Return a new unique footnote label.
-The returns the firsts fn:N labels that is currently not used."
+The function returns the first \"fn:N\" or \"N\" label that is
+currently not used."
   (unless current (setq current (org-footnote-all-labels)))
   (let ((fmt (if (eq org-footnote-auto-label 'plain) "%d" "fn:%d"))
 	(cnt 1))
@@ -416,21 +417,17 @@ The returns the firsts fn:N labels that is currently not used."
       (incf cnt))
     (format fmt cnt)))
 
-(defvar org-footnote-label-history nil
-  "History of footnote labels entered in current buffer.")
-(make-variable-buffer-local 'org-footnote-label-history)
-
 (defun org-footnote-new ()
   "Insert a new footnote.
 This command prompts for a label.  If this is a label referencing an
 existing label, only insert the label.  If the footnote label is empty
 or new, let the user edit the definition of the footnote."
   (interactive)
-  (unless (and (not (bolp)) (org-footnote-in-valid-context-p))
+  (unless (org-footnote-in-valid-context-p)
     (error "Cannot insert a footnote here"))
-  (let* ((labels (and (not (equal org-footnote-auto-label 'random))
-		      (org-footnote-all-labels)))
-	 (propose (org-footnote-unique-label labels))
+  (let* ((lbls (and (not (equal org-footnote-auto-label 'random))
+		    (org-footnote-all-labels)))
+	 (propose (org-footnote-unique-label lbls))
 	 (label
 	  (org-footnote-normalize-label
 	   (cond
@@ -440,16 +437,17 @@ or new, let the user edit the definition of the footnote."
 	     (require 'org-id)
 	     (substring (org-id-uuid) 0 8))
 	    (t
-	     (completing-read
+	     (org-icompleting-read
 	      "Label (leave empty for anonymous): "
-	      (mapcar 'list labels) nil nil
-	      (if (eq org-footnote-auto-label 'confirm) propose nil)
-	      'org-footnote-label-history))))))
+	      (mapcar 'list lbls) nil nil
+	      (if (eq org-footnote-auto-label 'confirm) propose nil)))))))
     (cond
+     ((and label (bolp) (not org-footnote-define-inline))
+      (error "Cannot create a non-inlined footnote at left margin"))
      ((not label)
       (insert "[fn:: ]")
       (backward-char 1))
-     ((member label labels)
+     ((member label lbls)
       (insert "[" label "]")
       (message "New reference to existing note"))
      (org-footnote-define-inline
