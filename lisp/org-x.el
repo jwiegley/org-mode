@@ -453,16 +453,25 @@ IDENTIFIER is how that backend knows this entry."
       (nconc log-entry (list (cons symbol data)))))
   (if propagate
       (org-x-propagate log-entry
-		       (intern (concat "set-log-" (symbol-name symbol)))
+		       (intern (concat "log-set-" (symbol-name symbol)))
 		       data)))
 
-(defsubst org-x-log-set-timestamp
-  (log-entry timestamp &optional no-overwrite propagate)
-  (org-x-log-setter log-entry 'timestamp timestamp no-overwrite propagate))
+(defun org-x-log-eraser (log-entry symbol &optional no-overwrite propagate)
+  (let ((cell (assq symbol log-entry)))
+    (unless (and (cdr cell) no-overwrite)
+      (if cell
+	  (setcdr log-entry (delq cell (cdr log-entry))))))
+  (if propagate
+      ;; jww (2011-08-07): Should I propagate log-entry changes?
+      (org-x-propagate log-entry
+		       (intern (concat "log-clear-" (symbol-name symbol)))
+		       nil)))
 
 (defun org-x-log-set-body (log-entry body &optional no-overwrite propagate)
   (assert (stringp body) t "Org-X log entry body must be a string")
   (org-x-log-setter log-entry 'body body no-overwrite propagate))
+(defun org-x-log-clear-body (log-entry &optional propagate)
+  (org-x-log-eraser log-entry 'log-clear-body propagate))
 
 (defun org-x-log-set-from-state
   (log-entry state &optional no-overwrite propagate)
@@ -470,16 +479,53 @@ IDENTIFIER is how that backend knows this entry."
 	  (format "Org-X log entry from-state must be one of: %s"
 		  org-x-states))
   (org-x-log-setter log-entry 'from-state state no-overwrite propagate))
+(defun org-x-log-clear-from-state (log-entry &optional propagate)
+  (org-x-log-eraser log-entry 'log-clear-from-state propagate))
 
 (defun org-x-log-set-to-state
   (log-entry state &optional no-overwrite propagate)
   (assert (member state org-x-states) t
 	  (format "Org-X log entry to-state must be one of: %s" org-x-states))
   (org-x-log-setter log-entry 'to-state state no-overwrite propagate))
+(defun org-x-log-clear-to-state (log-entry &optional propagate)
+  (org-x-log-eraser log-entry 'log-clear-to-state propagate))
 
 (defsubst org-x-log-set-is-note
   (log-entry is-note &optional no-overwrite propagate)
   (org-x-log-setter log-entry 'note is-note no-overwrite propagate))
+(defun org-x-log-clear-is-note (log-entry &optional propagate)
+  (org-x-log-eraser log-entry 'log-clear-is-note propagate))
+
+(defun org-x-log-set-body-by-timestamp
+  (entry timestamp body &optional no-overwrite propagate)
+  (org-x-log-set-body (org-x-get-log-entry entry timestamp)
+		      body no-overwrite propagate))
+(defun org-x-log-clear-body-by-timestamp (entry timestamp &optional propagate)
+  (org-x-log-clear-body (org-x-get-log-entry entry timestamp) propagate))
+
+(defun org-x-log-set-from-state-by-timestamp
+  (entry timestamp state &optional no-overwrite propagate)
+  (org-x-log-set-from-state (org-x-get-log-entry entry timestamp)
+			    state no-overwrite propagate))
+(defun org-x-log-clear-from-state-by-timestamp
+  (entry timestamp &optional propagate)
+  (org-x-log-clear-from-state (org-x-get-log-entry entry timestamp) propagate))
+
+(defun org-x-log-set-to-state-by-timestamp
+  (entry timestamp state &optional no-overwrite propagate)
+  (org-x-log-set-to-state (org-x-get-log-entry entry timestamp)
+			  state no-overwrite propagate))
+(defun org-x-log-clear-to-state-by-timestamp
+  (entry timestamp &optional propagate)
+  (org-x-log-clear-to-state (org-x-get-log-entry entry timestamp) propagate))
+
+(defsubst org-x-log-set-is-note-by-timestamp
+  (entry timestamp is-note &optional no-overwrite propagate)
+  (org-x-log-set-is-note (org-x-get-log-entry entry timestamp)
+			 is-note no-overwrite propagate))
+(defun org-x-log-clear-is-note-by-timestamp
+  (entry timestamp &optional propagate)
+  (org-x-log-clear-is-note (org-x-get-log-entry entry timestamp) propagate))
 
 ;;; Entry comparison:
 
@@ -501,13 +547,34 @@ can be passed to org-x-apply-operations."
 
 	 ((eq key 'log)
 	  (dolist (log (cdr elem))
-	    (let ((data-prop (assoc (car log) (cdr data))))
-	      (if (and data data-prop)
+	    (let ((data-log (assoc (car log) (cdr data))))
+	      (if (and data data-log)
 		  ;; r has the same log-entry as l, merge them
-		  t
+		  (dolist (log-item (cdr log))
+		    (let ((data-log-item (assoc (car log-item)
+						(cdr data-log))))
+		      (if data-log-item
+			  ;; r has the same log-entry detail as l,
+			  ;; check the value
+			  (unless (or ignore-changes
+				      (equal (cdr log-item)
+					     (cdr data-log-item)))
+			    (push (list (intern
+					 (concat "log-set-"
+						 (symbol-name (car log-item))
+						 "-by-timestamp"))
+					(car log)
+					(cdr data-log-item)) ops))
+			;; the log-entry detail from l is not in r
+			(unless ignore-deletions
+			  (push (list (intern
+				       (concat "log-clear-"
+					       (symbol-name (car log-item))
+					       "-by-timestamp"))
+				      (car log)) ops)))))
 		;; the log-entry from l is not in r
 		(unless ignore-deletions
-		  (push (list 'remove-log-entry (car prop)) ops))))))
+		  (push (list 'remove-log-entry (car log)) ops))))))
 
 	 ((eq key 'properties)
 	  (dolist (prop (cdr elem))
@@ -545,7 +612,18 @@ can be passed to org-x-apply-operations."
 	 ((eq key 'log)
 	  (dolist (log (cdr data))
 	    (let ((elem-log (assoc (car log) (cdr elem))))
-	      (unless (and elem elem-log)
+	      (if (and elem elem-log)
+		  (dolist (log-item (cdr log))
+		    (let ((elem-log-item (assoc (car log-item)
+						(cdr elem-log))))
+		      (unless elem-log-item
+			;; the log-entry detail from l is not in r
+			(push (list (intern
+				     (concat "log-set-"
+					     (symbol-name (car log-item))
+					     "-by-timestamp"))
+				    (car log)
+				    (cdr log-item)) ops))))
 		;; r has a log-entry not in l
 		(push (list 'add-log-entry (car log)
 			    (org-x-log-body (cdr log))
