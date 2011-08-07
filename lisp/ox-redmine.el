@@ -205,21 +205,27 @@ These are keyed by the related Org mode state."
 					  to-state from-state)
   ;; jww (2011-08-05): Need to propagate the timestamp somehow, and
   ;; any state changes.
-  (org-x-redmine-rest-api
-   "PUT" (format "issues/%d.xml" (org-x-redmine-get-identifier entry))
-   (format "<?xml version=\"1.0\"?>
+  (let ((issue-id (org-x-redmine-get-identifier entry))
+	(root-url (org-x-redmine-property entry "URL"))
+	(api-key (org-x-redmine-property entry "APIKey")))
+    (org-x-redmine-rest-api
+     "PUT" root-url (format "issues/%d.xml" issue-id) api-key
+     (format "<?xml version=\"1.0\"?>
 <issue>
   <notes>%s</notes>
-</issue>" (xml-escape-string body))))
+</issue>" (xml-escape-string body)))))
 
 (defun org-x-redmine-set-state (entry state note)
-  (org-x-redmine-rest-api
-   "PUT" (format "issues/%d.xml" (org-x-redmine-get-identifier entry))
-   (format "<?xml version=\"1.0\"?>
+  (let ((issue-id (org-x-redmine-get-identifier entry))
+	(root-url (org-x-redmine-property entry "URL"))
+	(api-key (org-x-redmine-property entry "APIKey")))
+    (org-x-redmine-rest-api
+     "PUT" root-url (format "issues/%d.xml" issue-id) api-key
+     (format "<?xml version=\"1.0\"?>
 <issue>
   <status_id>%s</status_id>
 </issue>"
-           (cddr (assoc state org-redmine-statuses)))))
+	     (cddr (assoc state org-x-redmine-statuses))))))
 
 
 (provide 'ox-redmine)

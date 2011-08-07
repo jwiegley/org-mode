@@ -109,7 +109,7 @@ the majority of dispatch API functions.")
 
 ;;; Entry creation:
 
-(defun org-x-create-entry () (list (cons 'is-entry t)))
+(defun org-x-create-entry () (list (cons 'entry t)))
 
 ;;; Entry atttribute getters:
 
@@ -213,10 +213,10 @@ IDENTIFIER is how that backend knows this entry."
       tags)))
 
 (defsubst org-x-has-tag (entry name)
-  (not (null (member name (cdr (assq 'tags entry))))))
+  (not (null (member name (org-x-tags entry)))))
 
 (defsubst org-x-get-tag (entry name)
-  (car (member name (cdr (assq 'tags entry)))))
+  (car (member name (org-x-tags entry))))
 
 ;;; Entry log getters:
 
@@ -227,17 +227,14 @@ IDENTIFIER is how that backend knows this entry."
       (assert (listp log-entries) t "Org-X log entries must be a list")
       log-entries)))
 
-(defun org-x-log-entry (entry timestamp)
-  (catch 'log-entry
-    (dolist (log (org-x-log-entries entry))
-      (let ((log-timestamp (org-x-log-timestamp log)))
-	(if (equal timestamp log-timestamp)
-	    (throw 'log-entry log))))))
-
 (defsubst org-x-has-log-entry (entry timestamp)
-  (not (null (org-x-log-entry entry timestamp))))
+  (not (null (assoc timestamp (org-x-log-entries entry)))))
 
-(defsubst org-x-log-timestamp (log-entry) (cdr (assq 'timestamp log-entry)))
+(defsubst org-x-get-log-entry (entry timestamp)
+  (cdr (assoc timestamp (org-x-log-entries entry))))
+
+(defsubst org-x-log-timestamp (log-entry)
+  (cdr (assq 'timestamp log-entry)))
 
 (defun org-x-log-body (log-entry)
   (let ((body (cdr (assq 'body log-entry))))
@@ -262,146 +259,150 @@ IDENTIFIER is how that backend knows this entry."
 	      (format "Org-X log to state must be one of: %s" org-x-states))
       state)))
 
-(defsubst org-x-log-is-note (log-entry) (cdr (assq 'note log-entry)))
+(defsubst org-x-log-is-note (log-entry)
+  (cdr (assq 'note log-entry)))
 
 ;;; Entry atttribute setters:
 
 (defun org-x-propagate (entry symbol data)
   (mapc (lambda (info)
-	  (org-x-dispatch (car info)
-			  (intern (concat "set-" (symbol-name symbol)))
-			  (cdr info) data))
+	  (org-x-dispatch (car info) symbol (cdr info) data))
 	(org-x-entry-backends entry)))
 
-(defun org-x-setter (entry symbol data &optional propagate no-overwrite)
+(defun org-x-setter (entry symbol data &optional no-overwrite propagate)
   (let ((cell (assq symbol entry)))
     (unless (and (cdr cell) no-overwrite)
       (if cell
 	  (setcdr cell data)
-	(nconc entry (list (cons symbol data))))
-      (if propagate
-	  (org-x-propagate entry (intern (concat "set-" (symbol-name symbol)))
-			   data))))
+	(nconc entry (list (cons symbol data))))))
+  (if propagate
+      (org-x-propagate entry (intern (concat "set-" (symbol-name symbol)))
+		       data))
   data)
 
-(defun org-x-eraser (entry symbol &optional propagate no-overwrite)
+(defun org-x-eraser (entry symbol &optional no-overwrite propagate)
   (let ((cell (assq symbol entry)))
     (unless (and (cdr cell) no-overwrite)
       (if cell
-	  (setcdr entry (delq cell (cdr entry))))
-      (if propagate
-	  (org-x-propagate entry
-			   (intern (concat "remove-" (symbol-name symbol)))
-			   nil)))))
+	  (setcdr entry (delq cell (cdr entry))))))
+  (if propagate
+      (org-x-propagate entry
+		       (intern (concat "clear-" (symbol-name symbol)))
+		       nil)))
 
-(defun org-x-set-title (entry title &optional propagate no-overwrite)
+(defun org-x-set-title (entry title &optional no-overwrite propagate)
   (assert (stringp title) t "Org-X entry title must be a string")
-  (org-x-setter entry 'title title propagate no-overwrite))
+  (org-x-setter entry 'title title no-overwrite propagate))
 (defun org-x-clear-title (entry &optional propagate)
   (org-x-eraser entry 'title propagate))
 
-(defun org-x-set-body (entry body &optional propagate no-overwrite)
+(defun org-x-set-body (entry body &optional no-overwrite propagate)
   (assert (stringp body) t "Org-X entry body must be a string")
-  (org-x-setter entry 'body body propagate no-overwrite))
+  (org-x-setter entry 'body body no-overwrite propagate))
 (defun org-x-clear-body (entry &optional propagate)
   (org-x-eraser entry 'body propagate))
 
-(defun org-x-set-depth (entry depth &optional propagate no-overwrite)
+(defun org-x-set-depth (entry depth &optional no-overwrite propagate)
   (assert (integerp depth) t "Org-X entry depth must be an integer")
-  (org-x-setter entry 'depth depth propagate no-overwrite))
+  (org-x-setter entry 'depth depth no-overwrite propagate))
 (defun org-x-clear-depth (entry &optional propagate)
   (org-x-eraser entry 'depth propagate))
 
-(defun org-x-set-state (entry state &optional propagate no-overwrite)
+(defun org-x-set-state (entry state &optional no-overwrite propagate)
   (assert (member state org-x-states) t
 	  (format "Org-X entry state must be one of: %s" org-x-states))
-  (org-x-setter entry 'state state propagate no-overwrite))
+  (org-x-setter entry 'state state no-overwrite propagate))
 (defun org-x-clear-state (entry &optional propagate)
   (org-x-eraser entry 'state propagate))
 
-(defun org-x-set-priority (entry priority &optional propagate no-overwrite)
+(defun org-x-set-priority (entry priority &optional no-overwrite propagate)
   (assert (integerp priority) t "Org-X entry priority must be an integer")
-  (org-x-setter entry 'priority priority propagate no-overwrite))
+  (org-x-setter entry 'priority priority no-overwrite propagate))
 (defun org-x-clear-priority (entry &optional propagate)
   (org-x-eraser entry 'priority propagate))
 
-(defun org-x-set-scheduled (entry scheduled &optional propagate no-overwrite)
-  (org-x-setter entry 'scheduled scheduled propagate no-overwrite))
+(defun org-x-set-scheduled (entry scheduled &optional no-overwrite propagate)
+  (org-x-setter entry 'scheduled scheduled no-overwrite propagate))
 (defun org-x-clear-scheduled (entry &optional propagate)
   (org-x-eraser entry 'scheduled propagate))
 
 (defun org-x-set-scheduled-repeat
-  (entry repeat &optional propagate no-overwrite)
+  (entry repeat &optional no-overwrite propagate)
   (assert (stringp repeat) t "Org-X log scheduled repeat must be a string")
-  (org-x-setter entry 'scheduled-repeat repeat propagate no-overwrite))
+  (org-x-setter entry 'scheduled-repeat repeat no-overwrite propagate))
 (defun org-x-clear-scheduled-repeat (entry &optional propagate)
   (org-x-eraser entry 'scheduled-repeat propagate))
 
-(defun org-x-set-deadline (entry deadline &optional propagate no-overwrite)
-  (org-x-setter entry 'deadline deadline propagate no-overwrite))
+(defun org-x-set-deadline (entry deadline &optional no-overwrite propagate)
+  (org-x-setter entry 'deadline deadline no-overwrite propagate))
 (defun org-x-clear-deadline (entry &optional propagate)
   (org-x-eraser entry 'deadline propagate))
 
 (defun org-x-set-deadline-repeat
-  (entry repeat &optional propagate no-overwrite)
+  (entry repeat &optional no-overwrite propagate)
   (assert (stringp repeat) t "Org-X log deadline repeat must be a string")
-  (org-x-setter entry 'deadline-repeat repeat propagate no-overwrite))
+  (org-x-setter entry 'deadline-repeat repeat no-overwrite propagate))
 (defun org-x-clear-deadline-repeat (entry &optional propagate)
   (org-x-eraser entry 'deadline-repeat propagate))
 
 ;;; Entry property setters:
 
-(defsubst org-x-set-property
-  (entry name value &optional propagate no-overwrite)
+(defun org-x-set-parent-property (entry name value)
+  (let ((cell (assq name (org-x-parent-properties entry))))
+    (if cell
+	(setcdr cell value)
+      (nconc (org-x-parent-properties entry)
+	     (list (cons name value)))))
+  value)
+
+(defun org-x-set-property
+  (entry name value &optional no-overwrite propagate)
   (let ((cell (assq name (org-x-properties entry))))
     (unless (and (cdr cell) no-overwrite)
       (if cell
 	  (setcdr cell value)
 	(nconc (org-x-properties entry)
-	       (list (cons name value))))
-      (if propagate
-	  (org-x-propagate entry 'set-property (cons name value)))))
+	       (list (cons name value))))))
+  (if propagate
+      (org-x-propagate entry 'set-property (cons name value)))
   value)
 
-(defsubst org-x-remove-property (entry name value &optional propagate)
+(defun org-x-remove-property (entry name value &optional propagate)
   (let* ((properties (assq 'properties entry))
 	 (cell (assq name (cdr properties))))
     (if cell
-	(setcdr properties (delq cell (cdr properties))))
-    (if propagate
-	(org-x-propagate entry 'remove-property name))))
+	(setcdr properties (delq cell (cdr properties)))))
+  (if propagate
+      (org-x-propagate entry 'remove-property name)))
 
 ;;; Entry tag setters:
 
 (defun org-x-add-tag (entry name &optional propagate)
   (let ((cell (member name (org-x-tags entry))))
     (unless cell
-      (nconc (org-x-tags entry) (list name))
-      (if propagate
-	  (org-x-propagate entry 'add-tag name))))
+      (nconc (org-x-tags entry) (list name))))
+  (if propagate
+      (org-x-propagate entry 'add-tag name))
   name)
 
 (defun org-x-remove-tag (entry name &optional propagate)
   (let* ((tags (assq 'tags entry))
 	 (cell (member name (cdr tags))))
     (if cell
-	(setcdr tags (delete name (cdr tags))))
-    (if propagate
-	(org-x-propagate entry 'remove-tag name))))
+	(setcdr tags (delete name (cdr tags)))))
+  (if propagate
+      (org-x-propagate entry 'remove-tag name)))
 
 ;;; Entry log setters:
 
 (defun org-x-add-log-entry (entry timestamp body &optional is-note to-state
-				  from-state propagate no-overwrite)
-  (let* ((log-entries (assq 'log entry))
-	 (log (catch 'found
-		(dolist (log (cdr log-entries))
-		  (if (equal timestamp (org-x-log-timestamp log))
-		      (throw 'found log))))))
-    (unless (and log no-overwrite)
-      (let ((new-log (list (cons 'timestamp timestamp))))
+				  from-state no-overwrite propagate)
+  (let ((new-log (list (cons 'timestamp timestamp))))
+    (let* ((log-entries (assq 'log entry))
+	   (log (assoc timestamp (cdr log-entries))))
+      (unless (and log no-overwrite)
 	(if body       (add-to-list 'new-log (cons 'body body)))
-	(if is-note    (add-to-list 'new-log (cons 'is-note is-note)))
+	(if is-note    (add-to-list 'new-log (cons 'note is-note)))
 	(if to-state   (add-to-list 'new-log (cons 'to-state to-state)))
 	(if from-state (add-to-list 'new-log (cons 'from-state from-state)))
 
@@ -409,58 +410,121 @@ IDENTIFIER is how that backend knows this entry."
 	    (setcdr log-entries (delq log (cdr log-entries))))
 	(if log-entries
 	    (setcdr log-entries
-		    (sort (cons new-log (cdr log-entries))
+		    (sort (cons (cons timestamp new-log)
+				(cdr log-entries))
 			  (lambda (l r)
-			    (not (time-less-p (cdr (assq 'timestamp l))
-					      (cdr (assq 'timestamp r)))))))
-	  (nconc entry (list (list (cons 'log new-log)))))
-	(if propagate
-	    (org-x-propagate entry 'add-log-entry
-			     (list timestamp body is-note
-				   to-state from-state)))))))
+			    (not (time-less-p (car l) (car r))))))
+	  (nconc entry (list (list (cons 'log new-log)))))))
+    (if propagate
+	(org-x-propagate entry 'add-log-entry
+			 (list timestamp body is-note
+			       to-state from-state)))
+    new-log))
 
 (defun org-x-remove-log-entry (entry timestamp &optional propagate)
-  (let ((log-entries (assq 'log entry)))
-    (dolist (log (cdr log-entries))
-      (when (equal timestamp (org-x-log-timestamp log))
-	(setcdr log-entries (delq log (cdr log-entries)))
-	(if propagate
-	    (org-x-propagate entry 'remove-log-entry timestamp))))))
+  (let* ((log-entries (assq 'log entry))
+	 (log (assoc timestamp (cdr log-entries))))
+    (if (and log log-entries)
+	(setcdr log-entries (delq log (cdr log-entries)))))
+  (if propagate
+      (org-x-propagate entry 'remove-log-entry timestamp)))
 
 (defun org-x-log-setter
-  (log-entry symbol data &optional propagate no-overwrite)
+  (log-entry symbol data &optional no-overwrite propagate)
   (let ((cell (assq symbol log-entry)))
-    (unless (and (cdr cell) no-overwrite)
-      (setcdr cell data)
-      (if propagate
-	  (org-x-propagate log-entry
-			   (intern (concat "set-log-" (symbol-name symbol)))
-			   data)))))
+    (if cell
+	(unless (and (cdr cell) no-overwrite)
+	  (setcdr cell data))
+      (nconc log-entry (list (cons symbol data)))))
+  (if propagate
+      (org-x-propagate log-entry
+		       (intern (concat "set-log-" (symbol-name symbol)))
+		       data)))
 
 (defsubst org-x-log-set-timestamp
-  (log-entry timestamp &optional propagate no-overwrite)
-  (org-x-log-setter log-entry 'timestamp timestamp propagate no-overwrite))
+  (log-entry timestamp &optional no-overwrite propagate)
+  (org-x-log-setter log-entry 'timestamp timestamp no-overwrite propagate))
 
-(defun org-x-log-set-body (log-entry body &optional propagate no-overwrite)
+(defun org-x-log-set-body (log-entry body &optional no-overwrite propagate)
   (assert (stringp body) t "Org-X log entry body must be a string")
-  (org-x-log-setter log-entry 'body body propagate no-overwrite))
+  (org-x-log-setter log-entry 'body body no-overwrite propagate))
 
 (defun org-x-log-set-from-state
-  (log-entry state &optional propagate no-overwrite)
+  (log-entry state &optional no-overwrite propagate)
   (assert (member state org-x-states) t
 	  (format "Org-X log entry from-state must be one of: %s"
 		  org-x-states))
-  (org-x-log-setter log-entry 'from-state state propagate no-overwrite))
+  (org-x-log-setter log-entry 'from-state state no-overwrite propagate))
 
 (defun org-x-log-set-to-state
-  (log-entry state &optional propagate no-overwrite)
+  (log-entry state &optional no-overwrite propagate)
   (assert (member state org-x-states) t
 	  (format "Org-X log entry to-state must be one of: %s" org-x-states))
-  (org-x-log-setter log-entry 'to-state state propagate no-overwrite))
+  (org-x-log-setter log-entry 'to-state state no-overwrite propagate))
 
 (defsubst org-x-log-set-is-note
-  (log-entry is-note &optional propagate no-overwrite)
-  (org-x-log-setter log-entry 'note is-note propagate no-overwrite))
+  (log-entry is-note &optional no-overwrite propagate)
+  (org-x-log-setter log-entry 'note is-note no-overwrite propagate))
+
+;;; Entry comparison:
+
+(defun org-x-compare-entries (l r)
+  "Compare two entries, L and R.
+Return a list of the operations that would turn L into R.  This last
+can be passed to org-x-apply-operations."
+  (let (ops)
+    (dolist (elem l)
+      (let* ((key (car elem))
+	     (data (assq key r)))
+	(cond
+	 ((eq key 'log))
+	 ((eq key 'properties)
+	  (dolist (prop (cdr elem))
+	    (let ((data-prop (assoc (car prop) (cdr data))))
+	      (if (and data data-prop)
+		  ;; r has the same property as l, check the value
+		  (unless (equal (cdr elem) (cdr data))
+		    (push (list 'set-property (car prop) (cdr data-prop))
+			  ops))
+		;; the property from l is not in r
+		(push (list 'remove-property (car prop))
+		      ops)))))
+	 (t
+	  (if data
+	      ;; r has the same element as l, check the value
+	      (unless (equal (cdr elem) (cdr data))
+		(push (list (intern (concat "set-" (symbol-name key)))
+			    (cdr data))
+		      ops))
+	    ;; r does not have the same element as l
+	    (push (list (intern (concat "clear-" (symbol-name key))))
+		  ops))))))
+
+    (dolist (data r)
+      (let* ((key (car data))
+	     (elem (assq key l)))
+	(cond
+	 ((eq key 'log))
+	 ((eq key 'properties)
+	  (dolist (prop (cdr data))
+	    (let ((elem-prop (assoc (car prop) (cdr elem))))
+	      (unless (and elem elem-prop)
+		;; r has a property not in l
+		(push (list 'set-property (car prop) (cdr prop))
+		      ops)))))
+	 (t
+	  (unless elem
+	    ;; r has an element not in l
+	    (push (list (intern (concat "set-" (symbol-name key)))
+			(cdr data))
+		  ops))))))
+    ops))
+
+(defun org-x-apply-operations (backend operations entry)
+  (mapc (lambda (op)
+          (apply 'org-x-dispatch backend
+		 (car op) entry (cdr op)))
+        operations))
 
 (provide 'org-x)
 

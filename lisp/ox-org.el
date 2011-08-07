@@ -35,232 +35,181 @@
 
 (add-to-list 'org-x-backends (cons 'org 'org-x-org-backend))
 
-(defun plist-to-alist (sym)
-  (let ((l (symbol-plist sym))
-        props)
-    (while l
-      (unless (or (null (cadr l))
-                  (and (stringp (cadr l))
-                       (= 0 (length (cadr l)))))
-        (push (cons (car l) (cadr l)) props))
-      (setq l (cddr l)))
-    props))
-
 (defsubst trim-string (str)
   (replace-regexp-in-string "\\(\\`[[:space:]\n]*\\|[[:space:]\n]*\\'\\)" ""
-                            str))
-
-(defmacro org-x-org-resolve-log-entry ()
-  `(when log-entry
-     (put 'log-entry 'body
-          (trim-string (get 'log-entry 'body)))
-     (put 'item 'log
-          (cons (plist-to-alist 'log-entry)
-                (get 'item 'log)))
-     (setq log-entry nil)
-     (setplist 'log-entry '())))
+			    str))
 
 (defsubst org-x-org-narrow-to-entry ()
   (outline-back-to-heading)
   (narrow-to-region (point) (progn (outline-next-heading) (point)))
   (goto-char (point-min)))
 
-(defvar org-x-repeat-regexp
+(defvar org-x-org-repeat-regexp
   (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [^>\n]*?\\)"
 	  "\\(\\([.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)\\)"))
 
 (defun org-x-parse-entry (&optional position)
-  (save-restriction
-    (save-excursion
-      (if position
-          (goto-char position))
-      (org-x-org-narrow-to-entry)
+  (let ((entry (org-x-create-entry)))
+    (save-restriction
+      (save-excursion
+	(if position (goto-char position))
+	(org-x-org-narrow-to-entry)
 
-      (let (item log-entry)
-        (setplist 'item '())
-        (put 'item 'body "")
-        (put 'item 'tags '())
-        (put 'item 'log '())
-        (put 'item 'properties '())
-        (while (not (eobp))
-          (cond
-           ((looking-at (concat "^\\(\\*+\\)\\( \\([A-Z][A-Z]+\\)\\)?"
-                                "\\( \\[#\\([A-C]\\)\\]\\)? \\(.+?\\)"
-                                "\\( +:\\(.+?\\):\\)?$"))
-            (put 'item 'depth (length (match-string-no-properties 1)))
-            (if (match-string-no-properties 2)
-                (put 'item 'state (match-string-no-properties 3)))
-            (put 'item 'priority
-                 (let ((pri (match-string-no-properties 5)))
-                   (cond ((string= pri "A") 1)
-                         ((string= pri "B") 2)
-                         ((string= pri "C") 3)
-                         (t 2))))
-            (put 'item 'title (match-string-no-properties 6))
-            (if (match-string-no-properties 8)
-                (put 'item 'tags
-                     (split-string (match-string-no-properties 8) ":" t))))
+	(let (log-entry body)
+	  (while (not (eobp))
+	    (cond
+	     ((looking-at (concat "^\\(\\*+\\)\\( \\([A-Z][A-Z]+\\)\\)?"
+				  "\\( \\[#\\([A-C]\\)\\]\\)? \\(.+?\\)"
+				  "\\( +:\\(.+?\\):\\)?$"))
+	      (org-x-set-depth entry (length (match-string-no-properties 1)))
+	      (if (match-string-no-properties 2)
+		  (org-x-set-state entry (match-string-no-properties 3)))
+	      (let ((pri (match-string-no-properties 5)))
+		(if pri
+		    (org-x-set-priority entry (cond ((string= pri "A") 1)
+						    ((string= pri "B") 2)
+						    ((string= pri "C") 3)
+						    (t 2)))))
+	      (let ((title (match-string-no-properties 6)))
+		(if (and title (> (length title) 0))
+		    (org-x-set-title entry title)))
+	      (if (match-string-no-properties 8)
+		  (mapc #'org-x-add-tag
+			(split-string (match-string-no-properties 8) ":" t))))
 
-           ((looking-at (concat "^\\(\\s-*\\)- State \"\\([A-Z]+\\)\"\\s-*"
-                                "\\(from \"\\([A-Z]*\\)\"\\s-*\\)?"
-                                "\\[\\([^]]+\\)\\]\\(\\s-*\\\\\\\\\\)?\\s-*$"))
-            (org-x-org-resolve-log-entry)
+	     ((looking-at (concat "^\\(\\s-*\\)- State \"\\([A-Z]+\\)\"\\s-*"
+				  "\\(from \"\\([A-Z]*\\)\"\\s-*\\)?"
+				  "\\[\\([^]]+\\)\\]"
+				  "\\(\\s-*\\\\\\\\\\)?\\s-*$"))
+	      (if (and log-entry body)
+		  (org-x-log-set-body log-entry (trim-string body)))
+	      (setq body nil
+		    log-entry
+		    (org-x-add-log-entry entry
+					 (apply 'encode-time
+						(save-match-data
+						  (org-parse-time-string
+						   (match-string 5))))
+					 nil nil
+					 (match-string-no-properties 2)
+					 (and (match-string-no-properties 3)
+					      (match-string-no-properties 4)))))
 
-            (put 'log-entry 'depth
-                 (+ 1 (length (match-string-no-properties 1))))
-            (put 'log-entry 'to-state (match-string-no-properties 2))
-            (if (and (match-string-no-properties 3)
-                     (match-string-no-properties 4))
-                (put 'log-entry 'from-state (match-string-no-properties 4)))
-            (put 'log-entry 'timestamp
-                 (apply 'encode-time
-                        (save-match-data
-                          (org-parse-time-string
-                           (match-string-no-properties 5)))))
-            (if (match-string-no-properties 6)
-                (progn
-                  (put 'log-entry 'body "")
-                  (setq log-entry t))
-              (put 'item 'log
-                   (cons (plist-to-alist 'log-entry)
-                         (get 'item 'log)))
-              (setplist 'log-entry '())))
+	     ((looking-at (concat "^\\(\\s-*\\)- Note taken on\\s-*"
+				  "\\[\\([^]]+\\)\\]"
+				  "\\(\\s-*\\\\\\\\\\)?\\s-*$"))
+	      (if (and log-entry body)
+		  (org-x-log-set-body log-entry (trim-string body)))
+	      (setq body nil
+		    log-entry
+		    (org-x-add-log-entry entry
+					 (apply 'encode-time
+						(save-match-data
+						  (org-parse-time-string
+						   (match-string 2))))
+					 nil t)))
 
-           ((looking-at (concat "^\\(\\s-*\\)- Note taken on\\s-*"
-                                "\\[\\([^]]+\\)\\]\\(\\s-*\\\\\\\\\\)?\\s-*$"))
-            (org-x-org-resolve-log-entry)
+	     ((re-search-forward ":PROPERTIES:" (line-end-position) t)
+	      (while (not (re-search-forward ":END:" (line-end-position) t))
+		(assert (not (eobp)))
+		(if (looking-at "^\\s-*:\\([^:]+\\):\\s-*\\(.*\\)")
+		    (let ((name (match-string-no-properties 1))
+			  (data (match-string-no-properties 2)))
+		      (org-x-set-property entry name data)))
+		(forward-line)))
 
-            (put 'log-entry 'depth
-                 (+ 1 (length (match-string-no-properties 1))))
-            (put 'log-entry 'timestamp
-                 (apply 'encode-time
-                        (save-match-data
-                          (org-parse-time-string
-                           (match-string-no-properties 2)))))
-            (put 'log-entry 'note t)
-            (if (match-string-no-properties 3)
-                (progn
-                  (put 'log-entry 'body "")
-                  (setq log-entry t))
-              (put 'item 'log
-                   (cons (plist-to-alist 'log-entry)
-                         (get 'item 'log)))
-              (setplist 'log-entry '())))
+	     ;; An old way of timestamping entries
+	     ((looking-at "^\\s-*\\[\\([^]]+\\)\\]\\s-*$")
+	      (unless (assoc "CREATED" (get 'item 'properties))
+		(org-x-set-property entry "CREATED"
+				    (concat "[" (match-string-no-properties 1) "]")
+				    nil t)))
 
-           ((re-search-forward ":PROPERTIES:" (line-end-position) t)
-            (while (not (re-search-forward ":END:" (line-end-position) t))
-              (assert (not (eobp)))
-              (if (looking-at "^\\s-*:\\([^:]+\\):\\s-*\\(.*\\)")
-                  (let ((name (match-string-no-properties 1))
-                        (data (match-string-no-properties 2)))
-                    ;;(if (and (string= name "CREATED")
-                    ;;         (string-match "\\[\\([^]\n]+\\)\\]" data))
-                    ;;    (setq data (match-string 1 data)))
-                    (unless (assoc name (get 'item 'properties))
-                      (put 'item 'properties
-                           (cons (cons name data)
-                                 (get 'item 'properties))))))
-              (forward-line)))
+	     (t
+	      (let (skip-line)
+		(goto-char (line-beginning-position))
+		(when (re-search-forward (concat "SCHEDULED:\\s-*"
+						 org-x-org-repeat-regexp)
+					 (line-end-position) t)
+		  (org-x-set-scheduled entry
+				       (apply 'encode-time
+					      (save-match-data
+						(org-parse-time-string
+						 (match-string 1)))))
+		  (if (match-string 2)
+		      (org-x-set-scheduled-repeat
+		       entry (match-string-no-properties 2)))
+		  (setq skip-line t))
 
-           ;; My old way of timestamping entries
-           ((looking-at "^\\s-*\\[\\([^]]+\\)\\]\\s-*$")
-            (unless (assoc "CREATED" (get 'item 'properties))
-              (put 'item 'properties
-                   (cons (cons "CREATED"
-                               (concat "[" (match-string-no-properties 1) "]"))
-                         (get 'item 'properties)))))
+		(goto-char (line-beginning-position))
+		(when (re-search-forward (concat "DEADLINE:\\s-*"
+						 org-x-org-repeat-regexp)
+					 (line-end-position) t)
+		  (org-x-set-deadline entry
+				      (apply 'encode-time
+					     (save-match-data
+					       (org-parse-time-string
+						(match-string 1)))))
+		  (if (match-string 2)
+		      (org-x-set-deadline-repeat
+		       entry (match-string-no-properties 2)))
+		  (setq skip-line t))
 
-           (t
-            (let (skip-line)
-              (goto-char (line-beginning-position))
-              (when (re-search-forward (concat "SCHEDULED:\\s-*"
-					       org-x-repeat-regexp)
-                                       (line-end-position) t)
-                (put 'item 'scheduled
-                     (apply 'encode-time
-                            (save-match-data
-                              (org-parse-time-string
-                               (match-string-no-properties 1)))))
-		(if (match-string 2)
-		    (put 'item 'scheduled-repeat
-			 (match-string-no-properties 2)))
-                (setq skip-line t))
-              (goto-char (line-beginning-position))
-              (when (re-search-forward (concat "DEADLINE:\\s-*"
-					       org-x-repeat-regexp)
-                                       (line-end-position) t)
-                (put 'item 'deadline (match-string-no-properties 1))
-		(if (match-string 2)
-		    (put 'item 'deadline-repeat
-			 (match-string-no-properties 2)))
-                (setq skip-line t))
-              (goto-char (line-beginning-position))
-              (when (re-search-forward "CLOSED:\\s-*\\[\\([^]\n]+\\)\\]"
-                                       (line-end-position) t)
-                (put 'log-entry 'to-state (get 'item 'state))
-                (put 'log-entry 'timestamp
-                     (apply 'encode-time
-                            (save-match-data
-                              (org-parse-time-string
-                               (match-string-no-properties 1)))))
-                (put 'item 'log
-                     (cons (plist-to-alist 'log-entry)
-                           (get 'item 'log)))
-                (setplist 'log-entry '())
-                (setq skip-line t))
-              (goto-char (line-beginning-position))
-              (when (re-search-forward "ARCHIVED:\\s-*<\\([^>\n]+\\)>"
-                                       (line-end-position) t)
-                (unless (assoc "ARCHIVE_TIME" (get 'item 'properties))
-                  (put 'item 'properties
-                       (cons (cons "ARCHIVE_TIME"
-                                   (match-string-no-properties 1))
-                             (get 'item 'properties))))
-                (setq skip-line t))
-              (if skip-line
-                  (goto-char (line-end-position))))
+		(goto-char (line-beginning-position))
+		(when (re-search-forward "CLOSED:\\s-*\\[\\([^]\n]+\\)\\]"
+					 (line-end-position) t)
+		  (org-x-add-log-entry entry
+				       (apply 'encode-time
+					      (save-match-data
+						(org-parse-time-string
+						 (match-string 1))))
+				       nil nil
+				       (org-x-state entry))
+		  (setq skip-line t))
 
-            (assert (get (if log-entry 'log-entry 'item) 'depth))
-            (dotimes (i (1+ (get (if log-entry 'log-entry 'item) 'depth)))
-              (if (eq (char-after) ? )
-                  (forward-char)
-                (unless (looking-at "^\\s-*$")
-                  (org-x-org-resolve-log-entry))))
+		(goto-char (line-beginning-position))
+		(when (re-search-forward "ARCHIVED:\\s-*<\\([^>\n]+\\)>"
+					 (line-end-position) t)
+		  (org-x-set-property entry "ARCHIVE_TIME"
+				      (match-string-no-properties 1)
+				      nil t)
+		  (setq skip-line t))
 
-            (put (if log-entry 'log-entry 'item) 'body
-                 (concat (get (if log-entry 'log-entry 'item) 'body) "\n"
-                         (buffer-substring-no-properties
-                          (point) (line-end-position))))))
-          (forward-line))
+		(if skip-line
+		    (goto-char (line-end-position))))
 
-        (org-x-org-resolve-log-entry)
+	      (dotimes (i (+ (if log-entry 2 0) (org-x-depth entry)))
+		(if (eq (char-after) ? )
+		    (forward-char)
+		  (unless (looking-at "^\\s-*$")
+		    (if (and log-entry body)
+			(org-x-log-set-body log-entry (trim-string body)))
+		    (setq log-entry nil body nil))))
 
-        (put 'item 'body (trim-string (get 'item 'body)))
-	(put 'item 'log (sort (get 'item 'log)
-			      (lambda (l r)
-				(not (time-less-p (cdr (assq 'timestamp l))
-						  (cdr (assq 'timestamp r)))))))
-	(put 'item 'properties
-	     (sort (get 'item 'properties)
-		   (lambda (a b) (or (string= (car a) "ID")
-				(string< (car a) (car b))))))
+	      (setq body (concat body "\n"
+				 (buffer-substring-no-properties
+				  (point) (line-end-position))))))
+	    (forward-line))
 
-	(put 'item 'parent-properties
-	     (let (props)
-	       (save-restriction
-		 (save-excursion
-		   (widen)
-		   (ignore-errors
-		     (while t
-		       (outline-up-heading 1)
-		       (dolist (prop (org-entry-properties))
-			 (let ((prop-entry (assoc (car prop) props)))
-			   (if prop-entry
-			       (setcdr prop-entry (cdr prop))
-			     (setq props (cons prop props)))))))))
-	       props))
+	  (if log-entry
+	      (if body
+		  (progn
+		    (org-x-log-set-body log-entry body)
+		    (setq log-entry nil body nil))))
 
-        (plist-to-alist 'item)))))
+	  (if body
+	      (org-x-set-body entry (trim-string body)))
+
+	  (save-restriction
+	    (save-excursion
+	      (widen)
+	      (ignore-errors
+		(while t
+		  (outline-up-heading 1)
+		  (dolist (prop (org-entry-properties))
+		    (org-x-set-parent-property entry (car prop)
+					       (cdr prop))))))))))
+    entry))
 
 (defcustom org-x-priority-B-silent t
   "If non-nil, priority B is never used since it's the default priority."
@@ -381,7 +330,7 @@
   (show-all)
   (untabify (point-min) (point-max))
   (while (re-search-forward "^\\*" nil t)
-    (org-normalize-entry)
+    (org-x-normalize-entry)
     (forward-line))
   (goto-char (point-min))
   (delete-trailing-whitespace)
