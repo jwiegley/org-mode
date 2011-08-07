@@ -67,10 +67,7 @@
   '((read-entry	       . (lambda (identifier)))
     (write-entry       . (lambda (entry)))
     (delete-entry      . (lambda (identifier)))
-    (merge-entries     . (lambda (entry-list)))
-    (pull-entry	       . (lambda (identifier)))
-    (push-entry	       . (lambda (entry)))
-    (sync-entry	       . (lambda (entry)))
+    (apply-operations  . (lambda (entry operations)))
     (get-identifier    . (lambda (entry)))
     (group-identifiers . (lambda (group-ident))))
   "A prototypical Org-X backend.  This variable is for demonstration only."
@@ -93,23 +90,29 @@ This is set automatically by the `context' parameter accepted by
 the majority of dispatch API functions.")
 
 (defun org-x-dispatch (backend symbol &optional context arg)
-  (let ((be (symbol-value (cdr (assq backend org-x-backends))))
-	(org-x-dispatch-context context))
-    (if be
-	(funcall (cdr (assq symbol be)) arg))))
+  (let* ((be (symbol-value
+	      (symbol-value (car (memq backend org-x-backends)))))
+	 (org-x-dispatch-context context)
+	 (func (and be (cdr (assq symbol be)))))
+    (and func (funcall func arg))))
 
 (defsubst org-x-read-entry (backend &optional identifier context)
   (org-x-dispatch backend 'read-entry context identifier))
 
 (defsubst org-x-write-entry (backend &optional entry context)
-  (org-x-dispatch backend 'write-entry context entry))
+  (org-x-dispatch backend 'write-entry (or context entry) entry))
 
 (defsubst org-x-get-identifier (backend &optional entry context)
-  (org-x-dispatch backend 'get-identifier context entry))
+  (org-x-dispatch backend 'get-identifier (or context entry) entry))
 
 ;;; Entry creation:
 
 (defun org-x-create-entry () (list (cons 'entry t)))
+
+;;; Entry generic getter and setter:
+
+(defun org-x-getter (entry symbol)
+  (cdr (assq symbol entry)))
 
 ;;; Entry atttribute getters:
 
@@ -348,21 +351,26 @@ IDENTIFIER is how that backend knows this entry."
 ;;; Entry property setters:
 
 (defun org-x-set-parent-property (entry name value)
-  (let ((cell (assq name (org-x-parent-properties entry))))
+  (let* ((properties (org-x-parent-properties entry))
+	 (cell (assq name properties)))
     (if cell
 	(setcdr cell value)
-      (nconc (org-x-parent-properties entry)
-	     (list (cons name value)))))
+      (if properties
+	  (nconc properties (list (cons name value)))
+	(nconc entry (list (cons 'parent-properties
+				 (list (cons name value))))))))
   value)
 
-(defun org-x-set-property
-  (entry name value &optional no-overwrite propagate)
-  (let ((cell (assq name (org-x-properties entry))))
+(defun org-x-set-property (entry name value &optional no-overwrite propagate)
+  (let* ((properties (org-x-properties entry))
+	 (cell (assq name properties)))
     (unless (and (cdr cell) no-overwrite)
       (if cell
 	  (setcdr cell value)
-	(nconc (org-x-properties entry)
-	       (list (cons name value))))))
+	(if properties
+	    (nconc properties (list (cons name value)))
+	  (nconc entry (list (cons 'properties
+				   (list (cons name value)))))))))
   (if propagate
       (org-x-propagate entry 'set-property (cons name value)))
   value)
@@ -378,9 +386,12 @@ IDENTIFIER is how that backend knows this entry."
 ;;; Entry tag setters:
 
 (defun org-x-add-tag (entry name &optional propagate)
-  (let ((cell (member name (org-x-tags entry))))
+  (let* ((tags (org-x-tags entry))
+	 (cell (member name tags)))
     (unless cell
-      (nconc (org-x-tags entry) (list name))))
+      (if tags
+	  (nconc tags (list name))
+	(nconc entry (list (cons 'tags (list name)))))))
   (if propagate
       (org-x-propagate entry 'add-tag name))
   name)
@@ -410,16 +421,20 @@ IDENTIFIER is how that backend knows this entry."
 	    (setcdr log-entries (delq log (cdr log-entries))))
 	(if log-entries
 	    (setcdr log-entries
-		    (sort (cons (cons timestamp new-log)
-				(cdr log-entries))
-			  (lambda (l r)
-			    (not (time-less-p (car l) (car r))))))
-	  (nconc entry (list (list (cons 'log new-log)))))))
+		    (cons (cons timestamp new-log)
+			  (cdr log-entries)))
+	  (nconc entry (list (cons 'log (list (cons timestamp new-log))))))))
     (if propagate
 	(org-x-propagate entry 'add-log-entry
 			 (list timestamp body is-note
 			       to-state from-state)))
     new-log))
+
+(defun org-x-add-whole-log-entry (entry log &optional no-overwrite propagate)
+  (org-x-add-log-entry entry (org-x-log-timestamp log)
+		       (org-x-log-body log) (org-x-log-is-note log)
+		       (org-x-log-to-state log) (org-x-log-from-state log)
+		       no-overwrite propagate))
 
 (defun org-x-remove-log-entry (entry timestamp &optional propagate)
   (let* ((log-entries (assq 'log entry))
@@ -468,7 +483,7 @@ IDENTIFIER is how that backend knows this entry."
 
 ;;; Entry comparison:
 
-(defun org-x-compare-entries (l r)
+(defun org-x-compare-entries (l r &optional ignore-deletions ignore-changes)
   "Compare two entries, L and R.
 Return a list of the operations that would turn L into R.  This last
 can be passed to org-x-apply-operations."
@@ -477,54 +492,109 @@ can be passed to org-x-apply-operations."
       (let* ((key (car elem))
 	     (data (assq key r)))
 	(cond
-	 ((eq key 'log))
+	 ((eq key 'tags)
+	  (unless ignore-deletions
+	    (dolist (tag (cdr elem))
+	      ;; the log-entry from l is not in r
+	      (unless (member tag (cdr data))
+		(push (list 'remove-tag tag) ops)))))
+
+	 ((eq key 'log)
+	  (dolist (log (cdr elem))
+	    (let ((data-prop (assoc (car log) (cdr data))))
+	      (if (and data data-prop)
+		  ;; r has the same log-entry as l, merge them
+		  t
+		;; the log-entry from l is not in r
+		(unless ignore-deletions
+		  (push (list 'remove-log-entry (car prop)) ops))))))
+
 	 ((eq key 'properties)
 	  (dolist (prop (cdr elem))
 	    (let ((data-prop (assoc (car prop) (cdr data))))
 	      (if (and data data-prop)
 		  ;; r has the same property as l, check the value
-		  (unless (equal (cdr elem) (cdr data))
+		  (unless (or ignore-changes
+			      (equal (cdr elem) (cdr data)))
 		    (push (list 'set-property (car prop) (cdr data-prop))
 			  ops))
 		;; the property from l is not in r
-		(push (list 'remove-property (car prop))
-		      ops)))))
+		(unless ignore-deletions
+		  (push (list 'remove-property (car prop)) ops))))))
 	 (t
 	  (if data
 	      ;; r has the same element as l, check the value
-	      (unless (equal (cdr elem) (cdr data))
+	      (unless (or ignore-changes
+			  (equal (cdr elem) (cdr data)))
 		(push (list (intern (concat "set-" (symbol-name key)))
-			    (cdr data))
-		      ops))
+			    (cdr data)) ops))
 	    ;; r does not have the same element as l
-	    (push (list (intern (concat "clear-" (symbol-name key))))
-		  ops))))))
-
+	    (unless ignore-deletions
+	      (push (list (intern (concat "clear-"
+					  (symbol-name key)))) ops)))))))
     (dolist (data r)
       (let* ((key (car data))
 	     (elem (assq key l)))
 	(cond
-	 ((eq key 'log))
+	 ((eq key 'tags)
+	  (dolist (tag (cdr data))
+	    (unless (assoc tag (cdr elem))
+	      ;; r has a tag not in l
+	      (push (list 'add-tag tag) ops))))
+	 
+	 ((eq key 'log)
+	  (dolist (log (cdr data))
+	    (let ((elem-log (assoc (car log) (cdr elem))))
+	      (unless (and elem elem-log)
+		;; r has a log-entry not in l
+		(push (list 'add-log-entry (car log)
+			    (org-x-log-body (cdr log))
+			    (org-x-log-is-note (cdr log))
+			    (org-x-log-to-state (cdr log))
+			    (org-x-log-from-state (cdr log)))
+		      ops)))))
+	 
 	 ((eq key 'properties)
 	  (dolist (prop (cdr data))
 	    (let ((elem-prop (assoc (car prop) (cdr elem))))
 	      (unless (and elem elem-prop)
 		;; r has a property not in l
-		(push (list 'set-property (car prop) (cdr prop))
-		      ops)))))
+		(push (list 'set-property (car prop) (cdr prop)) ops)))))
 	 (t
 	  (unless elem
 	    ;; r has an element not in l
 	    (push (list (intern (concat "set-" (symbol-name key)))
-			(cdr data))
-		  ops))))))
+			(cdr data)) ops))))))
     ops))
 
-(defun org-x-apply-operations (backend operations entry)
+(defun org-x-apply-operations (entry operations &optional backend)
   (mapc (lambda (op)
-          (apply 'org-x-dispatch backend
-		 (car op) entry (cdr op)))
+	  (if backend
+	      (apply 'org-x-dispatch backend
+		     (car op) entry (cdr op))
+	    (apply (intern-soft (concat "org-x-" (symbol-name (car op))))
+		   entry (cdr op))))
         operations))
+
+;;; Entry updating:
+
+(defun org-x-pull (&optional changes-too pos)
+  (interactive)
+  (let ((entry (org-x-parse-entry pos))
+	(here (point))
+	remote-entries)
+    (dolist (backend org-x-backends)
+      (unless (eq backend 'ox-org)
+	(let ((ident (org-x-get-identifier backend entry)))
+	  (if ident
+	      (let* ((remote-entry
+		      (org-x-read-entry backend ident entry))
+		     (operations
+		      (org-x-compare-entries entry remote-entry t
+					     (not changes-too))))
+		(org-x-apply-operations entry operations))))))
+    (org-x-replace-entry entry)
+    (goto-char here)))
 
 (provide 'org-x)
 

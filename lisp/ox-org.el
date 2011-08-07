@@ -30,16 +30,15 @@
   (require 'cl))
 
 (defvar org-x-org-backend
-  '((read-entry  . org-x-parse-entry)
-    (write-entry . org-x-insert-entry)))
-
-(add-to-list 'org-x-backends (cons 'org 'org-x-org-backend))
+  '((read-entry	  . org-x-parse-entry)
+    (write-entry  . org-x-insert-entry)
+    (delete-entry . org-x-delete-entry)))
 
 (defsubst trim-string (str)
   (replace-regexp-in-string "\\(\\`[[:space:]\n]*\\|[[:space:]\n]*\\'\\)" ""
 			    str))
 
-(defsubst org-x-org-narrow-to-entry ()
+(defsubst org-x-narrow-to-entry ()
   (outline-back-to-heading)
   (narrow-to-region (point) (progn (outline-next-heading) (point)))
   (goto-char (point-min)))
@@ -53,7 +52,8 @@
     (save-restriction
       (save-excursion
 	(if position (goto-char position))
-	(org-x-org-narrow-to-entry)
+	(org-x-setter entry 'location (point-marker))
+	(org-x-narrow-to-entry)
 
 	(let (log-entry body)
 	  (while (not (eobp))
@@ -74,7 +74,7 @@
 		(if (and title (> (length title) 0))
 		    (org-x-set-title entry title)))
 	      (if (match-string-no-properties 8)
-		  (mapc #'org-x-add-tag
+		  (mapc (lambda (tag) (org-x-add-tag entry tag))
 			(split-string (match-string-no-properties 8) ":" t))))
 
 	     ((looking-at (concat "^\\(\\s-*\\)- State \"\\([A-Z]+\\)\"\\s-*"
@@ -123,7 +123,7 @@
 	      (unless (assoc "CREATED" (get 'item 'properties))
 		(org-x-set-property entry "CREATED"
 				    (concat "[" (match-string-no-properties 1) "]")
-				    nil t)))
+				    t)))
 
 	     (t
 	      (let (skip-line)
@@ -172,13 +172,13 @@
 					 (line-end-position) t)
 		  (org-x-set-property entry "ARCHIVE_TIME"
 				      (match-string-no-properties 1)
-				      nil t)
+				      t)
 		  (setq skip-line t))
 
 		(if skip-line
 		    (goto-char (line-end-position))))
 
-	      (dotimes (i (+ (if log-entry 2 0) (org-x-depth entry)))
+	      (dotimes (i (+ (if log-entry 3 1) (org-x-depth entry)))
 		(if (eq (char-after) ? )
 		    (forward-char)
 		  (unless (looking-at "^\\s-*$")
@@ -240,8 +240,7 @@
 
     (let ((tags (org-x-tags entry)))
       (when tags
-	(insert "  :" (mapconcat 'identity tags ":") ":")
-	(org-align-all-tags)))
+	(insert "  :" (mapconcat 'identity tags ":") ":")))
 
     (insert ?\n)
 
@@ -270,6 +269,8 @@
 
     (let ((log-entries (org-x-log-entries entry)))
       (dolist (log log-entries)
+	(setq log (cdr log))
+
 	(let ((to-state (org-x-log-to-state log)))
 	  (insert (make-string (1+ depth) ? ))
 
@@ -287,12 +288,13 @@
 			    (concat "\"" to-state "\"")
 			    (time-to-org-timestamp (org-x-log-timestamp log) t)))))
 
-	  (if (org-x-log-body log)
-	      (progn
-		(insert " \\\\\n")
-		(dolist (line (split-string (org-x-log-body log) "\n"))
-		  (insert (make-string (+ 3 depth) ? ) line ?\n)))
-	    (insert ?\n)))))
+	  (let ((body (org-x-log-body log)))
+	    (if body
+		(progn
+		  (insert " \\\\\n")
+		  (dolist (line (split-string body "\n"))
+		    (insert (make-string (+ 3 depth) ? ) line ?\n)))
+	      (insert ?\n))))))
 
     (let ((body (org-x-body entry)))
       (if body
@@ -306,13 +308,16 @@
 	  (insert (make-string (1+ depth) ? )
 		  (format "%-10s %s\n"
 			  (concat ":" (car prop) ":") (cdr prop))))
-	(insert (make-string (1+ depth) ? ) ":END:\n")))))
+	(insert (make-string (1+ depth) ? ) ":END:\n")))
+
+    (outline-back-to-heading)
+    (org-set-tags t)))
 
 (defun org-x-delete-entry ()
   (interactive)
   (save-restriction
     (save-excursion
-      (org-x-org-narrow-to-entry)
+      (org-x-narrow-to-entry)
       (delete-region (point-min) (point-max)))))
 
 (defun org-x-replace-entry (entry)

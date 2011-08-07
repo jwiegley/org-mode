@@ -316,6 +316,7 @@ to add the symbol `xyz', and the package must have a call to
 	(const :tag "   vm:                Links to VM folders/messages" org-vm)
 	(const :tag "   wl:                Links to Wanderlust folders/messages" org-wl)
 	(const :tag "   w3m:               Special cut/paste from w3m to Org-mode." org-w3m)
+	(const :tag "   x:                 The Org Exchange, for syncing with external systems" org-x)
 	(const :tag "   mouse:             Additional mouse support" org-mouse)
 	(const :tag "   TaskJuggler:       Export tasks to a TaskJuggler project" org-taskjuggler)
 
