@@ -120,28 +120,28 @@ the majority of dispatch API functions.")
   (let ((title (cdr (assq 'title entry))))
     (if (null title)
 	nil
-      (assert (stringp title) t "Org-X entry title must be a string")
+      (assert (stringp title) nil "Org-X entry title must be a string")
       title)))
 
 (defun org-x-body (entry)
   (let ((body (cdr (assq 'body entry))))
     (if (null body)
 	nil
-      (assert (stringp body) t "Org-X entry body must be a string")
+      (assert (stringp body) nil "Org-X entry body must be a string")
       body)))
 
 (defun org-x-depth (entry)
   (let ((depth (cdr (assq 'depth entry))))
     (if (null depth)
 	nil
-      (assert (integerp depth) t "Org-X entry depth must be an integer")
+      (assert (integerp depth) nil "Org-X entry depth must be an integer")
       depth)))
 
 (defun org-x-state (entry)
   (let ((state (cdr (assq 'state entry))))
     (if (null state)
 	nil
-      (assert (member state org-x-states) t
+      (assert (member state org-x-states) nil
 	      (format "Org-X entry state must be one of: %s" org-x-states))
       state)))
 
@@ -149,7 +149,7 @@ the majority of dispatch API functions.")
   (let ((priority (cdr (assq 'priority entry))))
     (if (null priority)
 	nil
-      (assert (integerp priority) t "Org-X entry priority must be an integer")
+      (assert (integerp priority) nil "Org-X entry priority must be an integer")
       priority)))
 
 (defsubst org-x-scheduled (entry) (cdr (assq 'scheduled entry)))
@@ -158,7 +158,7 @@ the majority of dispatch API functions.")
   (let ((repeat (cdr (assq 'scheduled-repeat entry))))
     (if (null repeat)
 	nil
-      (assert (stringp repeat) t "Org-X log scheduled repeat must be a string")
+      (assert (stringp repeat) nil "Org-X log scheduled repeat must be a string")
       repeat)))
 
 (defsubst org-x-deadline (entry) (cdr (assq 'deadline entry)))
@@ -167,7 +167,7 @@ the majority of dispatch API functions.")
   (let ((repeat (cdr (assq 'deadline-repeat entry))))
     (if (null repeat)
 	nil
-      (assert (stringp repeat) t "Org-X log deadline repeat must be a string")
+      (assert (stringp repeat) nil "Org-X log deadline repeat must be a string")
       repeat)))
 
 (defun org-x-entry-backends (entry)
@@ -187,14 +187,14 @@ IDENTIFIER is how that backend knows this entry."
   (let ((properties (cdr (assq 'properties entry))))
     (if (null properties)
 	nil
-      (assert (listp properties) t "Org-X entry properties must be an alist")
+      (assert (listp properties) nil "Org-X entry properties must be an alist")
       properties)))
 
 (defun org-x-parent-properties (entry)
   (let ((properties (cdr (assq 'parent-properties entry))))
     (if (null properties)
 	nil
-      (assert (listp properties) t
+      (assert (listp properties) nil
 	      "Org-X entry parent properties must be an alist")
       properties)))
 
@@ -212,7 +212,7 @@ IDENTIFIER is how that backend knows this entry."
   (let ((tags (cdr (assq 'tags entry))))
     (if (null tags)
 	nil
-      (assert (listp tags) t "Org-X entry tags must be a list")
+      (assert (listp tags) nil "Org-X entry tags must be a list")
       tags)))
 
 (defsubst org-x-has-tag (entry name)
@@ -227,7 +227,7 @@ IDENTIFIER is how that backend knows this entry."
   (let ((log-entries (cdr (assq 'log entry))))
     (if (null log-entries)
 	nil
-      (assert (listp log-entries) t "Org-X log entries must be a list")
+      (assert (listp log-entries) nil "Org-X log entries must be a list")
       log-entries)))
 
 (defsubst org-x-has-log-entry (entry timestamp)
@@ -243,14 +243,14 @@ IDENTIFIER is how that backend knows this entry."
   (let ((body (cdr (assq 'body log-entry))))
     (if (null body)
 	nil
-      (assert (stringp body) t "Org-X log body must be a string")
+      (assert (stringp body) nil "Org-X log body must be a string")
       body)))
 
 (defun org-x-log-from-state (log-entry)
   (let ((state (cdr (assq 'from-state log-entry))))
     (if (null state)
 	nil
-      (assert (member state org-x-states) t
+      (assert (member state org-x-states) nil
 	      (format "Org-X log from state must be one of: %s" org-x-states))
       state)))
 
@@ -258,7 +258,7 @@ IDENTIFIER is how that backend knows this entry."
   (let ((state (cdr (assq 'to-state log-entry))))
     (if (null state)
 	nil
-      (assert (member state org-x-states) t
+      (assert (member state org-x-states) nil
 	      (format "Org-X log to state must be one of: %s" org-x-states))
       state)))
 
@@ -294,32 +294,32 @@ IDENTIFIER is how that backend knows this entry."
 		       nil)))
 
 (defun org-x-set-title (entry title &optional no-overwrite propagate)
-  (assert (stringp title) t "Org-X entry title must be a string")
+  (assert (stringp title) nil "Org-X entry title must be a string")
   (org-x-setter entry 'title title no-overwrite propagate))
 (defun org-x-clear-title (entry &optional propagate)
   (org-x-eraser entry 'title propagate))
 
 (defun org-x-set-body (entry body &optional no-overwrite propagate)
-  (assert (stringp body) t "Org-X entry body must be a string")
+  (assert (stringp body) nil "Org-X entry body must be a string")
   (org-x-setter entry 'body body no-overwrite propagate))
 (defun org-x-clear-body (entry &optional propagate)
   (org-x-eraser entry 'body propagate))
 
 (defun org-x-set-depth (entry depth &optional no-overwrite propagate)
-  (assert (integerp depth) t "Org-X entry depth must be an integer")
+  (assert (integerp depth) nil "Org-X entry depth must be an integer")
   (org-x-setter entry 'depth depth no-overwrite propagate))
 (defun org-x-clear-depth (entry &optional propagate)
   (org-x-eraser entry 'depth propagate))
 
 (defun org-x-set-state (entry state &optional no-overwrite propagate)
-  (assert (member state org-x-states) t
+  (assert (member state org-x-states) nil
 	  (format "Org-X entry state must be one of: %s" org-x-states))
   (org-x-setter entry 'state state no-overwrite propagate))
 (defun org-x-clear-state (entry &optional propagate)
   (org-x-eraser entry 'state propagate))
 
 (defun org-x-set-priority (entry priority &optional no-overwrite propagate)
-  (assert (integerp priority) t "Org-X entry priority must be an integer")
+  (assert (integerp priority) nil "Org-X entry priority must be an integer")
   (org-x-setter entry 'priority priority no-overwrite propagate))
 (defun org-x-clear-priority (entry &optional propagate)
   (org-x-eraser entry 'priority propagate))
@@ -331,7 +331,7 @@ IDENTIFIER is how that backend knows this entry."
 
 (defun org-x-set-scheduled-repeat
   (entry repeat &optional no-overwrite propagate)
-  (assert (stringp repeat) t "Org-X log scheduled repeat must be a string")
+  (assert (stringp repeat) nil "Org-X log scheduled repeat must be a string")
   (org-x-setter entry 'scheduled-repeat repeat no-overwrite propagate))
 (defun org-x-clear-scheduled-repeat (entry &optional propagate)
   (org-x-eraser entry 'scheduled-repeat propagate))
@@ -343,7 +343,7 @@ IDENTIFIER is how that backend knows this entry."
 
 (defun org-x-set-deadline-repeat
   (entry repeat &optional no-overwrite propagate)
-  (assert (stringp repeat) t "Org-X log deadline repeat must be a string")
+  (assert (stringp repeat) nil "Org-X log deadline repeat must be a string")
   (org-x-setter entry 'deadline-repeat repeat no-overwrite propagate))
 (defun org-x-clear-deadline-repeat (entry &optional propagate)
   (org-x-eraser entry 'deadline-repeat propagate))
@@ -468,14 +468,14 @@ IDENTIFIER is how that backend knows this entry."
 		       nil)))
 
 (defun org-x-log-set-body (log-entry body &optional no-overwrite propagate)
-  (assert (stringp body) t "Org-X log entry body must be a string")
+  (assert (stringp body) nil "Org-X log entry body must be a string")
   (org-x-log-setter log-entry 'body body no-overwrite propagate))
 (defun org-x-log-clear-body (log-entry &optional propagate)
   (org-x-log-eraser log-entry 'log-clear-body propagate))
 
 (defun org-x-log-set-from-state
   (log-entry state &optional no-overwrite propagate)
-  (assert (member state org-x-states) t
+  (assert (member state org-x-states) nil
 	  (format "Org-X log entry from-state must be one of: %s"
 		  org-x-states))
   (org-x-log-setter log-entry 'from-state state no-overwrite propagate))
@@ -484,7 +484,7 @@ IDENTIFIER is how that backend knows this entry."
 
 (defun org-x-log-set-to-state
   (log-entry state &optional no-overwrite propagate)
-  (assert (member state org-x-states) t
+  (assert (member state org-x-states) nil
 	  (format "Org-X log entry to-state must be one of: %s" org-x-states))
   (org-x-log-setter log-entry 'to-state state no-overwrite propagate))
 (defun org-x-log-clear-to-state (log-entry &optional propagate)
