@@ -29,30 +29,55 @@
 (eval-when-compile
   (require 'cl))
 
-(defvar org-x-org-backend
-  '((read-entry	  . org-x-parse-entry)
-    (write-entry  . org-x-insert-entry)
-    (delete-entry . org-x-delete-entry)))
+(defgroup org-x-org nil
+  "Org-X backend for Org-mode."
+  :tag "Org-X Org"
+  :group 'org-x)
+
+;;; Customization variables:
 
-(defsubst trim-string (str)
-  (replace-regexp-in-string "\\(\\`[[:space:]\n]*\\|[[:space:]\n]*\\'\\)" ""
-			    str))
+(defvar org-x-org-dispatchers
+  '((read-entry		. org-x-parse-entry)
+    (write-entry	. org-x-insert-entry)
+    (delete-entry	. org-x-delete-entry)
+    (apply-changes	. nil)		; use standard org-x functions
+    (applicable-backend . ignore)	; not meaningful
+    (get-identifier	. org-x-get-identifier)
+    (group-identifiers	. org-x-group-identifiers)))
+
+(defvar ox-org 'org-x-org-dispatchers)
+
+(defcustom org-x-priority-B-silent t
+  "If non-nil, priority B is never used since it's the default priority."
+  :type 'boolean
+  :group 'ox-org)
+
+;;; Org contextual info:
+
+(defun org-x-get-identifier (entry)
+  (org-x-getter entry 'org-id))
+
+;;; Org parser:
+
+(defvar org-x-org-repeat-regexp
+  (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [^>\n]*?\\)"
+	  "\\(\\([.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)\\)"))
 
 (defsubst org-x-narrow-to-entry ()
   (outline-back-to-heading)
   (narrow-to-region (point) (progn (outline-next-heading) (point)))
   (goto-char (point-min)))
 
-(defvar org-x-org-repeat-regexp
-  (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [^>\n]*?\\)"
-	  "\\(\\([.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)\\)"))
+(defsubst trim-string (str)
+  (replace-regexp-in-string "\\(\\`[[:space:]\n]*\\|[[:space:]\n]*\\'\\)" ""
+			    str))
 
 (defun org-x-parse-entry (&optional position)
   (let ((entry (org-x-create-entry)))
     (save-restriction
       (save-excursion
 	(if position (goto-char position))
-	(org-x-setter entry 'location (point-marker))
+	(org-x-setter entry 'org-id (org-id-get-create))
 	(org-x-narrow-to-entry)
 
 	(let (log-entry body)
@@ -191,11 +216,9 @@
 				  (point) (line-end-position))))))
 	    (forward-line))
 
-	  (if log-entry
-	      (if body
-		  (progn
-		    (org-x-log-set-body log-entry body)
-		    (setq log-entry nil body nil))))
+	  (when (and log-entry body)
+	    (org-x-log-set-body log-entry body)
+	    (setq log-entry nil body nil))
 
 	  (if body
 	      (org-x-set-body entry (trim-string body)))
@@ -204,17 +227,15 @@
 	    (save-excursion
 	      (widen)
 	      (ignore-errors
-		(while t
+		(dotimes (i 20)
 		  (outline-up-heading 1)
-		  (dolist (prop (org-entry-properties))
-		    (org-x-set-parent-property entry (car prop)
-					       (cdr prop))))))))))
+		  (mapc (lambda (prop)
+			  (org-x-set-parent-property entry (car prop)
+						     (cdr prop)))
+			(org-entry-properties)))))))))
     entry))
-
-(defcustom org-x-priority-B-silent t
-  "If non-nil, priority B is never used since it's the default priority."
-  :type 'boolean
-  :group 'ox-org)
+
+;;; Org writer:
 
 (defsubst time-to-org-timestamp (time &optional long)
   (format-time-string (substring (org-time-stamp-format long) 1 -1) time))
@@ -312,6 +333,8 @@
 
     (outline-back-to-heading)
     (org-set-tags t)))
+
+;;; Org utility functions:
 
 (defun org-x-delete-entry ()
   (interactive)

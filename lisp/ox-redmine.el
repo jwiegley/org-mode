@@ -33,12 +33,17 @@
   "Org-X backend for Redmine."
   :tag "Org-X Redmine"
   :group 'org-x)
+
+;;; Customization variables:
 
 (defcustom org-x-redmine-dispatchers
-  '((get-identifier . org-x-redmine-get-identifier)
-    (read-entry	    . org-x-redmine-fetch)
-    (write-entry    . org-x-redmine-push)
-    (add-log-entry  . org-x-redmine-add-log-entry))
+  '((read-entry		. org-x-redmine-fetch)
+    (write-entry	. org-x-redmine-push)
+    (add-log-entry	. org-x-redmine-add-log-entry)
+    (apply-changes	. ignore)	; jww (2011-08-08): NYI
+    (applicable-backend . org-x-redmine-applicable-backend)
+    (get-identifier	. org-x-redmine-get-identifier)
+    (group-identifiers	. org-x-redmine-group-identifiers))
   "An Org-X backend for Redmine."
   :type '(alist :key-type symbol :value-type function)
   :group 'org-x-redmine)
@@ -72,6 +77,67 @@ These are keyed by the related Org mode state."
   :type '(alist :key-type string :value-type integer)
   :group 'org-x-redmine)
 
+(defcustom org-x-redmine-title-prefix-function nil
+  "If non-nil, a function returning a string maintained in Org titles.
+This function takes a numerical identifier, and must return either nil
+or a string.
+
+Using the builtin prefix style [[redmine:<ID>]] requires that the
+following be placed in your Org file:
+  #+LINK: redmine <Redmine_URL>"
+  :type '(choice (const :tag "Don't use title prefixes" nil)
+		 (const :tag "Use a link to [[redmine:<ID>]]"
+			org-x-redmine-title-prefix)
+		 (function :tag "Use a custom function"))
+  :group 'org-x-redmine)
+
+(defcustom org-x-redmine-title-prefix-match-function nil 
+  "If non-nil, a function matching Redmine identifiers in Org titles.
+The function takes title string, and must return either nil or an
+integer.
+See `org-x-redmine-title-prefix-function'."
+  :type '(choice (const :tag "Don't use title prefixes" nil)
+		 (const :tag "Match links of the form [[redmine:<ID>]]"
+			org-x-redmine-title-prefix-match)
+		 (function :tag "Match using a custom function"))
+  :group 'org-x-redmine)
+
+;;; Redmine contextual info:
+
+(defsubst org-x-redmine-property (entry-or-pos name)
+  (if (or (numberp entry-or-pos) (markerp entry-or-pos))
+      (org-entry-get entry-or-pos (concat "Redmine_" name) t)
+    (org-x-get-property entry-or-pos (concat "Redmine_" name) t)))
+
+(defun org-x-redmine-applicable-backend (entry-or-pos)
+  (cons 'ox-redmine
+	(list (cons 'root-url
+		    (org-x-redmine-property entry-or-pos "URL"))
+	      (cons 'api-key
+		    (org-x-redmine-property entry-or-pos "APIKey"))
+	      (cons 'project
+		    (org-x-redmine-property entry-or-pos "Project")))))
+
+(defun org-x-redmine-title-prefix (id)
+  (format "[[redmine:%d][#%d]] " id id))
+
+(defun org-x-redmine-title-prefix-match (title)
+  (and (string-match "\\[\\[redmine:\\([0-9]+\\)\\]\\[#" title)
+       (string-to-number (match-string 1 title))))
+
+(defun org-x-redmine-get-identifier (entry)
+  (let ((issue-id (org-x-redmine-property entry "Id")))
+    (if issue-id
+	(setq issue-id (string-to-number issue-id))
+      (if org-x-redmine-title-prefix-match-function
+	  (setq issue-id
+		(funcall org-x-redmine-title-prefix-match-function
+			 (org-x-title entry)))))
+    (org-x-set-property entry "Redmine_Id" issue-id t)
+    issue-id))
+
+;;; Redmine REST API:
+
 (defun org-x-redmine-rest-api
   (type root-url url api-key &optional input params)
   (with-temp-buffer
@@ -89,20 +155,8 @@ These are keyed by the related Org mode state."
     (skip-syntax-forward " ")
     (unless (eobp)
       (nthcdr 2 (car (xml-parse-region (point-min) (point-max)))))))
-
-(defsubst org-x-redmine-property (entry name)
-  (let ((property-name (concat "Redmine_" name)))
-    (org-x-get-property entry property-name t)))
-
-(defun org-x-redmine-get-identifier (&optional ignore)
-  (let ((issue-id (org-x-redmine-property org-x-dispatch-context "Id")))
-    (if issue-id
-	(string-to-number issue-id)
-      (let ((title (org-x-title org-x-dispatch-context)))
-	(when (string-match "\\[\\[redmine:\\([0-9]+\\)\\]" title)
-	  (setq issue-id (string-to-number (match-string 1 title)))
-	  (org-x-set-property org-x-dispatch-context "Redmine_Id" issue-id)
-	  issue-id)))))
+
+;;; Reading Redmine issues:
 
 (defun org-x-redmine-convert-timestamp (stamp &optional with-hm inactive)
   (when (string-match (concat "\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\)"
@@ -171,6 +225,8 @@ These are keyed by the related Org mode state."
     (format "issues/%d.xml" issue-id)
     (org-x-redmine-property org-x-dispatch-context "APIKey")
     nil "include=journals")))
+
+;;; Writing Redmine issues:
 
 (defun org-x-redmine-push (entry)
   (let* ((issue-id (org-x-redmine-get-identifier entry))
