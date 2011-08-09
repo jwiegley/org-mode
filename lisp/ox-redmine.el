@@ -104,18 +104,22 @@ See `org-x-redmine-title-prefix-function'."
 
 ;;; Redmine contextual info:
 
-(defsubst org-x-redmine-property (entry-or-pos name)
-  (if (or (numberp entry-or-pos) (markerp entry-or-pos))
-      (org-entry-get entry-or-pos (concat "Redmine_" name) t)
-    (org-x-get-property entry-or-pos (concat "Redmine_" name) t)))
+(defsubst org-x-redmine-property (info name)
+  (cond
+   ((or (numberp info) (markerp info))
+    (org-entry-get info (concat "Redmine_" name) t))
+   ((assq 'entry info)
+    (org-x-get-property info (concat "Redmine_" name) t))
+   (t
+    (cdr (assoc (concat "Redmine_" name) info)))))
 
 (defun org-x-redmine-applicable-backend (entry-or-pos)
   (cons 'ox-redmine
-	(list (cons 'root-url
+	(list (cons "Redmine_URL"
 		    (org-x-redmine-property entry-or-pos "URL"))
-	      (cons 'api-key
+	      (cons "Redmine_APIKey"
 		    (org-x-redmine-property entry-or-pos "APIKey"))
-	      (cons 'project
+	      (cons "Redmine_Project"
 		    (org-x-redmine-property entry-or-pos "Project")))))
 
 (defun org-x-redmine-title-prefix (id)
@@ -135,22 +139,43 @@ See `org-x-redmine-title-prefix-function'."
 			 (org-x-title entry)))))
     (org-x-set-property entry "Redmine_Id" issue-id t)
     issue-id))
+
+(defun org-x-redmine-group-identifiers ()
+  (save-excursion
+    (outline-up-heading 1)
+    (outline-next-heading)
+    (let* ((depth (org-x--heading-depth))
+	   (current-depth depth)
+	   identifiers)
+      (while (= depth current-depth)
+	(setq identifiers
+	      (cons (if (featurep 'org-id)
+			(org-id-get-create)
+		      (point-marker))
+		    identifiers))
+	(org-forward-same-level 1 t)
+	(setq depth (org-x--heading-depth)))
+      (nreverse identifiers))))
 
 ;;; Redmine REST API:
+
+(defvar org-x-redmine-debug t)
 
 (defun org-x-redmine-rest-api
   (type root-url url api-key &optional input params)
   (with-temp-buffer
     (if input (insert input))
-    (shell-command-on-region
-     (point-min) (point-max)
-     (format (concat
-              "curl -s -k -X %s %s "
-              "-H 'Content-type: text/xml' -H 'Accept: text/xml' "
-              "'%s/%s?%s%sformat=xml&key=%s'")
-             type (if (string= type "GET") "" "-d @-")
-             root-url url (or params "") (if params "&" "") api-key)
-     nil t)
+    (let ((command
+	   (format (concat
+		    "curl -s -k -X %s %s "
+		    "-H 'Content-type: text/xml' -H 'Accept: text/xml' "
+		    "'%s/%s?%s%sformat=xml&key=%s'")
+		   type (if (string= type "GET") "" "-d @-")
+		   root-url url (or params "") (if params "&" "")
+		   api-key)))
+      (if org-x-redmine-debug
+	  (message "Invoking: %s" command))
+      (shell-command-on-region (point-min) (point-max) command nil t))
     (goto-char (point-min))
     (skip-syntax-forward " ")
     (unless (eobp)
@@ -225,6 +250,18 @@ See `org-x-redmine-title-prefix-function'."
     (format "issues/%d.xml" issue-id)
     (org-x-redmine-property org-x-dispatch-context "APIKey")
     nil "include=journals")))
+
+(defun org-x-redmine-fetch-issue-ids (project-id)
+  (org-x-redmine-rest-api
+   "GET" (org-x-redmine-property org-x-dispatch-context "URL")
+   (format "issues.xml?project_id=%s&assigned_to=me" project-id)
+   (org-x-redmine-property org-x-dispatch-context "APIKey")))
+
+(defun show-issue-ids ()
+  (interactive)
+  (let ((backend (org-x-applicable-backend 'ox-redmine (point))))
+    (with-org-x-context (cdr backend)
+      (message "%s" (pp-to-string (org-x-redmine-fetch-issue-ids "it"))))))
 
 ;;; Writing Redmine issues:
 

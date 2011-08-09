@@ -66,13 +66,13 @@
   :group 'org-x)
 
 (defcustom org-x-backend-dispatchers
-  '((read-entry		. (lambda (identifier)))
+  '((applicable-backend . (lambda (entry-or-position)))
+    (get-identifier	. (lambda (entry)))
+    (group-identifiers	. (lambda ()))
+    (read-entry		. (lambda (identifier)))
     (write-entry	. (lambda (entry)))
     (delete-entry	. (lambda (identifier)))
-    (apply-changes	. (lambda ((entry . changes))))
-    (applicable-backend . (lambda (entry-or-position)))
-    (get-identifier	. (lambda (entry)))
-    (group-identifiers	. (lambda (group-ident))))
+    (apply-changes	. (lambda ((entry . changes)))))
   "A prototypical Org-X backend.  This variable is for demonstration only."
   :type '(alist :key-type symbol :value-type function)
   :group 'org-x)
@@ -132,6 +132,12 @@ the majority of dispatch API functions.")
   (org-x-dispatch backend 'applicable-backend entry-or-pos))
 
 (defsubst org-x-get-identifier (backend entry)
+  (org-x-dispatch backend 'get-identifier entry))
+
+(defsubst org-x-group-identifiers (backend)
+  (org-x-dispatch backend 'group-identifiers))
+
+(defsubst org-x-identifier-list (backend entry)
   (org-x-dispatch backend 'get-identifier entry))
 
 (defsubst org-x-read-entry (backend identifier)
@@ -679,41 +685,57 @@ can be passed to org-x-apply-changes."
 
 ;;; Entry updating:
 
-(defun org-x-pull (&optional changes-too position)
+(defun org-x-pull (&optional changes-too position backends)
   (interactive)
   (let ((entry (org-x-parse-entry position))
         (here (point))
-	changed)
-    (dolist (backend (org-x-backends position))
+	all-changes)
+    (dolist (backend (or backends (org-x-backends position)))
       (let ((ident (org-x-get-identifier backend entry)))
 	(when ident
 	  (if (called-interactively-p)
-	      (message "Pulling data from backend %s..."
+	      (message "Reading data from backend %s..."
 		       (org-x-backend-symbol backend)))
 	  (let ((changes (org-x-compare-entries
 			  entry (org-x-read-entry backend ident)
 			  t (not changes-too))))
 	    (when changes
 	      (org-x-apply-changes nil entry changes)
-	      (setq changed t)))
+	      ))
 	  (if (called-interactively-p)
 	      (message "Pulling data from backend %s...done"
 		       (org-x-backend-symbol backend))))))
-    (when changed
+    (when all-changes
       (org-x-replace-entry entry)
       (goto-char here))
-    entry))
+    (cons entry all-changes)))
 
-(defun org-x-push (&optional changes-too position)
+(defun org-x-push (&optional changes-too position backends)
   (interactive)
-  (let ((entry (org-x-parse-entry position)))
-    (dolist (backend (org-x-backends position))
+  (let ((entry (org-x-parse-entry position))
+	all-changes)
+    (dolist (backend (or backends (org-x-backends position)))
       (let ((ident (org-x-get-identifier backend entry)))
-	(if ident
-	    (org-x-apply-changes
-	     backend entry (org-x-compare-entries
-			    (org-x-read-entry backend ident) entry
-			    t (not changes-too))))))))
+	(when ident
+	  (if (called-interactively-p)
+	      (message "Pushing data to backend %s..."
+		       (org-x-backend-symbol backend)))
+	  (let ((changes (org-x-compare-entries
+			  (org-x-read-entry backend ident) entry
+			  t (not changes-too))))
+	    (when changes
+	      (org-x-apply-changes backend entry changes)
+	      (setq all-changes (cons (cons backend changes)
+				      all-changes))))
+	  (if (called-interactively-p)
+	      (message "Pushing data to backend %s...done"
+		       (org-x-backend-symbol backend))))))
+    (cons entry all-changes)))
+
+(defun org-x-sync (&optional changes-too position)
+  (let ((backends (org-x-backends position)))
+    (org-x-pull changes-too position backends)
+    (org-x-push changes-too position backends)))
 
 (provide 'org-x)
 

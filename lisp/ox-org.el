@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'org)
 (require 'org-x)
 
 (eval-when-compile
@@ -37,13 +38,13 @@
 ;;; Customization variables:
 
 (defvar org-x-org-dispatchers
-  '((read-entry		. org-x-parse-entry)
+  '((applicable-backend . ignore)	; not meaningful
+    (get-identifier	. org-x-get-identifier)
+    (group-identifiers	. org-x-group-identifiers)
+    (read-entry		. org-x-parse-entry)
     (write-entry	. org-x-insert-entry)
     (delete-entry	. org-x-delete-entry)
-    (apply-changes	. nil)		; use standard org-x functions
-    (applicable-backend . ignore)	; not meaningful
-    (get-identifier	. org-x-get-identifier)
-    (group-identifiers	. org-x-group-identifiers)))
+    (apply-changes	. nil)))	; use standard org-x functions
 
 (defvar ox-org 'org-x-org-dispatchers)
 
@@ -56,6 +57,29 @@
 
 (defun org-x-get-identifier (entry)
   (org-x-getter entry 'org-id))
+
+(defsubst org-x--heading-depth ()
+  (save-excursion
+    (org-back-to-heading t)
+    (if (let (case-fold-search) (looking-at org-complex-heading-regexp))
+	(length (match-string 1)))))
+
+(defun org-x-group-identifiers ()
+  (save-excursion
+    (outline-up-heading 1)
+    (outline-next-heading)
+    (let* ((depth (org-x--heading-depth))
+	   (current-depth depth)
+	   identifiers)
+      (while (= depth current-depth)
+	(setq identifiers
+	      (cons (if (featurep 'org-id)
+			(org-x-setter entry 'org-id (org-id-get-create))
+		      (org-x-setter entry 'org-id (point-marker)))
+		    identifiers))
+	(org-forward-same-level 1 t)
+	(setq depth (org-x--heading-depth)))
+      (nreverse identifiers))))
 
 ;;; Org parser:
 
@@ -77,7 +101,9 @@
     (save-restriction
       (save-excursion
 	(if position (goto-char position))
-	(org-x-setter entry 'org-id (org-id-get-create))
+	(if (featurep 'org-id)
+	    (org-x-setter entry 'org-id (org-id-get-create))
+	  (org-x-setter entry 'org-id (point-marker)))
 	(org-x-narrow-to-entry)
 
 	(let (log-entry body)
@@ -207,9 +233,9 @@
 		(if (eq (char-after) ? )
 		    (forward-char)
 		  (unless (looking-at "^\\s-*$")
-		    (if (and log-entry body)
-			(org-x-log-set-body log-entry (trim-string body)))
-		    (setq log-entry nil body nil))))
+		    (when (and log-entry body)
+		      (org-x-log-set-body log-entry (trim-string body))
+		      (setq log-entry nil body nil)))))
 
 	      (setq body (concat body "\n"
 				 (buffer-substring-no-properties
