@@ -263,8 +263,9 @@
 
 ;;; Org writer:
 
-(defsubst time-to-org-timestamp (time &optional long)
-  (format-time-string (substring (org-time-stamp-format long) 1 -1) time))
+(defsubst time-to-org-timestamp (time &optional long inactive)
+  (format-time-string (substring (org-time-stamp-format long inactive) 1 -1)
+		      time))
 
 (defun org-x-insert-entry (entry)
   (let ((depth (or (org-x-depth entry)
