@@ -58,10 +58,10 @@
   :group 'org-x-redmine)
 
 (defcustom org-x-redmine-priorities '(("Immediate" . 1)
-				      ("Urgent"    . 2)
-				      ("High"      . 3)
-				      ("Normal"    . 4)
-				      ("Low"       . 5))
+				      ("Urgent"    . 1)
+				      ("High"      . 1)
+				      ("Normal"    . 2)
+				      ("Low"       . 3))
   "An alist of all the priorities on the Redmine installation."
   :type '(alist :key-type string :value-type integer)
   :group 'org-x-redmine)
@@ -217,12 +217,9 @@ See `org-x-redmine-title-prefix-function'."
 	  (org-x-set-state entry stat)))
 
        ((eq 'priority (car elem))
-	(org-x-set-priority
-	 entry (let ((pri (cdr (assq 'name (cadr elem)))))
-		 (cond
-		  ((string-match "\\(High\\|Urgent\\|Immediate\\)" pri) 1)
-		  ((string= "Normal" pri) 2)
-		  ((string= "Low" pri) 3)))))
+	(org-x-set-priority entry
+			    (cdr (assoc (cdr (assq 'name (cadr elem)))
+					org-x-redmine-priorities))))
 
        ((eq 'created_on (car elem))
 	(org-x-set-property
