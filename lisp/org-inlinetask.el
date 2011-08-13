@@ -132,9 +132,9 @@ When nil, they will not be exported."
 	       heading content)))
   "Templates for inline tasks in various exporters.
 
-This variable is an alist in the shape of (BACKEND STRING OBJECTS).
+This variable is an alist in the shape of \(BACKEND STRING OBJECTS\).
 
-BACKEND is the name of the backend for the template (ascii, html...).
+BACKEND is the name of the backend for the template \(ascii, html...\).
 
 STRING is a format control string.
 
@@ -151,14 +151,14 @@ defined in an inline task, their value is the empty string.
 
 As an example, valid associations are:
 
-(html \"<ul><li>%s <p>%s</p></li></ul>\" (heading content))
+\(html \"<ul><li>%s <p>%s</p></li></ul>\" \(heading content\)\)
 
 or, with the additional package \"todonotes\" for LaTeX,
 
-(latex \"\\todo[inline]{\\textbf{\\textsf{%s %s}}\\linebreak{} %s}\"
-       '((unless (eq todo \"\")
-	   (format \"\\textsc{%s%s}\" todo priority))
-	 heading content)))")
+\(latex \"\\todo[inline]{\\textbf{\\textsf{%s %s}}\\linebreak{} %s}\"
+       '\(\(unless \(eq todo \"\"\)
+	   \(format \"\\textsc{%s%s}\" todo priority\)\)
+	 heading content\)\)\)")
 
 (defvar org-odd-levels-only)
 (defvar org-keyword-time-regexp)
@@ -179,6 +179,12 @@ default, or nil of no state should be assigned."
   "Insert an inline task.
 If prefix arg NO-STATE is set, ignore `org-inlinetask-default-state'."
   (interactive "P")
+  ;; Error when inside an inline task, except if point was at its very
+  ;; beginning, in which case the new inline task will be inserted
+  ;; before this one.
+  (when (and (org-inlinetask-in-task-p)
+	     (not (and (org-inlinetask-at-task-p) (bolp))))
+    (error "Cannot nest inline tasks"))
   (or (bolp) (newline))
   (let ((indent org-inlinetask-min-level))
     (if org-odd-levels-only
@@ -333,7 +339,9 @@ Either remove headline and meta data, or do special formatting."
       ;; Remove the task.
       (goto-char beg)
       (delete-region beg end)
-      (when org-inlinetask-export
+      (when (and org-inlinetask-export
+		 (assq org-export-current-backend
+		       org-inlinetask-export-templates))
 	;; Format CONTENT, if appropriate.
 	(setq content
 	      (if (not (and content (string-match "\\S-" content)))
@@ -372,6 +380,11 @@ Either remove headline and meta data, or do special formatting."
 				 (eval (append '(format format-str)
 					       (mapcar nil-to-str tokens)))
 				 '(original-indentation 1000))))
+	    ;; Ensure task starts a new paragraph.
+	    (unless (or (bobp)
+			(save-excursion (forward-line -1)
+					(looking-at "[ \t]*$")))
+	      (insert "\n"))
 	    (insert export-str)
 	    (unless (bolp) (insert "\n")))))))))
 

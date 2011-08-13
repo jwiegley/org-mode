@@ -27,6 +27,23 @@
 ;;; Commentary:
 
 ;; This file contains the code for creating and using the Agenda for Org-mode.
+;;
+;; The functions `org-batch-agenda', `org-batch-agenda-csv', and
+;; `org-batch-store-agenda-views' are implemented as macros to provide
+;; a conveniant way for extracting agenda information from the command
+;; line. The Lisp does not evaluate parameters of a macro call; thus
+;; it is not necessary to quote the parameters passed to one of those
+;; functions. E.g. you can write:
+;;
+;;   emacs -batch -l ~/.emacs -eval '(org-batch-agenda "a" org-agenda-span 7)'
+;;
+;; To export an agenda spanning 7 days. If `org-batch-agenda' would
+;; have been implemented as a regular function you'd have to quote the
+;; symbol org-agenda-span. Moreover: To use a symbol as parameter
+;; value you would have to double quote the symbol.
+;;
+;; This is a hack, but it works even when running Org byte-compiled.
+;;
 
 ;;; Code:
 
@@ -1714,12 +1731,14 @@ Note that functions in this alist don't need to be quoted."
 If STRING is non-nil, the text property will be fetched from position 0
 in that string.  If STRING is nil, it will be fetched from the beginning
 of the current line."
-  `(let ((marker (get-text-property (if string 0 (point-at-bol))
-				    'org-hd-marker string)))
-     (with-current-buffer (marker-buffer marker)
-       (save-excursion
-	 (goto-char marker)
-	 ,@body))))
+  (org-with-gensyms (marker)
+    `(let ((,marker (get-text-property (if string 0 (point-at-bol))
+				       'org-hd-marker string)))
+       (with-current-buffer (marker-buffer ,marker)
+	 (save-excursion
+	   (goto-char ,marker)
+	   ,@body)))))
+(def-edebug-spec org-agenda-with-point-at-orig-entry (form body))
 
 (defun org-add-agenda-custom-command (entry)
   "Replace or add a command in `org-agenda-custom-commands'.
@@ -2575,15 +2594,13 @@ If CMD-KEY is a string of length 1, it is used as a key in
 longer string it is used as a tags/todo match string.
 Parameters are alternating variable names and values that will be bound
 before running the agenda command."
-  (let (pars)
-    (while parameters
-      (push (list (pop parameters) (if parameters (pop parameters))) pars))
+  (org-eval-in-environment (org-make-parameter-alist parameters)
     (if (> (length cmd-key) 2)
-	(eval (list 'let (nreverse pars)
-		    (list 'org-tags-view nil cmd-key)))
-      (eval (list 'let (nreverse pars) (list 'org-agenda nil cmd-key))))
-    (set-buffer org-agenda-buffer-name)
-    (princ (org-encode-for-stdout (buffer-string)))))
+	(org-tags-view nil cmd-key)
+      (org-agenda nil cmd-key)))
+  (set-buffer org-agenda-buffer-name)
+  (princ (org-encode-for-stdout (buffer-string))))
+(def-edebug-spec org-batch-agenda (form &rest sexp))
 
 ;(defun org-encode-for-stdout (string)
 ;  (if (fboundp 'encode-coding-string)
@@ -2630,30 +2647,27 @@ extra        Sting with extra planning info
 priority-l   The priority letter if any was given
 priority-n   The computed numerical priority
 agenda-day   The day in the agenda where this is listed"
-
-  (let (pars)
-    (while parameters
-      (push (list (pop parameters) (if parameters (pop parameters))) pars))
-    (push (list 'org-agenda-remove-tags t) pars)
+  (org-eval-in-environment (append '((org-agenda-remove-tags t))
+				   (org-make-parameter-alist parameters))
     (if (> (length cmd-key) 2)
-	(eval (list 'let (nreverse pars)
-		    (list 'org-tags-view nil cmd-key)))
-      (eval (list 'let (nreverse pars) (list 'org-agenda nil cmd-key))))
-    (set-buffer org-agenda-buffer-name)
-    (let* ((lines (org-split-string (buffer-string) "\n"))
-	   line)
-      (while (setq line (pop lines))
-	(catch 'next
-	  (if (not (get-text-property 0 'org-category line)) (throw 'next nil))
-	  (setq org-agenda-info
-		(org-fix-agenda-info (text-properties-at 0 line)))
-	  (princ
-	   (org-encode-for-stdout
-	    (mapconcat 'org-agenda-export-csv-mapper
-		       '(org-category txt type todo tags date time extra
-				      priority-letter priority agenda-day)
-		      ",")))
-	  (princ "\n"))))))
+	(org-tags-view nil cmd-key)
+      (org-agenda nil cmd-key)))
+  (set-buffer org-agenda-buffer-name)
+  (let* ((lines (org-split-string (buffer-string) "\n"))
+	 line)
+    (while (setq line (pop lines))
+      (catch 'next
+	(if (not (get-text-property 0 'org-category line)) (throw 'next nil))
+	(setq org-agenda-info
+	      (org-fix-agenda-info (text-properties-at 0 line)))
+	(princ
+	 (org-encode-for-stdout
+	  (mapconcat 'org-agenda-export-csv-mapper
+		     '(org-category txt type todo tags date time extra
+				    priority-letter priority agenda-day)
+		     ",")))
+	(princ "\n")))))
+(def-edebug-spec org-batch-agenda-csv (form &rest sexp))
 
 (defun org-fix-agenda-info (props)
   "Make sure all properties on an agenda item have a canonical form.
@@ -2703,17 +2717,14 @@ This ensures the export commands can easily use it."
   (interactive)
   (eval (list 'org-batch-store-agenda-views)))
 
-;; FIXME, why is this a macro?????
 ;;;###autoload
 (defmacro org-batch-store-agenda-views (&rest parameters)
   "Run all custom agenda commands that have a file argument."
   (let ((cmds (org-agenda-normalize-custom-commands org-agenda-custom-commands))
 	(pop-up-frames nil)
 	(dir default-directory)
-	pars cmd thiscmdkey files opts cmd-or-set)
-    (while parameters
-      (push (list (pop parameters) (if parameters (pop parameters))) pars))
-    (setq pars (reverse pars))
+	(pars (org-make-parameter-alist parameters))
+	cmd thiscmdkey files opts cmd-or-set)
     (save-window-excursion
       (while cmds
 	(setq cmd (pop cmds)
@@ -2723,15 +2734,17 @@ This ensures the export commands can easily use it."
 	      files (nth (if (listp cmd-or-set) 4 5) cmd))
 	(if (stringp files) (setq files (list files)))
 	(when files
-	  (eval (list 'let (append org-agenda-exporter-settings opts pars)
-		      (list 'org-agenda nil thiscmdkey)))
+	  (org-eval-in-environment (append org-agenda-exporter-settings
+					   opts pars)
+	    (org-agenda nil thiscmdkey))
 	  (set-buffer org-agenda-buffer-name)
 	  (while files
-	    (eval (list 'let (append org-agenda-exporter-settings opts pars)
-			(list 'org-write-agenda
-			      (expand-file-name (pop files) dir) nil t))))
+	    (org-eval-in-environment (append org-agenda-exporter-settings
+					     opts pars)
+	      (org-write-agenda (expand-file-name (pop files) dir) nil t)))
 	  (and (get-buffer org-agenda-buffer-name)
 	       (kill-buffer org-agenda-buffer-name)))))))
+(def-edebug-spec org-batch-store-agenda-views (&rest sexp))
 
 (defun org-agenda-mark-header-line (pos)
   "Mark the line at POS as an agenda structure header."

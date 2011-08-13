@@ -2743,6 +2743,14 @@ be the favorite working time of John Wiegley :-)"
   :group 'org-time
   :type 'integer)
 
+(defcustom org-use-effective-time nil
+  "If non-nil, consider `org-extend-today-until' when creating timestamps.
+For example, if `org-extend-today-until' is 8, and it's 4am, then the
+\"effective time\" of any timestamps between midnight and 8am will be
+23:59 of the previous day."
+  :group 'boolean
+  :type 'integer)
+
 (defcustom org-edit-timestamp-down-means-later nil
   "Non-nil means S-down will increase the time in a time stamp.
 When nil, S-up will increase."
@@ -5161,7 +5169,7 @@ will be prompted for."
 	    t)))))
 
 (defun org-activate-code (limit)
-  (if (re-search-forward "^[ \t]*\\(: .*\n?\\)" limit t)
+  (if (re-search-forward "^[ \t]*\\(:\\(?: .*\\|$\\)\n?\\)" limit t)
       (progn
 	(org-remove-flyspell-overlays-in (match-beginning 0) (match-end 0))
 	(remove-text-properties (match-beginning 0) (match-end 0)
@@ -7531,8 +7539,8 @@ the inserted text when done."
 	  (force-level (cond (level (prefix-numeric-value level))
 			     ((and (looking-at "[ \t]*$")
 				   (string-match
-				    ^re_ (buffer-substring
-					  (point-at-bol) (point))))
+				    "^\\*+$" (buffer-substring
+					      (point-at-bol) (point))))
 			      (- (match-end 1) (match-beginning 1)))
 			     ((and (bolp)
 				   (looking-at org-outline-regexp))
@@ -7542,7 +7550,7 @@ the inserted text when done."
 			    (condition-case nil
 				(progn
 				  (outline-previous-visible-heading 1)
-				  (if (looking-at re)
+				  (if (looking-at ^re_)
 				      (- (match-end 0) (match-beginning 0) 1)
 				    1))
 			      (error 1))))
@@ -7551,7 +7559,7 @@ the inserted text when done."
 			    (progn
 			      (or (looking-at org-outline-regexp)
 				  (outline-next-visible-heading 1))
-			      (if (looking-at re)
+			      (if (looking-at ^re_)
 				  (- (match-end 0) (match-beginning 0) 1)
 				1))
 			  (error 1))))
@@ -7569,7 +7577,7 @@ the inserted text when done."
      (if force-level
 	 (delete-region (point-at-bol) (point)))
      ;; Paste
-     (beginning-of-line 1)
+     (beginning-of-line (if (bolp) 1 2))
      (unless for-yank (org-back-over-empty-lines))
      (setq beg (point))
      (and (fboundp 'org-id-paste-tracker) (org-id-paste-tracker txt))
@@ -10930,7 +10938,8 @@ nil or a string to be used for the todo mark." )
   (let* ((ct (org-current-time))
 	  (dct (decode-time ct))
 	  (ct1
-	   (if (< (nth 2 dct) org-extend-today-until)
+	   (if (and org-use-effective-time
+		    (< (nth 2 dct) org-extend-today-until))
 	       (encode-time 0 59 23 (1- (nth 3 dct)) (nth 4 dct) (nth 5 dct))
 	     ct)))
     ct1))
@@ -17941,7 +17950,7 @@ See the individual commands for more information."
    ((and (org-in-item-p) indent)
     (if (and (org-at-item-p) (>= (point) (match-end 0)))
 	(progn
-	  (newline)
+	  (save-match-data (newline))
 	  (org-indent-line-to (length (match-string 0))))
       (let ((ind (org-get-indentation)))
 	(newline)
@@ -19436,7 +19445,7 @@ If point is in an inline task, mark that task instead."
      ;; Footnote definition
      ((looking-at org-footnote-definition-re) (setq column 0))
      ;; Literal examples
-     ((looking-at "[ \t]*:[ \t]")
+     ((looking-at "[ \t]*:\\( \\|$\\)")
       (setq column (org-get-indentation))) ; do nothing
      ;; Lists
      ((ignore-errors (goto-char (org-in-item-p)))
@@ -19461,10 +19470,14 @@ If point is in an inline task, mark that task instead."
       (save-excursion
 	(re-search-backward "^[ \t]*#\\+begin_\\([a-z]+\\)" nil t))
       (setq column
-	    (if (equal (downcase (match-string 1)) "src")
-		;; src blocks: let `org-edit-src-exit' handle them
-		(org-get-indentation)
-	      (org-get-indentation (match-string 0)))))
+            (cond ((equal (downcase (match-string 1)) "src")
+                   ;; src blocks: let `org-edit-src-exit' handle them
+                   (org-get-indentation))
+                  ((equal (downcase (match-string 1)) "example")
+                   (max (org-get-indentation)
+			(org-get-indentation (match-string 0))))
+                  (t
+                   (org-get-indentation (match-string 0))))))
      ;; This line has nothing special, look at the previous relevant
      ;; line to compute indentation
      (t
@@ -19715,7 +19728,7 @@ this line is also exported in fixed-width font."
 	 (end (if regionp (region-end)))
 	 (nlines (or arg (if (and beg end) (count-lines beg end) 1)))
 	 (case-fold-search nil)
-	 (re "[ \t]*\\(: \\)")
+	 (re "[ \t]*\\(:\\(?: \\|$\\)\\)")
 	 off)
     (if regionp
 	(save-excursion

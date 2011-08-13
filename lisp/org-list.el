@@ -1440,7 +1440,7 @@ This function returns, destructively, the new list structure."
 	;; 1.1. Remove the item just created in structure.
 	(setq struct (delete (assq new-item struct) struct))
 	;; 1.2. Copy ITEM and any of its sub-items at NEW-ITEM.
-	(setq struct (sort*
+	(setq struct (sort
 		      (append
 		       struct
 		       (mapcar (lambda (e)
@@ -2275,7 +2275,7 @@ in subtree, ignoring drawers."
 	     ((org-at-item-p)
 	      (setq singlep t)
 	      (setq lim-up (point-at-bol)
-		    lim-down (point-at-eol)))
+		    lim-down (copy-marker (point-at-eol))))
 	     (t (error "Not at an item or heading, and no active region"))))
 	   ;; Determine the checkbox going to be applied to all items
 	   ;; within bounds.
@@ -2329,9 +2329,9 @@ in subtree, ignoring drawers."
 	     "Checkboxes were removed due to unchecked box at line %d"
 	     (org-current-line block-item))))
 	  (goto-char bottom)
-	  (move-marker lim-down nil)
 	  (move-marker bottom nil)
-	  (org-list-struct-apply-struct struct struct-copy)))))
+	  (org-list-struct-apply-struct struct struct-copy)))
+      (move-marker lim-down nil)))
   (org-update-checkbox-count-maybe))
 
 (defun org-reset-checkbox-state-subtree ()
