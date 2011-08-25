@@ -2,7 +2,9 @@
 
 ;;;_. Headers
 ;;;_ , License
-;; Copyright (C) 2009  Tom Breton (Tehom)
+;; Copyright (C) 2009-2011 Tom Breton (Tehom)
+
+;; This file is not part of GNU Emacs.
 
 ;; Author: Tom Breton (Tehom)
 ;; Keywords: outlines, convenience
@@ -536,4 +538,5 @@ NEW-MARK and OLD-MARK are the text of the new and old marks."
 ;;;_  + End:
 
 ;;;_ , End
+
 ;;; org-choose.el ends here

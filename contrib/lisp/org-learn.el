@@ -1,7 +1,6 @@
 ;;; org-learn.el --- Implements SuperMemo's incremental learning algorithm
 
-;; Copyright (C) 2009
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw at gnu dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -174,7 +173,5 @@ OF matrix."
 				  (days-to-time (nth 0 learn-data)))))))
 
 (provide 'org-learn)
-
-;; arch-tag: a46bb0e5-e4fb-4004-a9b8-63933c55af33
 
 ;;; org-learn.el ends here

@@ -1,11 +1,11 @@
 ;;; ob.el --- working with code blocks in org-mode
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
-;; Author: Eric Schulte, Dan Davison
+;; Author: Eric Schulte
+;;	Dan Davison
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -1388,7 +1388,7 @@ following the source block."
 			(match-end 0))))
 	   (name (if on-lob-line
 		     (nth 0 (org-babel-lob-get-info))
-		   (nth 4 (or info (org-babel-get-src-block-info)))))
+		   (nth 4 (or info (org-babel-get-src-block-info 'light)))))
 	   (head (unless on-lob-line (org-babel-where-is-src-block-head)))
 	   found beg end)
       (when head (goto-char head))
@@ -1573,8 +1573,8 @@ code ---- the results are extracted in the syntax of the source
     (save-excursion
       (let* ((inlinep
 	      (save-excursion
-		(or (= (point) (point-at-bol))
-		    (re-search-backward "[ \f\t\n\r\v]" nil t))
+		(unless (= (point) (point-at-bol)) ;; move before inline block
+		  (re-search-backward "[ \f\t\n\r\v]" nil t))
 		(when (or (looking-at org-babel-inline-src-block-regexp)
 			  (looking-at org-babel-inline-lob-one-liner-regexp))
 		  (goto-char (match-end 0))
@@ -1679,8 +1679,9 @@ code ---- the results are extracted in the syntax of the source
   (interactive)
   (let ((location (org-babel-where-is-src-block-result nil info)) start)
     (when location
+      (setq start (- location 1))
       (save-excursion
-        (goto-char location) (setq start (point)) (forward-line 1)
+        (goto-char location) (forward-line 1)
         (delete-region start (org-babel-result-end))))))
 
 (defun org-babel-result-end ()
@@ -2201,6 +2202,6 @@ of `org-babel-temporary-directory'."
 
 (provide 'ob)
 
-;; arch-tag: 01a7ebee-06c5-4ee4-a709-e660d28c0af1
+
 
 ;;; ob.el ends here

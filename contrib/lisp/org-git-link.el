@@ -1,6 +1,6 @@
 ;;; org-git-link.el --- Provide org links to specific file version
 
-;; Copyright (C) 2009  Reimar Finken
+;; Copyright (C) 2009-2011  Reimar Finken
 
 ;; Author: Reimar Finken <reimar.finken@gmx.de>
 ;; Keywords: files, calendar, hypermedia
@@ -216,4 +216,5 @@
           (buffer-substring 12 (1- (point-max))))))) ; to strip off final newline
 
 (provide 'org-git-link)
+
 ;;; org-git-link.el ends here

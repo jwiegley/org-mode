@@ -1,10 +1,9 @@
 ;;; org-crypt.el --- Public key encryption for org-mode entries
 
-;; Copyright (C) 2007, 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2007, 2009-2011  Free Software Foundation, Inc.
 
 ;; Emacs Lisp Archive Entry
 ;; Filename: org-crypt.el
-;; Version: 7.7
 ;; Keywords: org-mode
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: Peter Jones <pjones@pmade.com>
@@ -251,7 +250,5 @@ nil      : Leave auto-save-mode enabled.
 (add-hook 'org-reveal-start-hook 'org-decrypt-entry)
 
 (provide 'org-crypt)
-
-;; arch-tag: 8202ed2c-221e-4001-9e4b-54674a7e846e
 
 ;;; org-crypt.el ends here

@@ -1,12 +1,10 @@
 ;;; org-table.el --- The table editor for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -817,16 +815,6 @@ When nil, simply write \"#ERROR\" in corrupted fields.")
 			      (append (pop fields) emptystrings))
 		   hfmt))
 	       lines ""))
-    (if (equal (char-before) ?\n)
-	;; This hack is for org-indent, to force redisplay of the
-	;; line prefix of the first line. Apparently the redisplay
-	;; is tied to the newline, which is, I think, a bug.
-	;; To force this redisplay, we remove and re-insert the
-	;; newline, so that the redisplay engine thinks it belongs
-	;; to the changed text.
-	(progn
-	  (backward-delete-char 1)
-	  (insert "\n")))
     (move-marker org-table-aligned-begin-marker (point))
     (insert new)
     ;; Replace the old one
@@ -2178,7 +2166,7 @@ For all numbers larger than LIMIT, shift them by DELTA."
 	      cnt 1)
 	(while (setq name (pop names))
 	  (setq cnt (1+ cnt))
-	  (if (string-match "^[a-zA-Z][a-zA-Z0-9]*$" name)
+	  (if (string-match "^[a-zA-Z][_a-zA-Z0-9]*$" name)
 	      (push (cons name (int-to-string cnt)) org-table-column-names))))
       (setq org-table-column-names (nreverse org-table-column-names))
       (setq org-table-column-name-regexp
@@ -2202,7 +2190,7 @@ For all numbers larger than LIMIT, shift them by DELTA."
 	(while (and fields1 (setq field (pop fields)))
 	  (setq v (pop fields1) col (1+ col))
 	  (when (and (stringp field) (stringp v)
-		     (string-match "^[a-zA-Z][a-zA-Z0-9]*$" field))
+		     (string-match "^[a-zA-Z][_a-zA-Z0-9]*$" field))
 	      (push (cons field v) org-table-local-parameters)
 	      (push (list field line col) org-table-named-field-locations))))
       ;; Analyse the line types
@@ -2409,7 +2397,8 @@ not overwrite the stored one."
 	   (modes (copy-sequence org-calc-default-modes))
 	   (numbers nil) ; was a variable, now fixed default
 	   (keep-empty nil)
-	   n form form0 formrpl formrg bw fmt x ev orig c lispp literal duration)
+	   n form form0 formrpl formrg bw fmt x ev orig c lispp literal 
+	   duration duration-output-format)
       ;; Parse the format string.  Since we have a lot of modes, this is
       ;; a lot of work.  However, I think calc still uses most of the time.
       (if (string-match ";" formula)
@@ -2963,7 +2952,7 @@ them to individual field equations for each field."
        ((string-match "^@-?[-+I0-9]+\\$-?[0-9]+$" lhs)
 	;; This just refers to one fixed field
 	(push e res))
-       ((string-match "^[a-zA-Z][a-zA-Z0-9]*$" lhs)
+       ((string-match "^[a-zA-Z][_a-zA-Z0-9]*$" lhs)
 	;; This just refers to one fixed named field
 	(push e res))
        ((string-match "^@[0-9]+$" lhs)
@@ -3242,7 +3231,7 @@ For example:  28 -> AB."
   "Convert a time string into numerical duration in seconds.
 S can be a string matching either -?HH:MM:SS or -?HH:MM.
 If S is a string representing a number, keep this number."
-  (let (hour min sec res)
+  (let (hour minus min sec res)
     (cond
      ((and (string-match "\\(-?\\)\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\)" s))
       (setq minus (< 0 (length (match-string 1 s)))
@@ -4720,8 +4709,6 @@ list of the fields in the rectangle ."
 		  form)))))))))
 
 (provide 'org-table)
-
-;; arch-tag: 4d21cfdd-0268-440a-84b0-09237a0fe0ef
 
 ;;; org-table.el ends here
 

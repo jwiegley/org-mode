@@ -1,12 +1,10 @@
 ;;; org-html.el --- HTML export for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -158,6 +156,12 @@ not be modified."
   dt { font-weight: bold; }
   div.figure { padding: 0.5em; }
   div.figure p { text-align: center; }
+  div.inlinetask {
+    padding:10px;
+    border:2px solid gray;
+    margin:10px;
+    background: #ffffcc;
+  }
   textarea { overflow-x: auto; }
   .linenr { font-size:smaller }
   .code-highlighted {background-color:#ffff00;}
@@ -804,11 +808,11 @@ description.  See variables `org-export-html-inline-images' and
 			     may-inline-p)
    "Make an HTML link.
 OPT-PLIST is an options list.
-TYPE is the device-type of the link (THIS://foo.html)
-PATH is the path of the link (http://THIS#locationx)
-FRAGMENT is the fragment part of the link, if any (foo.html#THIS)
+TYPE is the device-type of the link (THIS://foo.html).
+PATH is the path of the link (http://THIS#location).
+FRAGMENT is the fragment part of the link, if any (foo.html#THIS).
 DESC is the link description, if any.
-ATTR is a string of other attributes of the a element.
+ATTR is a string of other attributes of the \"a\" element.
 MAY-INLINE-P allows inlining it as an image."
 
    (declare (special org-par-open))
@@ -2607,5 +2611,4 @@ the alist of previous items."
 
 (provide 'org-html)
 
-;; arch-tag: 8109d84d-eb8f-460b-b1a8-f45f3a6c7ea1
 ;;; org-html.el ends here

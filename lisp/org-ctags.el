@@ -1,12 +1,11 @@
 ;;; org-ctags.el - Integrate Emacs "tags" facility with org mode.
 ;;
-;; Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2011 Free Software Foundation, Inc.
 
 ;; Author: Paul Sexton <eeeickythump@gmail.com>
-;; Version: 7.7
+
 
 ;; Keywords: org, wp
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -539,5 +538,4 @@ a new topic."
 
 (provide 'org-ctags)
 
-;; arch-tag: 4b1ddd5a-8529-4b17-bcde-96a922d26343
 ;;; org-ctags.el ends here

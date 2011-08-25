@@ -5,7 +5,6 @@
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -112,6 +111,6 @@ Emacs-lisp table, otherwise return the results as a string."
 
 (provide 'ob-awk)
 
-;; arch-tag: 844e2c88-6aad-4018-868d-a2df6bcdf68f
+
 
 ;;; ob-awk.el ends here

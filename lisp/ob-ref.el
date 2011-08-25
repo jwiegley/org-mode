@@ -1,11 +1,11 @@
 ;;; ob-ref.el --- org-babel functions for referencing external data
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
-;; Author: Eric Schulte, Dan Davison
+;; Author: Eric Schulte
+;;	Dan Davison
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -149,7 +149,7 @@ the variable."
 	(widen)
 	(goto-char (point-min))
 	(if (let* ((rx (regexp-quote ref))
-		   (res-rx (concat org-babel-result-regexp rx "[ \t]*$"))
+		   (res-rx (concat org-babel-result-regexp rx "[ \t]*.*$"))
 		   (src-rx (concat org-babel-src-name-regexp
 				   rx "\\(\(.*\)\\)?" "[ \t]*$")))
 	      ;; goto ref in the current buffer
@@ -263,6 +263,6 @@ Supported reference types are tables and source blocks."
 
 (provide 'ob-ref)
 
-;; arch-tag: ace4a4f4-ea38-4dac-8fe6-6f52fcc43b6d
+
 
 ;;; ob-ref.el ends here

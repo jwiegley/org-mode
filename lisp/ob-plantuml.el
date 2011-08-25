@@ -1,11 +1,10 @@
 ;;; ob-plantuml.el --- org-babel functions for plantuml evaluation
 
-;; Copyright (C) 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2010-2011  Free Software Foundation, Inc.
 
 ;; Author: Zhang Weize
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -80,6 +79,6 @@ This function is called by `org-babel-execute-src-block'."
 
 (provide 'ob-plantuml)
 
-;; arch-tag: 451f50c5-e779-407e-ad64-70e0e8f161d1
+
 
 ;;; ob-plantuml.el ends here

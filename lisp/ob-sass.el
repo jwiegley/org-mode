@@ -1,11 +1,10 @@
 ;;; ob-sass.el --- org-babel functions for the sass css generation language
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -68,6 +67,6 @@ This function is called by `org-babel-execute-src-block'."
 
 (provide 'ob-sass)
 
-;; arch-tag: 2954b169-eef4-45ce-a8e5-3e619f0f07ac
+
 
 ;;; ob-sass.el ends here

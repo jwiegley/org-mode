@@ -1,12 +1,10 @@
 ;;; org-archive.el --- Archiving for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -355,7 +353,7 @@ sibling does not exist, it will be created at the end of the subtree."
     (widen)
     (let (b e pos leader level)
       (org-back-to-heading t)
-      (looking-at outline-regexp)
+      (looking-at org-outline-regexp)
       (setq leader (match-string 0)
 	    level (funcall outline-level))
       (setq pos (point))
@@ -482,7 +480,5 @@ This command is set with the variable `org-archive-default-command'."
     (error "Abort")))
 
 (provide 'org-archive)
-
-;; arch-tag: 0837f601-9699-43c3-8b90-631572ae6c85
 
 ;;; org-archive.el ends here

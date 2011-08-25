@@ -1,12 +1,10 @@
 ;;; org-exp.el --- ASCII, HTML, XOXO and iCalendar export for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -2691,11 +2689,11 @@ INDENT was the original indentation of the block."
 		       (format "\\begin{%s}\n%s\\end{%s}\n"
 			       custom-environment rtn custom-environment))
 		      (listings-p
-		       (format "\\begin{%s}\n%s\\end{%s}\n"
+		       (format "\\begin{%s}\n%s\\end{%s}"
 			       "lstlisting" rtn "lstlisting"))
 		      (minted-p
 		       (format
-			"\\begin{minted}[%s]{%s}\n%s\\end{minted}\n"
+			"\\begin{minted}[%s]{%s}\n%s\\end{minted}"
 			(mapconcat #'make-option-string
 				   org-export-latex-minted-options ",")
 			backend-lang rtn)))))))
@@ -2720,7 +2718,7 @@ INDENT was the original indentation of the block."
 	     "\n#+BEGIN_" backend-name "\n"
 	     (org-add-props rtn
 		 '(org-protected t org-example t org-native-text t))
-	     "\n#+END_" backend-name "\n\n"))
+	     "\n#+END_" backend-name "\n"))
       (org-add-props rtn nil 'original-indentation indent))))
 
 (defun org-export-number-lines (text &optional skip1 skip2 number cont
@@ -2895,17 +2893,6 @@ command."
 	(kill-buffer buffer)
       (switch-to-buffer-other-window buffer)
       (goto-char (point-min)))))
-
-(defun org-find-visible ()
-  (let ((s (point)))
-    (while (and (not (= (point-max) (setq s (next-overlay-change s))))
-		(get-char-property s 'invisible)))
-    s))
-(defun org-find-invisible ()
-  (let ((s (point)))
-    (while (and (not (= (point-max) (setq s (next-overlay-change s))))
-		(not (get-char-property s 'invisible))))
-    s))
 
 (defvar org-export-htmlized-org-css-url) ;; defined in org-html.el
 
@@ -3230,7 +3217,5 @@ The depends on the variable `org-export-copy-to-kill'."
     (message "%s export done, pushed to kill ring and clipboard" format)))
 
 (provide 'org-exp)
-
-;; arch-tag: 65985fe9-095c-49c7-a7b6-cb4ee15c0a95
 
 ;;; org-exp.el ends here

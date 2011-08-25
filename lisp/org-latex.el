@@ -1,11 +1,10 @@
 ;;; org-latex.el --- LaTeX exporter for org-mode
 ;;
-;; Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2011 Free Software Foundation, Inc.
 ;;
 ;; Emacs Lisp Archive Entry
 ;; Filename: org-latex.el
-;; Version: 7.7
-;; Author: Bastien Guerry <bzg AT altern DOT org>
+;; Author: Bastien Guerry <bzg AT gnu DOT org>
 ;; Maintainer: Carsten Dominik <carsten.dominik AT gmail DOT com>
 ;; Keywords: org, wp, tex
 ;; Description: Converts an org-mode buffer into LaTeX
@@ -402,7 +401,7 @@ will pass them (combined with the LaTeX default list parameters) to
   :type 'plist)
 
 (defcustom org-export-latex-verbatim-wrap
-  '("\\begin{verbatim}\n" . "\\end{verbatim}\n")
+  '("\\begin{verbatim}\n" . "\\end{verbatim}")
   "Environment to be wrapped around a fixed-width section in LaTeX export.
 This is a cons with two strings, to be added before and after the
 fixed-with text.
@@ -1837,7 +1836,7 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
 		  (replace-match (concat (match-string 1)
 					 (match-string 2)) t t)
 		  (forward-line))
-		(insert "\\end{verbatim}\n\n"))
+		(insert "\\end{verbatim}\n"))
        (progn (goto-char (match-beginning 0))
 	      (while (looking-at "^\\([ \t]*\\):\\(\\([ \t]\\|$\\).*\\)$")
 		(replace-match (concat "%" (match-string 1)
@@ -2768,7 +2767,5 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
 
 (provide 'org-export-latex)
 (provide 'org-latex)
-
-;; arch-tag: 23c2b87d-da04-4c2d-ad2d-1eb6487bc3ad
 
 ;;; org-latex.el ends here

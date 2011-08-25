@@ -1,12 +1,10 @@
 ;;; org-clock.el --- The time clocking code for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -2000,7 +1998,8 @@ the currently selected interval size."
                         (encode-time 0 0 0 (+ d n) m y))))
           ((and wp (string-match "w\\|W" wp) mw (> (length wp) 0))
            (require 'cal-iso)
-           (setq date (calendar-gregorian-from-absolute (calendar-absolute-from-iso (list (+ mw n) 1 y))))
+           (setq date (calendar-gregorian-from-absolute 
+		       (calendar-absolute-from-iso (list (+ mw n) 1 y))))
            (setq ins (format-time-string
                       "%G-W%V"
                       (encode-time 0 0 0 (nth 1 date) (car date) (nth 2 date)))))
@@ -2016,7 +2015,8 @@ the currently selected interval size."
                (setq mw 5
                      y (- y 1))
              ())
-           (setq date (calendar-gregorian-from-absolute (calendar-absolute-from-iso (org-quarter-to-date (+ mw n) y))))
+           (setq date (calendar-gregorian-from-absolute 
+		       (calendar-absolute-from-iso (org-quarter-to-date (+ mw n) y))))
            (setq ins (format-time-string
                       (concatenate 'string (number-to-string y) "-Q" (number-to-string (+ mw n)))
                       (encode-time 0 0 0 (nth 1 date) (car date) (nth 2 date)))))
@@ -2052,7 +2052,6 @@ the currently selected interval size."
 			  'org-clocktable-write-default))
 	   cc range-text ipos pos one-file-with-archives
 	   scope-is-list tbls level)
-
       ;; Check if we need to do steps
       (when block
 	;; Get the range text for the header
@@ -2639,8 +2638,6 @@ The details of what will be saved are regulated by the variable
 (org-defkey org-mode-map "\C-c\C-x\C-e" 'org-clock-modify-effort-estimate)
 
 (provide 'org-clock)
-
-;; arch-tag: 7b42c5d4-9b36-48be-97c0-66a869daed4c
 
 ;;; org-clock.el ends here
 

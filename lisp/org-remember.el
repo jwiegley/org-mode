@@ -1,12 +1,10 @@
 ;;; org-remember.el --- Fast note taking in Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -1152,8 +1150,6 @@ See also the variable `org-reverse-note-order'."
 						     (point-at-eol)))))))
 
 (provide 'org-remember)
-
-;; arch-tag: 497f30d0-4bc3-4097-8622-2d27ac5f2698
 
 ;;; org-remember.el ends here
 

@@ -1,10 +1,8 @@
 ;;; org-exp-blocks.el --- pre-process blocks when exporting org files
 
-;; Copyright (C) 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -177,8 +175,8 @@ which defaults to the value of `org-export-blocks-witheld'."
 	(setq start (point))
 	(let ((beg-re "^\\([ \t]*\\)#\\+begin_\\(\\S-+\\)[ \t]*\\(.*\\)?[\r\n]"))
 	  (while (re-search-forward beg-re nil t)
-	    (let* ((match-start (match-beginning 0))
-		   (body-start (match-end 0))
+	    (let* ((match-start (copy-marker (match-beginning 0)))
+		   (body-start (copy-marker (match-end 0)))
 		   (indentation (length (match-string 1)))
 		   (inner-re (format "[\r\n]*[ \t]*#\\+\\(begin\\|end\\)_%s"
 				     (regexp-quote (downcase (match-string 2)))))
@@ -197,7 +195,7 @@ which defaults to the value of `org-export-blocks-witheld'."
 	      (when (not (zerop balanced))
 		(error "unbalanced begin/end_%s blocks with %S"
 		       type (buffer-substring match-start (point))))
-	      (setq match-end (match-end 0))
+	      (setq match-end (copy-marker (match-end 0)))
 	      (unless preserve-indent
 		(setq body (save-match-data (org-remove-indentation
 					     (buffer-substring
@@ -212,7 +210,11 @@ which defaults to the value of `org-export-blocks-witheld'."
 		    (delete-region match-start match-end)
 		    (goto-char match-start) (insert replacement)
 		    (unless preserve-indent
-		      (indent-code-rigidly match-start (point) indentation))))))
+		      (indent-code-rigidly match-start (point) indentation)))))
+	      ;; cleanup markers
+	      (set-marker match-start nil)
+	      (set-marker body-start nil)
+	      (set-marker match-end nil))
 	    (setq start (point))))
 	(interblock start (point-max))
 	(run-hooks 'org-export-blocks-postblock-hook)))))
@@ -377,5 +379,4 @@ other backends, it converts the comment into an EXAMPLE segment."
 
 (provide 'org-exp-blocks)
 
-;; arch-tag: 1c365fe9-8808-4f72-bb15-0b00f36d8024
 ;;; org-exp-blocks.el ends here

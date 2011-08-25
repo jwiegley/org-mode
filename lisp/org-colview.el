@@ -1,12 +1,10 @@
 ;;; org-colview.el --- Column View in Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -210,9 +208,9 @@ This is the compiled version of the format.")
 			  (funcall org-columns-modify-value-for-display-function
 				   title val))
 			 ((equal property "ITEM")
-			  (if (org-mode-p)
-			      (org-columns-cleanup-item
-			       val org-columns-current-fmt-compiled)))
+			  (org-columns-cleanup-item
+			   val org-columns-current-fmt-compiled
+			   (or org-complex-heading-regexp cphr)))
 			 ((and calc (functionp calc)
 			       (not (string= val ""))
 			       (not (get-text-property 0 'org-computed val)))
@@ -342,24 +340,28 @@ for the duration of the command.")
       (when (local-variable-p 'org-colview-initial-truncate-line-value)
 	(setq truncate-lines org-colview-initial-truncate-line-value)))))
 
-(defun org-columns-cleanup-item (item fmt)
-  "Remove from ITEM what is a column in the format FMT."
-  (if (not org-complex-heading-regexp)
-      item
-    (when (string-match org-complex-heading-regexp item)
-      (setq item
-	    (concat
-	     (org-add-props (match-string 1 item) nil
-	       'org-whitespace (* 2 (1- (org-reduced-level (- (match-end 1) (match-beginning 1))))))
-	     (and (match-end 2) (not (assoc "TODO" fmt)) (concat " " (match-string 2 item)))
-	     (and (match-end 3) (not (assoc "PRIORITY" fmt)) (concat " " (match-string 3 item)))
-	     " " (save-match-data (org-columns-compact-links (match-string 4 item)))
-	     (and (match-end 5) (not (assoc "TAGS" fmt)) (concat " " (match-string 5 item)))))
-      (add-text-properties
-       0 (1+ (match-end 1))
-       (list 'org-whitespace (* 2 (1- (org-reduced-level (- (match-end 1) (match-beginning 1))))))
-       item)
-      item)))
+(defun org-columns-cleanup-item (item fmt cphr)
+  "Remove from ITEM what is a column in the format FMT.
+CPHR is the complex heading regexp to use for parsing ITEM."
+  (let (fixitem)
+    (if (not cphr)
+	item
+      (unless (string-match "^\*+ " item)
+	(setq item (concat "* " item) fixitem t))
+      (if (string-match cphr item)
+	  (setq item
+		(concat
+		 (org-add-props (match-string 1 item) nil
+		   'org-whitespace (* 2 (1- (org-reduced-level (- (match-end 1) (match-beginning 1))))))
+		 (and (match-end 2) (not (assoc "TODO" fmt)) (concat " " (match-string 2 item)))
+		 (and (match-end 3) (not (assoc "PRIORITY" fmt)) (concat " " (match-string 3 item)))
+		 " " (save-match-data (org-columns-compact-links (match-string 4 item)))
+		 (and (match-end 5) (not (assoc "TAGS" fmt)) (concat " " (match-string 5 item)))))
+	(add-text-properties
+	 0 (1+ (match-end 1))
+	 (list 'org-whitespace (* 2 (1- (org-reduced-level (- (match-end 1) (match-beginning 1))))))
+	 item))
+      (if fixitem (replace-regexp-in-string "^\*+ " "" item) item))))
 
 (defun org-columns-compact-links (s)
   "Replace [[link][desc]] with [desc] or [link]."
@@ -1525,7 +1527,5 @@ The string should be two numbers joined with a \"-\"."
     (list (string-to-number s) (string-to-number s))))
 
 (provide 'org-colview)
-
-;; arch-tag: 61f5128d-747c-4983-9479-e3871fa3d73c
 
 ;;; org-colview.el ends here

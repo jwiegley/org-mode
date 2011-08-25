@@ -1,11 +1,10 @@
 ;;; org-inlinetask.el --- Tasks independent of outline hierarchy
 
-;; Copyright (C) 2009, 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -107,11 +106,14 @@ When nil, they will not be exported."
   :type 'boolean)
 
 (defvar org-inlinetask-export-templates
-  '((html "<pre class=\"inlinetask\"><b>%s%s</b><br />%s</pre>"
+  '((html "<div class=\"inlinetask\"><b>%s%s</b><br />%s</div>"
 	  '((unless (eq todo "")
 	      (format "<span class=\"%s %s\">%s%s</span> "
 		      class todo todo priority))
 	    heading content))
+    (odt "%s" '((org-odt-format-inlinetask heading content
+					   todo priority tags)))
+
     (latex "\\begin\{description\}\n\\item[%s%s]~%s\\end\{description\}"
 	   '((unless (eq todo "") (format "\\textsc\{%s%s\} " todo priority))
 	     heading content))
@@ -186,14 +188,15 @@ If prefix arg NO-STATE is set, ignore `org-inlinetask-default-state'."
 	     (not (and (org-inlinetask-at-task-p) (bolp))))
     (error "Cannot nest inline tasks"))
   (or (bolp) (newline))
-  (let ((indent org-inlinetask-min-level))
-    (if org-odd-levels-only
-        (setq indent (- (* 2 indent) 1)))
-    (insert (make-string indent ?*)
-            (if (or no-state (not org-inlinetask-default-state))
-		" \n"
-	      (concat " " org-inlinetask-default-state " \n"))
-            (make-string indent ?*) " END\n"))
+  (let* ((indent (if org-odd-levels-only
+		     (1- (* 2 org-inlinetask-min-level))
+		   org-inlinetask-min-level))
+	 (indent-string (concat (make-string indent ?*) " ")))
+    (insert indent-string
+	    (if (or no-state (not org-inlinetask-default-state))
+		"\n"
+	      (concat org-inlinetask-default-state " \n"))
+	    indent-string "END\n"))
   (end-of-line -1))
 (define-key org-mode-map "\C-c\C-xt" 'org-inlinetask-insert-task)
 
@@ -349,12 +352,14 @@ Either remove headline and meta data, or do special formatting."
 		;; Ensure CONTENT has minimal indentation, a single
 		;; newline character at its boundaries, and isn't
 		;; protected.
-		(when (string-match "`\\([ \t]*\n\\)+" content)
+		(when (string-match "\\`\\([ \t]*\n\\)+" content)
 		  (setq content (substring content (match-end 0))))
 		(when (string-match "[ \t\n]+\\'" content)
 		  (setq content (substring content 0 (match-beginning 0))))
-		(org-add-props (concat "\n" (org-remove-indentation content) "\n")
-		    '(org-protected nil))))
+		(org-add-props
+		    (concat "\n\n" (org-remove-indentation content) "\n\n")
+		    '(org-protected nil org-native-text nil))))
+
 	(when (string-match org-complex-heading-regexp headline)
 	  (let* ((nil-to-str
 		  (function
@@ -371,7 +376,7 @@ Either remove headline and meta data, or do special formatting."
 		 (backend-spec (assq org-export-current-backend
 				     org-inlinetask-export-templates))
 		 (format-str (org-add-props (nth 1 backend-spec)
-				 '(org-protected t)))
+				 '(org-protected t org-native-text t)))
 		 (tokens (cadr (nth 2 backend-spec)))
 		 ;; Build export string. Ensure it won't break
 		 ;; surrounding lists by giving it arbitrary high
@@ -399,21 +404,34 @@ Either remove headline and meta data, or do special formatting."
     (goto-char (match-end 0))
     (current-column)))
 
+(defvar org-indent-indentation-per-level) ; defined in org-indent.el
+
+(defface org-inlinetask
+  (org-compatible-face 'shadow '((t (:bold t))))
+  "Face for inlinetask headlines."
+  :group 'org-faces)
+
 (defun org-inlinetask-fontify (limit)
-  "Fontify the inline tasks."
+  "Fontify the inline tasks down to LIMIT."
   (let* ((nstars (if org-odd-levels-only
 		     (1- (* 2 (or org-inlinetask-min-level 200)))
 		   (or org-inlinetask-min-level 200)))
 	 (re (concat "^\\(\\*\\)\\(\\*\\{"
 		    (format "%d" (- nstars 3))
-		    ",\\}\\)\\(\\*\\* .*\\)")))
+		    ",\\}\\)\\(\\*\\* .*\\)"))
+	 ;; Virtual indentation will add the warning face on the first
+	 ;; star. Thus, in that case, only hide it.
+	 (start-face (if (and (org-bound-and-true-p org-indent-mode)
+			      (> org-indent-indentation-per-level 1))
+			 'org-hide
+		       'org-warning)))
     (while (re-search-forward re limit t)
       (add-text-properties (match-beginning 1) (match-end 1)
-			   '(face org-warning font-lock-fontified t))
+			   `(face ,start-face font-lock-fontified t))
       (add-text-properties (match-beginning 2) (match-end 2)
 			   '(face org-hide font-lock-fontified t))
       (add-text-properties (match-beginning 3) (match-end 3)
-			   '(face shadow font-lock-fontified t)))))
+			   '(face org-inlinetask font-lock-fontified t)))))
 
 (defun org-inlinetask-toggle-visibility ()
   "Toggle visibility of inline task at point."

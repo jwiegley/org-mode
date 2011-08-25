@@ -1,11 +1,10 @@
 ;;; ob-ocaml.el --- org-babel functions for ocaml evaluation
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -140,6 +139,6 @@ Emacs-lisp table, otherwise return the results as a string."
 
 (provide 'ob-ocaml)
 
-;; arch-tag: 2e815f4d-365e-4d69-b1df-dd17fdd7b7b7
+
 
 ;;; ob-ocaml.el ends here

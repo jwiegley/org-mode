@@ -265,8 +265,7 @@
 @copying
 This manual is for Org version @value{VERSION}.
 
-Copyright @copyright{} 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-Free Software Foundation, Inc.
+Copyright @copyright{} 2004-2011  Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -384,7 +383,7 @@ The spreadsheet
 * Column formulas::             Formulas valid for an entire column
 * Editing and debugging formulas::  Fixing formulas
 * Updating the table::          Recomputing all dependent fields
-* Advanced features::           Field names, parameters and automatic recalc
+* Advanced features::           Field and column names, parameters and automatic recalc
 
 Hyperlinks
 
@@ -2282,7 +2281,7 @@ formula, moving these references by arrow keys
 * Column formulas::             Formulas valid for an entire column
 * Editing and debugging formulas::  Fixing formulas
 * Updating the table::          Recomputing all dependent fields
-* Advanced features::           Field names, parameters and automatic recalc
+* Advanced features::           Field and column names, parameters and automatic recalc
 @end menu
 
 @node References, Formula syntax for Calc, The spreadsheet, The spreadsheet
@@ -2839,9 +2838,11 @@ dependencies.
 @node Advanced features,  , Updating the table, The spreadsheet
 @subsection Advanced features
 
-If you want the recalculation of fields to happen automatically, or if
-you want to be able to assign @i{names} to fields and columns, you need
-to reserve the first column of the table for special marking characters.
+If you want the recalculation of fields to happen automatically, or if you
+want to be able to assign @i{names}@footnote{Such names must start by an
+alphabetic character and use only alphanumeric/underscore characters.} to
+fields and columns, you need to reserve the first column of the table for
+special marking characters.
 
 @table @kbd
 @orgcmd{C-#,org-table-rotate-recalc-marks}
@@ -3344,6 +3345,7 @@ link and description parts of the link.
 @cindex following links
 @orgcmd{C-c C-o,org-open-at-point}
 @vindex org-file-apps
+@vindex org-link-frame-setup
 Open link at point.  This will launch a web browser for URLs (using
 @command{browse-url-at-point}), run VM/MH-E/Wanderlust/Rmail/Gnus/BBDB for
 the corresponding links, and execute the command in a shell link.  When the
@@ -3357,7 +3359,9 @@ Classification of files is based on file extension only.  See option
 visit the file with Emacs, use a @kbd{C-u} prefix.  If you want to avoid
 opening in Emacs, use a @kbd{C-u C-u} prefix.@*
 If the cursor is on a headline, but not on a link, offer all links in the
-headline and entry text.
+headline and entry text.  If you want to setup the frame configuration for
+following links, customize @code{org-link-frame-setup}.
+
 @orgkey @key{RET}
 @vindex org-return-follows-link
 When @code{org-return-follows-link} is set, @kbd{@key{RET}} will also follow
@@ -9462,7 +9466,8 @@ enabled (default in Emacs 23).
 @cindex org-export-with-tasks
 You may use tags to select the parts of a document that should be exported,
 or to exclude parts from export.  This behavior is governed by two variables:
-@code{org-export-select-tags} and @code{org-export-exclude-tags}.
+@code{org-export-select-tags} and @code{org-export-exclude-tags},
+respectively defaulting to @code{'(:export:)} and @code{'(:noexport:)}.
 
 @enumerate
 @item
@@ -12160,7 +12165,8 @@ evaluation of the @code{factorial} code block.
 
 @node Specific header arguments,  , Using header arguments, Header arguments
 @subsection Specific header arguments
-The following header arguments are defined:
+Header arguments consist of an initial colon followed by the name of the
+argument in lowercase letters.  The following header arguments are defined:
 
 @menu
 * var::                         Pass arguments to code blocks
@@ -12202,7 +12208,8 @@ these are addressed in the language-specific documentation.  However, the
 syntax used to specify arguments is the same across all languages.  The
 values passed to arguments can be literal values, values from org-mode tables
 and literal example blocks, the results of other code blocks, or Emacs Lisp
-code---see the ``Emacs Lisp evaluation of variables'' heading below.
+code---see the ``Emacs Lisp evaluation of variables'' heading below.  In
+every case, variables require a default value when they are declared.
 
 These values can be indexed in a manner similar to arrays---see the
 ``indexable variable values'' heading below.
@@ -14114,7 +14121,7 @@ fixed this problem:
 (add-hook 'org-mode-hook
           (lambda ()
             (org-set-local 'yas/trigger-key [tab])
-            (define-key yas/keymap [tab] 'yas/next-field-group)))
+            (define-key yas/keymap [tab] 'yas/next-field)))
 @end lisp
 
 The latest version of yasnippet doesn't play well with Org mode.  If the
@@ -15632,10 +15639,6 @@ org-customize @key{RET}} and then click yourself through the tree.
 @printindex vr
 
 @bye
-
-@ignore
-        arch-tag: 7893d1Fe-cc57-4d13-b5e5-f494a1CBC7ac
-@end ignore
 
 @c Local variables:
 @c fill-column: 77

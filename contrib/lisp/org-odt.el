@@ -1,7 +1,6 @@
 ;;; org-odt.el --- OpenDocumentText export for Org-mode
 
-;; Copyright (C) 2010, 2011
-;;   Jambunathan <kjambunathan at gmail dot com>
+;; Copyright (C) 2010-2011 Jambunathan <kjambunathan at gmail dot com>
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -228,7 +227,7 @@ be linked only."
 
 (defvar org-export-odt-default-org-styles-alist
   '((paragraph . ((default . "Text_20_body")
-		  (fixedwidth . "OrgSourceBlock")
+		  (fixedwidth . "OrgFixedWidthBlock")
 		  (verse . "OrgVerse")
 		  (quote . "Quotations")
 		  (blockquote . "Quotations")
@@ -237,7 +236,7 @@ be linked only."
 		  (right . "OrgRight")
 		  (title . "Heading_20_1.title")
 		  (footnote . "Footnote")
-		  (src . "OrgSourceBlock")
+		  (src . "OrgSrcBlock")
 		  (illustration . "Illustration")
 		  (table . "Table")
 		  (definition-term . "Text_20_body_20_bold")
@@ -814,7 +813,11 @@ PUB-DIR is set, use this as the publishing directory."
      desc href (or attr "")))))
 
 (defun org-odt-format-spaces (n)
-  (org-odt-format-tags "<text:s text:c=\"%d\"/>" "" n))
+  (cond
+   ((= n 1) " ")
+   ((> n 1) (concat
+	     " " (org-odt-format-tags "<text:s text:c=\"%d\"/>" "" (1- n))))
+   (t "")))
 
 (defun org-odt-format-tabs (&optional n)
   (let ((tab "<text:tab/>")
@@ -829,8 +832,10 @@ PUB-DIR is set, use this as the publishing directory."
 
 (defun org-odt-format-line (line)
   (case org-lparse-dyn-current-environment
-    (fixedwidth (concat (org-odt-format-source-code-or-example-line
-			 (org-xml-encode-plain-text line)) "\n"))
+    (fixedwidth (concat
+		 (org-odt-format-stylized-paragraph
+		  'fixedwidth (org-odt-fill-tabs-and-spaces
+			       (org-xml-encode-plain-text line))) "\n"))
     (t (concat line "\n"))))
 
 (defun org-odt-format-comment (fmt &rest args)
@@ -843,27 +848,158 @@ PUB-DIR is set, use this as the publishing directory."
 (defun org-odt-fill-tabs-and-spaces (line)
   (replace-regexp-in-string
    "\\([\t]\\|\\([ ]+\\)\\)" (lambda (s)
-	    (cond
-	     ((string= s "\t") (org-odt-format-tabs))
-	     ((> (length s) 1)
-	      (org-odt-format-spaces (length s)))
-	     (t " "))) line))
+			       (cond
+				((string= s "\t") (org-odt-format-tabs))
+				(t (org-odt-format-spaces (length s))))) line))
 
-(defun org-odt-format-source-code-or-example-line (line)
-  (org-odt-format-stylized-paragraph 'src (org-odt-fill-tabs-and-spaces line)))
+(defcustom org-export-odt-use-htmlfontify t
+  "Specify whether or not source blocks need to be fontified.
+Turn this option on if you want to colorize the source code
+blocks in the exported file.  For colorization to work, you need
+to make available an enhanced version of `htmlfontify' library."
+  :type 'boolean
+  :group 'org-export-odt)
 
-(defun org-odt-format-example (lines)
-  (mapconcat
-   (lambda (line)
-     (org-odt-format-source-code-or-example-line line))
-   (org-split-string lines "[\r\n]") "\n"))
+(defun org-odt-format-source-code-or-example-plain
+  (lines lang caption textareap cols rows num cont rpllbl fmt)
+  "Format source or example blocks much like fixedwidth blocks.
+Use this when `org-export-odt-use-htmlfontify' option is turned
+off."
+  (setq lines (org-export-number-lines (org-xml-encode-plain-text-lines lines)
+				       0 0 num cont rpllbl fmt))
+    (mapconcat
+     (lambda (line)
+       (org-odt-format-stylized-paragraph
+	'fixedwidth (org-odt-fill-tabs-and-spaces line)))
+     (org-split-string lines "[\r\n]") "\n"))
+
+(defvar org-src-block-paragraph-format
+  "<style:style style:name=\"OrgSrcBlock\" style:family=\"paragraph\" style:parent-style-name=\"Preformatted_20_Text\">
+   <style:paragraph-properties fo:background-color=\"%s\" fo:padding=\"0.049cm\" fo:border=\"0.51pt solid #000000\" style:shadow=\"none\">
+    <style:background-image/>
+   </style:paragraph-properties>
+   <style:text-properties fo:color=\"%s\"/>
+  </style:style>"
+  "Custom paragraph style for colorized source and example blocks.
+This style is much the same as that of \"OrgFixedWidthBlock\"
+except that the foreground and background colors are set
+according to the default face identified by the `htmlfontify'.")
+
+(defun org-odt-hfy-face-to-css (fn)
+  "Create custom style for face FN.
+When FN is the default face, use it's foreground and background
+properties to create \"OrgSrcBlock\" paragraph style.  Otherwise
+use it's color attribute to create a character style whose name
+is obtained from FN.  Currently all attributes of FN other than
+color are ignored.
+
+The style name for a face FN is derived using the following
+operations on the face name in that order - de-dash, CamelCase
+and prefix with \"OrgSrc\".  For example,
+`font-lock-function-name-face' is associated with
+\"OrgSrcFontLockFunctionNameFace\"."
+  (let* ((css-list (hfy-face-to-style fn))
+	 (style-name ((lambda (fn)
+			(concat "OrgSrc"
+				(mapconcat
+				 'capitalize (split-string
+					      (hfy-face-or-def-to-name fn) "-")
+				 ""))) fn))
+	 (color-val (cdr (assoc "color" css-list)))
+	 (background-color-val (cdr (assoc "background" css-list)))
+	 (style (and org-export-odt-create-custom-styles-for-srcblocks
+		     (cond
+		      ((eq fn 'default)
+		       (format org-src-block-paragraph-format
+			       background-color-val color-val))
+		      (t
+		       (format
+			"
+<style:style style:name=\"%s\" style:family=\"text\">
+  <style:text-properties fo:color=\"%s\"/>
+ </style:style>" style-name color-val))))))
+    (cons style-name style)))
+
+(defcustom org-export-odt-create-custom-styles-for-srcblocks t
+  "Whether custom styles for colorized source blocks be automatically created.
+When this option is turned on, the exporter creates custom styles
+for source blocks based on the advice of `htmlfontify'.  Creation
+of custom styles happen as part of `org-odt-hfy-face-to-css'.
+
+When this option is turned off exporter does not create such
+styles.
+
+Use the latter option if you do not want the custom styles to be
+based on your current display settings.  It is necessary that the
+styles.xml already contains needed styles for colorizing to work.
+
+This variable is effective only if
+`org-export-odt-use-htmlfontify' is turned on."
+  :group 'org-export-odt
+  :type 'boolean)
+
+(defun org-odt-insert-custom-styles-for-srcblocks (styles)
+  "Save STYLES used for colorizing of source blocks.
+Update styles.xml with styles that were collected as part of
+`org-odt-hfy-face-to-css' callbacks."
+  (when styles
+    (with-current-buffer
+	(find-file-noselect (expand-file-name "styles.xml") t)
+      (goto-char (point-min))
+      (when (re-search-forward "</office:styles>" nil t)
+	(goto-char (match-beginning 0))
+	(insert "\n<!-- Org Htmlfontify Styles -->\n" styles "\n")))))
+
+(defun org-odt-format-source-code-or-example-colored
+  (lines lang caption textareap cols rows num cont rpllbl fmt)
+  "Format source or example blocks using `htmlfontify-string'.
+Use this routine when `org-export-odt-use-htmlfontify' option is
+turned on."
+  (let* ((lang-m (and lang (or (cdr (assoc lang org-src-lang-modes)) lang)))
+	 (mode (and lang-m (intern (concat (if (symbolp lang-m)
+					       (symbol-name lang-m)
+					     lang-m) "-mode"))))
+	 (org-inhibit-startup t)
+	 (org-startup-folded nil)
+	 (lines (with-temp-buffer
+		  (insert lines)
+		  (if (functionp mode) (funcall mode) (fundamental-mode))
+		  (font-lock-fontify-buffer)
+		  (buffer-string)))
+	 (hfy-html-quote-regex "\\([<\"&> 	]\\)")
+	 (hfy-html-quote-map '(("\"" "&quot;")
+			       ("<" "&lt;")
+			       ("&" "&amp;")
+			       (">" "&gt;")
+			       (" " "<text:s/>")
+			       ("	" "<text:tab/>")))
+	 (hfy-face-to-css 'org-odt-hfy-face-to-css)
+	 (hfy-optimisations-1 (copy-seq hfy-optimisations))
+	 (hfy-optimisations (add-to-list 'hfy-optimisations-1
+					 'body-text-only))
+	 (hfy-begin-span-handler
+	  (lambda (style text-block text-id text-begins-block-p)
+	    (insert (format "<text:span text:style-name=\"%s\">" style))))
+	 (hfy-end-span-handler (lambda nil (insert "</text:span>"))))
+    (mapconcat
+     (lambda (line)
+       (org-odt-format-stylized-paragraph 'src (htmlfontify-string line)))
+     (org-split-string lines "[\r\n]") "\n")))
 
 (defun org-odt-format-source-code-or-example (lines lang caption textareap
 						    cols rows num cont
 						    rpllbl fmt)
-  (org-odt-format-example (org-export-number-lines
-			   (org-xml-encode-plain-text-lines lines)
-			   0 0 num cont rpllbl fmt)))
+  "Format source or example blocks for export.
+Use `org-odt-format-source-code-or-example-plain' or
+`org-odt-format-source-code-or-example-colored' depending on the
+value of `org-export-odt-use-htmlfontify."
+  (funcall
+   (if (and org-export-odt-use-htmlfontify
+	    (or (featurep 'htmlfontify) (require 'htmlfontify)) 
+	    (fboundp 'htmlfontify-string))
+       'org-odt-format-source-code-or-example-colored
+     'org-odt-format-source-code-or-example-plain)
+   lines lang caption textareap cols rows num cont rpllbl fmt))
 
 (defun org-xml-encode-plain-text-lines (rtn)
   (mapconcat 'org-xml-encode-plain-text (org-split-string rtn "[\r\n]") "\n"))
@@ -1077,6 +1213,28 @@ MAY-INLINE-P allows inlining it as an image."
 
       (org-export-odt-do-format-image embed-as caption attr label
 				       size href))))
+(defun org-odt-format-textbox (text style)
+  (let ((draw-frame-pair
+	 '("<draw:frame draw:style-name=\"%s\"
+              text:anchor-type=\"paragraph\"
+              style:rel-width=\"100%%\"
+              draw:z-index=\"0\">" . "</draw:frame>")))
+    (org-odt-format-tags
+     draw-frame-pair
+     (org-odt-format-tags
+      '("<draw:text-box fo:min-height=\"%dcm\">" . "</draw:text-box>")
+      text 0) style)))
+
+(defun org-odt-format-inlinetask (heading content
+					  &optional todo priority tags)
+  (org-odt-format-stylized-paragraph
+   nil (org-odt-format-textbox
+	(concat (org-odt-format-stylized-paragraph
+		 "OrgInlineTaskHeading"
+		 (org-lparse-format
+		  'HEADLINE (concat (org-lparse-format-todo todo) " " heading)
+		  nil tags))
+		content) "OrgInlineTaskFrame")))
 
 (defun org-export-odt-do-format-image (embed-as caption attr label
 						size href)
@@ -1312,6 +1470,15 @@ MAY-INLINE-P allows inlining it as an image."
 (defconst org-odt-manifest-file-entry-tag
   "<manifest:file-entry manifest:media-type=\"%s\" manifest:full-path=\"%s\"/>")
 
+(defcustom org-export-odt-prettify-xml nil
+  "Specify whether or not the xml output should be prettified.
+When this option is turned on, `indent-region' is run on all
+component xml buffers before they are saved.  Turn this off for
+regular use.  Turn this on if you need to examine the xml
+visually."
+  :group 'org-export-odt
+  :type 'boolean)
+
 (defun org-odt-save-as-outfile (target opt-plist)
   ;; write meta file
   (org-odt-update-meta-file opt-plist)
@@ -1338,6 +1505,13 @@ MAY-INLINE-P allows inlining it as an image."
     (org-odt-configure-outline-numbering
      (if org-export-with-section-numbers org-export-headline-levels 0)))
 
+  ;; Write custom stlyes for source blocks
+  (org-odt-insert-custom-styles-for-srcblocks
+   (mapconcat
+    (lambda (style)
+      (format " %s\n" (cddr style)))
+    hfy-user-sheet-assoc ""))
+
   (let ((zipdir default-directory))
     (message "Switching to directory %s" (expand-file-name zipdir))
 
@@ -1345,8 +1519,9 @@ MAY-INLINE-P allows inlining it as an image."
     (mapc (lambda (file)
 	    (with-current-buffer
 		(find-file-noselect (expand-file-name file) t)
-	      ;; prettify output
-	      (indent-region (point-min) (point-max))
+	      ;; prettify output if needed
+	      (when org-export-odt-prettify-xml
+		(indent-region (point-min) (point-max)))
 	      (save-buffer)))
 	  org-export-odt-save-list)
 
@@ -1442,7 +1617,6 @@ MAY-INLINE-P allows inlining it as an image."
     (insert (format org-odt-manifest-file-entry-tag media-type full-path))))
 
 (defun org-odt-finalize-outfile ()
-  (message "org-newodt: Finalizing outfile")
   (org-odt-delete-empty-paragraphs))
 
 (defun org-odt-delete-empty-paragraphs ()
@@ -1583,18 +1757,15 @@ MAY-INLINE-P allows inlining it as an image."
 (defun org-odt-configure-outline-numbering (level)
   "Outline numbering is retained only upto LEVEL.
 To disable outline numbering pass a LEVEL of 0."
-  (if (not (string= org-export-odt-factory-settings (sha1 (current-buffer))))
-      (org-lparse-warn
-       "org-odt: Using custom styles file? Consider tweaking styles.xml for better output. To suppress this warning update `org-export-odt-factory-settings'")
-    (goto-char (point-min))
-    (let ((regex
-	   "<text:outline-level-style\\(.*\\)text:level=\"\\(.*\\)\"\\(.*\\)>")
-	  (replacement
-	   "<text:outline-level-style\\1text:level=\"\\2\" style:num-format=\"\">"))
-      (while (re-search-forward regex nil t)
-	(when (> (string-to-number (match-string 1)) level)
-	  (replace-match replacement t nil))))
-    (save-buffer 0)))
+  (goto-char (point-min))
+  (let ((regex
+	 "<text:outline-level-style\\(.*\\)text:level=\"\\([^\"]*\\)\"\\(.*\\)>")
+	(replacement
+	 "<text:outline-level-style\\1text:level=\"\\2\" style:num-format=\"\">"))
+    (while (re-search-forward regex nil t)
+      (when (> (string-to-number (match-string 2)) level)
+	(replace-match replacement t nil))))
+  (save-buffer 0))
 
 (provide 'org-odt)
 

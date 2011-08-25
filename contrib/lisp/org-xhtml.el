@@ -1,7 +1,6 @@
 ;;; org-xhtml.el --- XHTML export for Org-mode (uses org-lparse)
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -166,6 +165,12 @@ not be modified."
   dt { font-weight: bold; }
   div.figure { padding: 0.5em; }
   div.figure p { text-align: center; }
+  div.inlinetask {
+    padding:10px;
+    border:2px solid gray;
+    margin:10px;
+    background: #ffffcc;
+  }
   textarea { overflow-x: auto; }
   .linenr { font-size:smaller }
   .code-highlighted {background-color:#ffff00;}
@@ -1828,5 +1833,4 @@ lang=\"%s\" xml:lang=\"%s\">
 
 (provide 'org-xhtml)
 
-;; arch-tag: 8109d84d-eb8f-460b-b1a8-f45f3a6c7ea1
 ;;; org-xhtml.el ends here

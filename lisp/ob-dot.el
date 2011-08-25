@@ -1,11 +1,10 @@
 ;;; ob-dot.el --- org-babel functions for dot evaluation
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -85,6 +84,6 @@ This function is called by `org-babel-execute-src-block'."
 
 (provide 'ob-dot)
 
-;; arch-tag: 817d0516-7b47-4f77-a8b2-2aadd8e4d0e2
+
 
 ;;; ob-dot.el ends here

@@ -1,6 +1,6 @@
 ;;; org-velocity.el --- something like Notational Velocity for Org.
 
-;; Copyright (C) 2010, 2011 Paul M. Rodriguez
+;; Copyright (C) 2010-2011 Paul M. Rodriguez
 
 ;; Author: Paul M. Rodriguez <paulmrodriguez@gmail.com>
 ;; Created: 2010-05-05
@@ -711,4 +711,5 @@ file.  Calling with ARG forces current file."
 	(delete-other-windows)))))
 
 (provide 'org-velocity)
+
 ;;; org-velocity.el ends here

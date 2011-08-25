@@ -1,6 +1,6 @@
 ;;; orgtbl-sqlinsert.el --- orgtbl to SQL insert statements.
 
-;; Copyright (C) 2008  Free Software Foundation
+;; Copyright (C) 2008-2011  Free Software Foundation
 
 ;; Author: Jason Riedy <jason@acm.org>
 ;; Keywords: org, tables, sql
@@ -112,4 +112,5 @@ to sanitize STR for use in SQL statements."
         (t nil)))
 
 (provide 'orgtbl-sqlinsert)
+
 ;;; orgtbl-sqlinsert.el ends here

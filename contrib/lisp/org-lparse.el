@@ -1,7 +1,6 @@
 ;;; org-lparse.el --- Line-oriented parser-exporter for Org-mode
 
-;; Copyright (C) 2010, 2011
-;;   Jambunathan <kjambunathan at gmail dot com>
+;; Copyright (C) 2010-2011 Jambunathan <kjambunathan at gmail dot com>
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -114,8 +113,8 @@ No file is created.  The prefix ARG is passed through to
 (defun org-replace-region-by (backend beg end)
   "Assume the current region has org-mode syntax, and convert it to HTML.
 This can be used in any buffer.  For example, you could write an
-itemized list in org-mode syntax in an HTML buffer and then use this
-command to convert it."
+itemized list in org-mode syntax in an HTML buffer and then use
+this command to convert it."
   (interactive "Mbackend: \nr")
   (let (reg backend-string buf pop-up-frames)
     (save-window-excursion
@@ -419,13 +418,13 @@ by exporting natively either to \"xhtml\" or \"odt\" backends."
 				  &optional hidden ext-plist
 				  to-buffer body-only pub-dir)
   "Export the outline to various formats.
-If there is an active region, export only the region. The outline
-is first exported to NATIVE-BACKEND and optionally converted to
-TARGET-BACKEND. See `org-lparse-native-backends' for list of
-known native backends. Each native backend can specify a
-converter and list of target backends it exports to using the
-CONVERT-PROCESS and OTHER-BACKENDS settings of it's get
-method. See `org-xhtml-get' for an illustrative example.
+If there is an active region, export only the region.  The
+outline is first exported to NATIVE-BACKEND and optionally
+converted to TARGET-BACKEND.  See `org-lparse-native-backends'
+for list of known native backends.  Each native backend can
+specify a converter and list of target backends it exports to
+using the CONVERT-PROCESS and OTHER-BACKENDS settings of it's get
+method.  See `org-xhtml-get' for an illustrative example.
 
 ARG is a prefix argument that specifies how many levels of
 outline should become headlines.  The default is 3.  Lower levels
@@ -434,16 +433,16 @@ will become bulleted lists.
 HIDDEN is obsolete and does nothing.
 
 EXT-PLIST is a property list that controls various aspects of
-export. The settings here override org-mode's default settings
+export.  The settings here override org-mode's default settings
 and but are inferior to file-local settings.
 
 TO-BUFFER dumps the exported lines to a buffer or a string
-instead of a file. If TO-BUFFER is the symbol `string' return the
+instead of a file.  If TO-BUFFER is the symbol `string' return the
 exported lines as a string.  If TO-BUFFER is non-nil, create a
 buffer with that name and export to that buffer.
 
 BODY-ONLY controls the presence of header and footer lines in
-exported text. If BODY-ONLY is non-nil, don't produce the file
+exported text.  If BODY-ONLY is non-nil, don't produce the file
 header and footer, simply return the content of <body>...</body>,
 without even the body tags themselves.
 
@@ -491,6 +490,7 @@ CONVERTER-NAME is name of the converter.  CONVERTER-PROGRAM is
 the name of the executable.  ARG1, ARG2 etc are command line
 options that are passed to CONVERTER-PROGRAM.  Format specifiers
 can be used in the ARGs and they are interpreted as below:
+
 %i input file name in full
 %I input file name as a URL
 %f format of the output file
@@ -717,7 +717,10 @@ version."
   (setq-default org-deadline-line-regexp org-deadline-line-regexp)
   (setq-default org-done-keywords org-done-keywords)
   (setq-default org-maybe-keyword-time-regexp org-maybe-keyword-time-regexp)
-  (let* (org-lparse-encode-pending
+  (let* (hfy-user-sheet-assoc		; let `htmlfontify' know that
+					; we are interested in
+					; collecting styles
+	 org-lparse-encode-pending
 	 org-lparse-par-open
 	 (org-lparse-list-level 0)	; list level starts at 1. A
 					; value of 0 implies we are

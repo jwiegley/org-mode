@@ -5,7 +5,6 @@
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -73,6 +72,6 @@
 
 (provide 'ob-java)
 
-;; arch-tag: dd1cfb00-7f76-4ecf-922c-f7031b68b85e
+
 
 ;;; ob-java.el ends here

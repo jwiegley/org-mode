@@ -1,11 +1,11 @@
 ;;; ob-exp.el --- Exportation of org-babel source blocks
 
-;; Copyright (C) 2009, 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
 
-;; Author: Eric Schulte, Dan Davison
+;; Author: Eric Schulte
+;;	Dan Davison
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -129,10 +129,10 @@ options and are taken from `org-babel-default-inline-header-args'."
     (while (and (< (point) end)
                 (re-search-forward org-babel-inline-src-block-regexp end t))
       (let* ((info (save-match-data (org-babel-parse-inline-src-block-match)))
-	     (params (nth 2 info)) code-replacement)
+	     (params (nth 2 info)))
 	(save-match-data
 	  (goto-char (match-beginning 2))
-	  (when (not (org-babel-in-example-or-verbatim))
+	  (unless (org-babel-in-example-or-verbatim)
 	    ;; expand noweb references in the original file
 	    (setf (nth 1 info)
 		  (if (and (cdr (assoc :noweb params))
@@ -140,11 +140,12 @@ options and are taken from `org-babel-default-inline-header-args'."
 		      (org-babel-expand-noweb-references
 		       info (get-file-buffer org-current-export-file))
 		    (nth 1 info)))
-	    (setq code-replacement (org-babel-exp-do-export info 'inline))))
-	(if code-replacement
-	    (replace-match code-replacement nil nil nil 1)
-	  (org-babel-examplize-region (match-beginning 1) (match-end 1))
-	  (forward-char 2))))))
+	    (let ((code-replacement (save-match-data
+				      (org-babel-exp-do-export info 'inline))))
+	      (if code-replacement
+		  (replace-match code-replacement nil nil nil 1)
+		(org-babel-examplize-region (match-beginning 1) (match-end 1))
+		(forward-char 2)))))))))
 
 (defun org-exp-res/src-name-cleanup ()
   "Clean up #+results and #+srcname lines for export.
@@ -232,7 +233,7 @@ The function respects the value of the :exports header argument."
 (defun org-babel-exp-code (info)
   "Return the original code block formatted for export."
   (org-fill-template
-   "#+BEGIN_SRC %lang%flags\n%body\n#+END_SRC\n"
+   "#+BEGIN_SRC %lang%flags\n%body\n#+END_SRC"
    `(("lang"  . ,(nth 0 info))
      ("flags" . ,((lambda (f) (when f (concat " " f))) (nth 3 info)))
      ("body"  . ,(nth 1 info)))))
@@ -258,7 +259,15 @@ inhibit insertion of results into the buffer."
 		    (nth 2 info)
 		    `((:results . ,(if silent "silent" "replace")))))))
 	  (cond
-	   ((or (equal type 'block) (equal type 'inline))
+	   ((equal type 'block)
+	    (org-babel-execute-src-block nil info))
+	   ((equal type 'inline)
+	    ;; position the point on the inline source block allowing
+	    ;; `org-babel-insert-result' to check that the block is
+	    ;; inline
+	    (re-search-backward "[ \f\t\n\r\v]" nil t)
+	    (re-search-forward org-babel-inline-src-block-regexp nil t)
+	    (re-search-backward "src_" nil t)
 	    (org-babel-execute-src-block nil info))
 	   ((equal type 'lob)
 	    (save-excursion
@@ -267,6 +276,6 @@ inhibit insertion of results into the buffer."
 
 (provide 'ob-exp)
 
-;; arch-tag: 523abf4c-76d1-44ed-9f27-e3bddf34bf0f
+
 
 ;;; ob-exp.el ends here

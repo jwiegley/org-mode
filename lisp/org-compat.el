@@ -1,12 +1,10 @@
 ;;; org-compat.el --- Compatibility code for Org-mode
 
-;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
-;;   Free Software Foundation, Inc.
+;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -444,7 +442,5 @@ With two arguments, return floor and remainder of their quotient."
     (funcall 'switch-to-buffer buffer-or-name norecord)))
 
 (provide 'org-compat)
-
-;; arch-tag: a0a0579f-e68c-4bdf-9e55-93768b846bbe
 
 ;;; org-compat.el ends here

@@ -1,11 +1,10 @@
 ;;; ob-ruby.el --- org-babel functions for ruby evaluation
 
-;; Copyright (C) 2009, 2010  Free Software Foundation
+;; Copyright (C) 2009-2011  Free Software Foundation
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -129,8 +128,8 @@ Emacs-lisp table, otherwise return the results as a string."
   "Initiate a ruby session.
 If there is not a current inferior-process-buffer in SESSION
 then create one.  Return the initialized session."
-  (require 'inf-ruby)
   (unless (string= session "none")
+    (require 'inf-ruby)
     (let ((session-buffer (save-window-excursion
 			    (run-ruby nil session) (current-buffer))))
       (if (org-babel-comint-buffer-livep session-buffer)
@@ -241,6 +240,6 @@ return the value of the last statement in BODY, as elisp."
 
 (provide 'ob-ruby)
 
-;; arch-tag: 3e9726db-4520-49e2-b263-e8f571ac88f5
+
 
 ;;; ob-ruby.el ends here

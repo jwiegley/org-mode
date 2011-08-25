@@ -1,11 +1,10 @@
 ;;; ob-octave.el --- org-babel functions for octave and matlab evaluation
 
-;; Copyright (C) 2010  Free Software Foundation, Inc.
+;; Copyright (C) 2010-2011  Free Software Foundation, Inc.
 
 ;; Author: Dan Davison
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
 
 ;; This file is part of GNU Emacs.
 
@@ -258,6 +257,6 @@ This removes initial blank and comment lines and then calls
 
 (provide 'ob-octave)
 
-;; arch-tag: d8e5f68b-ba13-440a-a495-b653e989e704
+
 
 ;;; ob-octave.el ends here
