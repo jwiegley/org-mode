@@ -335,6 +335,7 @@ OPT-PLIST is the export options list."
      ,@body
      (when org-lparse-do-open-par
        (org-lparse-begin-paragraph))))
+(def-edebug-spec with-org-lparse-preserve-paragraph-state (body))
 
 (defvar org-lparse-native-backends nil
   "List of native backends registered with `org-lparse'.
@@ -722,9 +723,20 @@ version."
 					; collecting styles
 	 org-lparse-encode-pending
 	 org-lparse-par-open
+
+	 ;; list related vars
 	 (org-lparse-list-level 0)	; list level starts at 1. A
 					; value of 0 implies we are
 					; outside of any list
+	 (org-lparse-list-item-count 0)
+	 org-lparse-list-stack
+
+	 ;; list-table related vars
+	 org-lparse-list-table-p
+	 org-lparse-list-table:table-cell-open
+	 org-lparse-list-table:table-row
+	 org-lparse-list-table:lines
+
 	 org-lparse-outline-text-open
 	 (org-lparse-latex-fragment-fallback ; currently used only by
 					; odt exporter
@@ -847,6 +859,7 @@ version."
 	 (org-export-footnotes-seen nil)
 	 (org-export-footnotes-data (org-footnote-all-labels 'with-defs))
 	 (org-footnote-insert-pos-for-preprocessor 'point-min)
+	 (org-lparse-opt-plist opt-plist)
 	 (lines
 	  (org-split-string
 	   (org-export-preprocess-string
@@ -882,7 +895,12 @@ version."
 	 org-lparse-output-buffer
 	 org-lparse-footnote-definitions
 	 org-lparse-footnote-number
-	 org-lparse-footnote-buffer
+	 ;; collection
+	 org-lparse-collect-buffer
+	 (org-lparse-collect-count 0)	; things will get haywire if
+					; collections are chained. Use
+					; this variable to assert this
+					; pre-requisite
 	 org-lparse-toc
 	 href
 	 )
@@ -1040,7 +1058,7 @@ version."
 		   (f (cdr (assoc (match-string 2 line)
 				  '(("START" . org-lparse-begin-environment)
 				    ("END" . org-lparse-end-environment))))))
-	      (when (memq style '(blockquote verse center))
+	      (when (memq style '(blockquote verse center list-table))
 		(funcall f style)
 		(throw 'nextline nil))))
 
@@ -1257,6 +1275,10 @@ version."
 
       (org-lparse-end 'EXPORT)
 
+      ;; kill collection buffer
+      (when org-lparse-collect-buffer
+	(kill-buffer org-lparse-collect-buffer))
+
       (goto-char (point-min))
       (or (org-export-push-to-kill-ring
 	   (upcase (symbol-name org-lparse-backend)))
@@ -1290,7 +1312,9 @@ version."
       (org-lparse-format-org-table lines nil)
     ;; Table made by table.el
     (or (org-lparse-format-table-table-using-table-generate-source
-	 org-lparse-backend olines
+	 ;; FIXME: Need to take care of this during merge
+	 (if (eq org-lparse-backend 'xhtml) 'html org-lparse-backend)
+	 olines
 	 (not org-export-prefer-native-exporter-for-tables))
 	;; We are here only when table.el table has NO col or row
 	;; spanning and the user prefers using org's own converter for
@@ -1318,6 +1342,30 @@ version."
 ;; Following variables are defined in org-table.el
 (defvar org-table-number-fraction)
 (defvar org-table-number-regexp)
+(defun org-lparse-org-table-to-list-table (lines &optional splice)
+  "Convert org-table to list-table.
+LINES is a list of the form (ROW1 ROW2 ROW3 ...) where each
+element is a `string' representing a single row of org-table.
+Thus each ROW has vertical separators \"|\" separating the table
+fields.  A ROW could also be a row-group separator of the form
+\"|---...|\".  Return a list of the form (ROW1 ROW2 ROW3
+...). ROW could either be symbol `:hrule' or a list of the
+form (FIELD1 FIELD2 FIELD3 ...) as appropriate."
+  (let (line lines-1)
+    (cond
+     (splice
+      (while (setq line (pop lines))
+	(unless (string-match "^[ \t]*|-" line)
+	  (push (org-split-string line "[ \t]*|[ \t]*") lines-1))))
+     (t
+      (while (setq line (pop lines))
+	(cond
+	 ((string-match "^[ \t]*|-" line)
+	  (when lines
+	    (push :hrule lines-1)))
+	 (t
+	  (push (org-split-string line "[ \t]*|[ \t]*") lines-1))))))
+    (nreverse lines-1)))
 
 (defun org-lparse-do-format-org-table (lines &optional splice)
   "Format a org-type table into backend-specific code.
@@ -1335,7 +1383,6 @@ for formatting.  This is required for the DocBook exporter."
     ;; Check if the table has a marking column.  If yes remove the
     ;; column and the special lines
     (setq lines (org-table-clean-before-export lines)))
-
   (let* ((caption (org-find-text-property-in-string 'org-caption (car lines)))
 	 (caption (and caption (org-xml-encode-org-text caption)))
 	 (label (org-find-text-property-in-string 'org-label (car lines)))
@@ -1345,9 +1392,18 @@ for formatting.  This is required for the DocBook exporter."
 	 (head (and org-export-highlight-first-table-line
 		    (delq nil (mapcar
 			       (lambda (x) (string-match "^[ \t]*|-" x))
-			       (cdr lines)))))
-	 (org-lparse-table-rownum -1) org-lparse-table-ncols i (cnt 0)
-	 tbopen line fields
+			       (cdr lines))))))
+    (setq lines (org-lparse-org-table-to-list-table lines splice))
+    (org-lparse-do-format-list-table
+     lines splice caption label attributes head org-lparse-table-colalign-info)))
+
+(defun org-lparse-do-format-list-table (lines &optional splice
+					      caption label attributes head
+					      org-lparse-table-colalign-info)
+  (or (featurep 'org-table)		; required for
+      (require 'org-table))		; `org-table-number-regexp'
+  (let* ((org-lparse-table-rownum -1) org-lparse-table-ncols i (cnt 0)
+	 tbopen fields line
 	 org-lparse-table-cur-rowgrp-is-hdr
 	 org-lparse-table-rowgrp-open
 	 org-lparse-table-num-numeric-items-per-column
@@ -1360,10 +1416,7 @@ for formatting.  This is required for the DocBook exporter."
      (splice
       (setq org-lparse-table-is-styled nil)
       (while (setq line (pop lines))
-	(unless (string-match "^[ \t]*|-" line)
-	  (insert
-	   (org-lparse-format-table-row
-	    (org-split-string line "[ \t]*|[ \t]*")) "\n"))))
+	(insert (org-lparse-format-table-row line) "\n")))
      (t
       (setq org-lparse-table-is-styled t)
       (org-lparse-begin 'TABLE caption label attributes)
@@ -1371,18 +1424,21 @@ for formatting.  This is required for the DocBook exporter."
       (org-lparse-begin-table-rowgroup head)
       (while (setq line (pop lines))
 	(cond
-	 ((string-match "^[ \t]*|-" line)
-	  (when lines (org-lparse-begin-table-rowgroup)))
+	 ((equal line :hrule)
+	  (org-lparse-begin-table-rowgroup))
 	 (t
-	  (insert
-	   (org-lparse-format-table-row
-	    (org-split-string line "[ \t]*|[ \t]*")) "\n"))))
+	  (insert (org-lparse-format-table-row line) "\n"))))
       (org-lparse-end 'TABLE-ROWGROUP)
       (org-lparse-end-table)))))
 
 (defun org-lparse-format-org-table (lines &optional splice)
   (with-temp-buffer
     (org-lparse-do-format-org-table lines splice)
+    (buffer-substring-no-properties (point-min) (point-max))))
+
+(defun org-lparse-format-list-table (lines &optional splice)
+  (with-temp-buffer
+    (org-lparse-do-format-list-table lines splice)
     (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun org-lparse-do-format-table-table (lines)
@@ -1664,7 +1720,7 @@ the alist of previous items."
 		   (type (funcall get-type first-item struct prevs)))
 	      (org-lparse-end-paragraph)
 	      ;; Ending for every item
-	      (org-lparse-end-list-item type)
+	      (org-lparse-end-list-item-1 type)
 	      ;; We're ending last item of the list: end list.
 	      (when lastp
 		(org-lparse-end-list type)
@@ -1700,7 +1756,7 @@ the alist of previous items."
 
 	(let ((arg (cond ((equal type "d") desc-tag)
 			 ((equal type "o") counter))))
-	  (org-lparse-begin 'LIST-ITEM type arg))
+	  (org-lparse-begin-list-item type arg))
 
 	;; If line had a checkbox, some additional modification is required.
 	(when checkbox
@@ -1735,8 +1791,10 @@ the alist of previous items."
 (defvar org-lparse-table-cur-rowgrp-is-hdr)
 (defvar org-lparse-footnote-number)
 (defvar org-lparse-footnote-definitions)
-(defvar org-lparse-footnote-buffer)
-(defvar org-lparse-output-buffer)
+(defvar org-lparse-output-buffer nil
+  "Buffer to which `org-do-lparse' writes to.
+This buffer contains the contents of the to-be-created exported
+document.")
 
 (defcustom org-lparse-debug nil
   "Enable or Disable logging of `org-lparse' callbacks.
@@ -1805,40 +1863,100 @@ information."
     (org-lparse-end 'PARAGRAPH)
     (setq org-lparse-par-open nil)))
 
-(defun org-lparse-end-list-item (&optional type)
+(defun org-lparse-end-list-item-1 (&optional type)
   "Close <li> if necessary."
   (org-lparse-end-paragraph)
-  (org-lparse-end 'LIST-ITEM (or type "u")))
+  (org-lparse-end-list-item (or type "u")))
+
+(defcustom org-lparse-list-table-enable nil
+  "Specify whether a list be exported as a table.
+When this option is enabled, lists that are enclosed in
+\"#+begin_list-table...#+end_list-table\" are exported as
+tables. Otherwise they are exported normally."
+  :type 'boolean
+  :group 'org-lparse)
+
+(defun org-lparse-preprocess-after-blockquote-hook ()
+  "Treat #+begin_list-table...#+end_list-table blocks specially.
+When `org-lparse-list-table-enable' is non-nil, enclose these
+blocks within ORG-LIST-TABLE-START...ORG-LIST-TABLE-END."
+  (when org-lparse-list-table-enable
+    (goto-char (point-min))
+    (while (re-search-forward "^[ \t]*#\\+\\(begin\\|end\\)_\\(.*\\)$" nil t)
+      (when (string= (downcase (match-string 2)) "list-table")
+	(replace-match (if (equal (downcase (match-string 1)) "begin")
+			   "ORG-LIST-TABLE-START"
+			 "ORG-LIST-TABLE-END") t t)))))
+
+(add-hook 'org-export-preprocess-after-blockquote-hook
+	  'org-lparse-preprocess-after-blockquote-hook)
+
+(defvar org-lparse-list-table-p nil
+  "Non-nil if `org-do-lparse' is within a list-table.
+See `org-lparse-list-table-enable'.")
 
 (defvar org-lparse-dyn-current-environment nil)
 (defun org-lparse-begin-environment (style)
-  (assert (not org-lparse-dyn-current-environment) t)
-  (setq org-lparse-dyn-current-environment style)
-  (org-lparse-begin 'ENVIRONMENT  style))
+  (case style
+    (list-table
+     (setq org-lparse-list-table-p org-lparse-list-table-enable))
+    (t
+     (setq org-lparse-dyn-current-environment style)
+     (org-lparse-begin 'ENVIRONMENT  style))))
 
 (defun org-lparse-end-environment (style)
-  (org-lparse-end 'ENVIRONMENT style)
-
-  (assert (eq org-lparse-dyn-current-environment style) t)
-  (setq org-lparse-dyn-current-environment nil))
+  (case style
+    (list-table
+     (setq org-lparse-list-table-p nil))
+    (t
+     (org-lparse-end 'ENVIRONMENT style)
+     (setq org-lparse-dyn-current-environment nil))))
 
 (defun org-lparse-current-environment-p (style)
   (eq org-lparse-dyn-current-environment style))
 
 (defun org-lparse-begin-footnote-definition (n)
-  (unless org-lparse-footnote-buffer
-    (setq org-lparse-footnote-buffer
-	  (get-buffer-create "*Org HTML Export Footnotes*")))
-  (set-buffer org-lparse-footnote-buffer)
-  (erase-buffer)
+  (org-lparse-begin-collect)
   (setq org-lparse-insert-tag-with-newlines nil)
   (org-lparse-begin 'FOOTNOTE-DEFINITION n))
 
 (defun org-lparse-end-footnote-definition (n)
   (org-lparse-end 'FOOTNOTE-DEFINITION n)
   (setq org-lparse-insert-tag-with-newlines 'both)
-  (push (cons n (buffer-string)) org-lparse-footnote-definitions)
-  (set-buffer org-lparse-output-buffer))
+  (let ((footnote-def (org-lparse-end-collect)))
+    (push (cons n footnote-def) org-lparse-footnote-definitions)))
+
+(defvar org-lparse-collect-buffer nil
+  "An auxiliary buffer named \"*Org Lparse Collect*\".
+`org-do-lparse' uses this as output buffer while collecting
+footnote definitions and table-cell contents of list-tables.  See
+`org-lparse-begin-collect' and `org-lparse-end-collect'.")
+
+(defvar org-lparse-collect-count nil
+  "Count number of calls to `org-lparse-begin-collect'.
+Use this counter to catch chained collections if they ever
+happen.")
+
+(defun org-lparse-begin-collect ()
+  "Temporarily switch to `org-lparse-collect-buffer'.
+Also erase it's contents."
+  (unless (zerop org-lparse-collect-count)
+    (error "FIXME (org-lparse.el): Encountered chained collections"))
+  (incf org-lparse-collect-count)
+  (unless org-lparse-collect-buffer
+    (setq org-lparse-collect-buffer
+	  (get-buffer-create "*Org Lparse Collect*")))
+  (set-buffer org-lparse-collect-buffer)
+  (erase-buffer))
+
+(defun org-lparse-end-collect ()
+  "Switch to `org-lparse-output-buffer'.
+Return contents of `org-lparse-collect-buffer' as a `string'."
+  (assert (> org-lparse-collect-count 0))
+  (decf org-lparse-collect-count)
+  (prog1 (buffer-string)
+    (erase-buffer)
+    (set-buffer org-lparse-output-buffer)))
 
 (defun org-lparse-format (entity &rest args)
   "Format ENTITY in backend-specific way and return it.
@@ -1932,7 +2050,12 @@ See `org-xhtml-entity-format-callbacks-alist' for more information."
   lines)
 
 (defun org-lparse-format-table-row (fields &optional text-for-empty-fields)
-  (unless org-lparse-table-ncols
+  (if org-lparse-table-ncols
+      ;; second and subsequent rows of the table
+      (when (and org-lparse-list-table-p
+		 (> (length fields) org-lparse-table-ncols))
+	(error "Table row has %d columns but header row claims %d columns"
+	       (length fields) org-lparse-table-ncols))
     ;; first row of the table
     (setq org-lparse-table-ncols (length fields))
     (when org-lparse-table-is-styled
@@ -2027,13 +2150,13 @@ When TITLE is nil, just close all open levels."
     (if (> level umax)
 	(progn
 	  (if (aref org-levels-open (1- level))
-	      (org-lparse-end-list-item)
+	      (org-lparse-end-list-item-1)
 	    (aset org-levels-open (1- level) t)
 	    (org-lparse-end-paragraph)
 	    (org-lparse-begin-list 'unordered))
-	  (org-lparse-begin
-	   'LIST-ITEM 'unordered target
-	   (org-lparse-format 'HEADLINE title extra-targets tags)))
+	  (org-lparse-begin-list-item
+	   'unordered target (org-lparse-format
+			      'HEADLINE title extra-targets tags)))
       (aset org-levels-open (1- level) t)
       (setq snumber (org-section-number level))
       (setq level1 (+ level (or (org-lparse-get 'TOPLEVEL-HLEVEL) 1) -1))
@@ -2050,7 +2173,7 @@ When TITLE is nil, just close all open levels."
 	     ;; Terminate one level in HTML export
 	     (if (<= l umax)
 		 (org-lparse-end-outline-text-or-outline)
-	       (org-lparse-end-list-item)
+	       (org-lparse-end-list-item-1)
 	       (org-lparse-end-list 'unordered))
 	     (aset org-levels-open (1- l) nil))))
 
@@ -2079,14 +2202,131 @@ When TITLE is nil, just close all open levels."
 		      ("u" . unordered)
 		      ("d" . description)))))
 
-(defvar org-lparse-list-level) ; dynamically bound in org-do-lparse
+;; following vars are bound during `org-do-lparse'
+(defvar org-lparse-list-level)
+(defvar org-lparse-list-item-count)
+(defvar org-lparse-list-stack)
+(defvar org-lparse-list-table:table-row)
+(defvar org-lparse-list-table:lines)
+
+;; Notes on LIST-TABLES
+;; ====================
+;; When `org-lparse-list-table-enable' is non-nil, the following list
+;;
+;; #+begin_list-table
+;; - Row 1
+;;   - 1.1
+;;   - 1.2
+;;   - 1.3
+;; - Row 2
+;;   - 2.1
+;;   - 2.2
+;;   - 2.3
+;; #+end_list-table
+;;
+;; will be exported as though it were a table as shown below.
+;;
+;; | Row 1 | 1.1 | 1.2 | 1.3 |
+;; | Row 2 | 2.1 | 2.2 | 2.3 |
+;;
+;; Note that org-tables are NOT multi-line and each line is mapped to
+;; a unique row in the exported document.  So if an exported table
+;; needs to contain a single paragraph (with copious text) it needs to
+;; be typed up in a single line. Editing such long lines using the
+;; table editor will be a cumbersome task.  Furthermore inclusion of
+;; multi-paragraph text in a table cell is well-nigh impossible.
+;;
+;; LIST-TABLEs are meant to circumvent the above problems with
+;; org-tables.
+;;
+;; Note that in the example above the list items could be paragraphs
+;; themselves and the list can be arbitrarily deep.
+;;
+;; Inspired by following thread:
+;; https://lists.gnu.org/archive/html/emacs-orgmode/2011-03/msg01101.html
+
 (defun org-lparse-begin-list (ltype)
   (incf org-lparse-list-level)
-  (org-lparse-begin 'LIST ltype))
+  (push org-lparse-list-item-count org-lparse-list-stack)
+  (setq org-lparse-list-item-count 0)
+  (cond
+   ((not org-lparse-list-table-p)
+    (org-lparse-begin 'LIST ltype))
+   ;; process LIST-TABLE
+   ((= 1 org-lparse-list-level)
+    ;; begin LIST-TABLE
+    (setq org-lparse-list-table:lines nil)
+    (setq org-lparse-list-table:table-row nil))
+   ((= 2 org-lparse-list-level)
+    (ignore))
+   (t
+    (org-lparse-begin 'LIST ltype))))
 
 (defun org-lparse-end-list (ltype)
+  (setq org-lparse-list-item-count (pop org-lparse-list-stack))
   (decf org-lparse-list-level)
-  (org-lparse-end 'LIST ltype))
+  (cond
+   ((not org-lparse-list-table-p)
+    (org-lparse-end 'LIST ltype))
+   ;; process LIST-TABLE
+   ((= 0 org-lparse-list-level)
+    ;; end LIST-TABLE
+    (insert (org-lparse-format-list-table
+	     (nreverse org-lparse-list-table:lines))))
+   ((= 1 org-lparse-list-level)
+    (ignore))
+   (t
+    (org-lparse-end 'LIST ltype))))
+
+(defun org-lparse-begin-list-item (ltype &optional arg headline)
+  (incf org-lparse-list-item-count)
+  (cond
+   ((not org-lparse-list-table-p)
+    (org-lparse-begin 'LIST-ITEM ltype arg headline))
+   ;; process LIST-TABLE
+   ((and (= 1 org-lparse-list-level)
+	 (= 1 org-lparse-list-item-count))
+    ;; begin TABLE-ROW for LIST-TABLE
+    (setq org-lparse-list-table:table-row nil)
+    (org-lparse-begin-list-table:table-cell))
+   ((and (= 2 org-lparse-list-level)
+	 (= 1 org-lparse-list-item-count))
+    ;; begin TABLE-CELL for LIST-TABLE
+    (org-lparse-begin-list-table:table-cell))
+   (t
+    (org-lparse-begin 'LIST-ITEM ltype arg headline))))
+
+(defun org-lparse-end-list-item (ltype)
+  (decf org-lparse-list-item-count)
+  (cond
+   ((not org-lparse-list-table-p)
+    (org-lparse-end 'LIST-ITEM ltype))
+   ;; process LIST-TABLE
+   ((and (= 1 org-lparse-list-level)
+	 (= 0 org-lparse-list-item-count))
+    ;; end TABLE-ROW for LIST-TABLE
+    (org-lparse-end-list-table:table-cell)
+    (push (nreverse org-lparse-list-table:table-row)
+	  org-lparse-list-table:lines))
+   ((= 2 org-lparse-list-level)
+    ;; end TABLE-CELL for LIST-TABLE
+    (org-lparse-end-list-table:table-cell))
+   (t
+    (org-lparse-end 'LIST-ITEM ltype))))
+
+(defvar org-lparse-list-table:table-cell-open)
+(defun org-lparse-begin-list-table:table-cell ()
+  (org-lparse-end-list-table:table-cell)
+  (setq org-lparse-list-table:table-cell-open t)
+  (org-lparse-begin-collect)
+  (org-lparse-begin-paragraph))
+
+(defun org-lparse-end-list-table:table-cell ()
+  (when org-lparse-list-table:table-cell-open
+    (setq org-lparse-list-table:table-cell-open nil)
+    (org-lparse-end-paragraph)
+    (push (org-lparse-end-collect)
+	  org-lparse-list-table:table-row)))
 
 (defvar org-lparse-table-rowgrp-info)
 (defun org-lparse-begin-table-rowgroup (&optional is-header-row)

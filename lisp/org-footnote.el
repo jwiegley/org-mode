@@ -52,6 +52,7 @@
 (declare-function org-in-indented-comment-line "org" ())
 (declare-function org-in-regexp "org" (re &optional nlines visually))
 (declare-function org-in-verbatim-emphasis "org" ())
+(declare-function org-inside-LaTeX-fragment-p "org" ())
 (declare-function org-inside-latex-macro-p "org" ())
 (declare-function org-mark-ring-push "org" (&optional pos buffer))
 (declare-function org-show-context "org" (&optional key))
@@ -178,6 +179,7 @@ extracted will be filled again."
   (save-match-data
     (not (or (org-in-commented-line)
 	     (org-in-indented-comment-line)
+	     (org-inside-LaTeX-fragment-p)
 	     ;; Avoid protected environments (LaTeX export)
 	     (get-text-property (point) 'org-protected)
 	     ;; Avoid literal example.
@@ -328,16 +330,17 @@ If no footnote is found, return nil."
 	 (re (format "^\\[%s\\]\\|.\\[%s:" label label))
 	 pos)
     (save-excursion
-      (when (or (re-search-forward re nil t)
-		(and (goto-char (point-min))
-		     (re-search-forward re nil t))
-		(and (progn (widen) t)
-		     (goto-char (point-min))
-		     (re-search-forward re nil t)))
-	(let ((refp (org-footnote-at-reference-p)))
-	  (cond
-	   ((and (nth 3 refp) refp))
-	   ((org-footnote-at-definition-p))))))))
+      (save-restriction
+	(when (or (re-search-forward re nil t)
+		  (and (goto-char (point-min))
+		       (re-search-forward re nil t))
+		  (and (progn (widen) t)
+		       (goto-char (point-min))
+		       (re-search-forward re nil t)))
+	  (let ((refp (org-footnote-at-reference-p)))
+	    (cond
+	     ((and (nth 3 refp) refp))
+	     ((org-footnote-at-definition-p)))))))))
 
 (defun org-footnote-goto-definition (label)
   "Move point to the definition of the footnote LABEL."
@@ -773,7 +776,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
 	  (when (and (derived-mode-p 'message-mode)
 		     (save-excursion
 		       (re-search-forward message-signature-separator nil t)))
-	    (open-line 2))
+	    (open-line 1))
 	  (when org-footnote-tag-for-non-org-mode-files
 	    (insert "\n" org-footnote-tag-for-non-org-mode-files "\n")))
 	 ((and org-footnote-section (not export-props))
@@ -786,6 +789,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
 	(insert (mapconcat (lambda (x) (format "\n[%s] %s"
 					  (nth (if sort-only 0 1) x) (nth 2 x)))
 			   ref-table "\n"))
+	(unless (eobp) (insert "\n"))
 	;; When exporting, add newly inserted markers along with their
 	;; associated definition to `org-export-footnotes-seen'.
 	(when export-props
