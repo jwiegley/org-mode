@@ -1,6 +1,6 @@
 ;;; test-ob.el --- tests for ob.el
 
-;; Copyright (c) 2010 Eric Schulte
+;; Copyright (c) 2010, 2011 Eric Schulte
 ;; Authors: Eric Schulte, Martyn Jago
 
 ;; Released under the GNU General Public License version 3
@@ -12,7 +12,6 @@
 		       load-path)))
   (require 'org-test)
   (require 'org-test-ob-consts))
-  (require 'org-test)
 
 (ert-deftest test-org-babel/src-name-regexp ()
   (should(equal "^[ \t]*#\\+\\(srcname\\|source\\|function\\):[ \t]*"
@@ -204,13 +203,15 @@
 
 (ert-deftest test-org-babel/inline-src-blocks ()
   (org-test-at-id "54cb8dc3-298c-4883-a933-029b3c9d4b18"
-    (flet ((next ()
-		 (move-end-of-line 1)
-		 (re-search-forward org-babel-inline-src-block-regexp nil t)
-		 (goto-char (match-beginning 1))))
-      (next) (should (equal 1 (org-babel-execute-src-block)))
-      (next) (should (equal 2 (org-babel-execute-src-block)))
-      (next) (should (equal 3 (org-babel-execute-src-block))))))
+    (macrolet ((at-next (&rest body)
+		 `(progn
+		    (move-end-of-line 1)
+		    (re-search-forward org-babel-inline-src-block-regexp nil t)
+		    (goto-char (match-beginning 1))
+		    (save-match-data ,@body))))
+      (at-next (should (equal 1 (org-babel-execute-src-block))))
+      (at-next (should (equal 2 (org-babel-execute-src-block))))
+      (at-next (should (equal 3 (org-babel-execute-src-block)))))))
 
 (ert-deftest test-org-babel/org-babel-get-inline-src-block-matches ()
   (org-test-at-id "0D0983D4-DE33-400A-8A05-A225A567BC74"
@@ -226,9 +227,9 @@
       (should (re-search-forward "echo" nil t)) ;; 2
       (should (org-babel-get-inline-src-block-matches))
       (should (re-search-forward "blocks" nil t)) ;; 3
-      (left-char 8) ;; 3
+      (backward-char 8) ;; 3
       (should (org-babel-get-inline-src-block-matches))
-      (right-char 1) ;;3
+      (forward-char 1) ;;3
       (should-not (org-babel-get-inline-src-block-matches))
       (should (re-search-forward ":results" nil t)) ;; 4
       (should (org-babel-get-inline-src-block-matches))
@@ -407,6 +408,27 @@
       (goto-char (point-min)) (org-ctrl-c-ctrl-c)
       (should (string= (concat test-line " =\"x\"=")
 		       (buffer-substring-no-properties (point-min) (point-max)))))))
+
+(ert-deftest test-org-babel/combining-scalar-and-raw-result-types ()
+  (flet ((next-result ()
+		      (org-babel-next-src-block)
+		      (org-babel-execute-src-block)
+		      (goto-char (org-babel-where-is-src-block-result))
+		      (forward-line 1)))
+    (org-test-at-id "a73a2ab6-b8b2-4c0e-ae7f-23ad14eab7bc"
+      (next-result)
+      (should (org-babel-in-example-or-verbatim))
+      (next-result)
+      (should (not (org-babel-in-example-or-verbatim))))))
+
+(ert-deftest test-org-babel/no-defaut-value-for-var ()
+  "Test that the absence of a default value for a variable DOES THROW
+  a proper error."
+  (org-test-at-id "f2df5ba6-75fa-4e6b-8441-65ed84963627"
+    (org-babel-next-src-block)
+    (let ((err
+	   (should-error (org-babel-execute-src-block) :type 'error)))
+      (should (equal '(error "variable \"x\" in block \"carre\" must be assigned a default value") err)))))
 
 (provide 'test-ob)
 
