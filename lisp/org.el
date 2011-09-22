@@ -9016,6 +9016,12 @@ Note: this function also decodes single byte encodings like
     (setq s (replace-match "%40" t t s)))
   s)
 
+(defun org-pretty-link (link)
+  "Return a human-digestible representation of a given LINK,
+whose car must be a raw link and whose cadr must be either a link
+description or nil."
+  (concat (or (cadr link) "<no description>") "\t[[" (car link) "]]"))
+
 ;;;###autoload
 (defun org-insert-link-global ()
   "Insert a link like Org-mode does.
@@ -9098,9 +9104,7 @@ be used as the default description."
 Use TAB to complete link prefixes, then RET for type-specific completion support\n")
 	(when org-stored-links
 	  (princ "\nStored links are available with <up>/<down> or M-p/n (most recent with RET):\n\n")
-	  (princ (mapconcat
-		  (lambda (x)
-		    (if (nth 1 x) (concat (car x) " (" (nth 1 x) ")") (car x)))
+	  (princ (mapconcat 'org-pretty-link
 		  (reverse org-stored-links) "\n"))))
       (let ((cw (selected-window)))
 	(select-window (get-buffer-window "*Org Links*" 'visible))
@@ -9109,7 +9113,7 @@ Use TAB to complete link prefixes, then RET for type-specific completion support
 	  (org-fit-window-to-buffer))
 	(and (window-live-p cw) (select-window cw)))
       ;; Fake a link history, containing the stored links.
-      (setq tmphist (append (mapcar 'car org-stored-links)
+      (setq tmphist (append (mapcar 'org-pretty-link org-stored-links)
 			    org-insert-link-history))
       (setq all-prefixes (append (mapcar 'car org-link-abbrev-alist-local)
 				 (mapcar 'car org-link-abbrev-alist)
