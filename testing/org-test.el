@@ -156,7 +156,7 @@ currently executed.")
      (save-window-excursion
        (save-match-data
 	 (find-file my-file)
-	 (unless (eq major-mode 'org-mode)
+	 (unless (org-mode-p)
 	   (org-mode))
 	 (setq to-be-removed (current-buffer))
 	 (goto-char (point-min))
