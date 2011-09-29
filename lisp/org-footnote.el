@@ -355,7 +355,7 @@ Return a non-nil value when a definition has been found."
       (looking-at (format "\\[%s\\]\\|\\[%s:" label label))
       (goto-char (match-end 0))
       (org-show-context 'link-search)
-      (when (eq major-mode 'org-mode)
+      (when (org-mode-p)
 	(message "Edit definition and go back with `C-c &' or, if unique, with `C-c C-c'."))
       t)))
 
