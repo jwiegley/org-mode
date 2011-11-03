@@ -3177,7 +3177,13 @@ file:/myself@@some.where:papers/last.pdf   @r{file, path on remote machine}
 /myself@@some.where:papers/last.pdf        @r{same as above}
 file:sometextfile::NNN                    @r{file with line number to jump to}
 file:projects.org                         @r{another Org file}
-file:projects.org::some words             @r{text search in Org file}
+file:projects.org::some words             @r{text search in Org file}@footnote{
+The actual behavior of the search will depend on the value of
+the variable @code{org-link-search-must-match-exact-headline}.  If its value
+is nil, then a fuzzy text search will be done.  If it is t, then only the
+exact headline will be matched.  If the value is @code{'query-to-create},
+then an exact headline will be searched; if it is not found, then the user
+will be queried to create it.}
 file:projects.org::*task title            @r{heading search in Org file}
 docview:papers/last.pdf::NNN              @r{open file in doc-view mode at page NNN}
 id:B7423F4D-2E8A-471B-8810-C40F074717E9   @r{Link to heading by ID}
@@ -3196,7 +3202,7 @@ gnus:group                                @r{Gnus group link}
 gnus:group#id                             @r{Gnus article link}
 bbdb:R.*Stallman                          @r{BBDB link (with regexp)}
 irc:/irc.com/#emacs/bob                   @r{IRC link}
-info:org#External%20links                 @r{Info node link (with encoded space)}
+info:org#External links                   @r{Info node link}
 shell:ls *.org                            @r{A shell command}
 elisp:org-agenda                          @r{Interactive Elisp command}
 elisp:(find-file-other-frame "Elisp.org") @r{Elisp form to evaluate}
@@ -5277,6 +5283,7 @@ Its presence causes entries to be shown on specific dates in the agenda
 @table @var
 @item Plain timestamp; Event; Appointment
 @cindex timestamp
+@cindex appointment
 A simple timestamp just assigns a date/time to an item.  This is just
 like writing down an appointment or event in a paper agenda.  In the
 timeline and agenda displays, the headline of an entry associated with a
@@ -5928,7 +5935,8 @@ Insert a dynamic block (@pxref{Dynamic blocks}) containing a clock
 report as an Org-mode table into the current file.  When the cursor is
 at an existing clock table, just update it.  When called with a prefix
 argument, jump to the first clock report in the current document and
-update it.
+update it.   The clock table always includes also trees with
+@code{:ARCHIVE:} tag.
 @orgcmdkkc{C-c C-c,C-c C-x C-u,org-dblock-update}
 Update dynamic block at point.  The cursor needs to be in the
 @code{#+BEGIN} line of the dynamic block.
@@ -7275,6 +7283,8 @@ in an Org or Diary file.
 @subsubheading Appointment reminders
 @cindex @file{appt.el}
 @cindex appointment reminders
+@cindex appointment
+@cindex reminders
 
 Org can interact with Emacs appointments notification facility.  To add all
 the appointments of your agenda files, use the command
@@ -8132,13 +8142,15 @@ command.
 @c
 @orgcmd{S-@key{right},org-agenda-do-date-later}
 Change the timestamp associated with the current line by one day into the
-future.  With a numeric prefix argument, change it by that many days.  For
-example, @kbd{3 6 5 S-@key{right}} will change it by a year.  With a
-@kbd{C-u} prefix, change the time by one hour.  If you immediately repeat the
-command, it will continue to change hours even without the prefix arg.  With
-a double @kbd{C-u C-u} prefix, do the same for changing minutes.  The stamp
-is changed in the original Org file, but the change is not directly reflected
-in the agenda buffer.  Use @kbd{r} or @kbd{g} to update the buffer.
+future.  If the date is in the past, the first call to this command will move
+it to today.@*
+With a numeric prefix argument, change it by that many days.  For example,
+@kbd{3 6 5 S-@key{right}} will change it by a year.  With a @kbd{C-u} prefix,
+change the time by one hour.  If you immediately repeat the command, it will
+continue to change hours even without the prefix arg.  With a double @kbd{C-u
+C-u} prefix, do the same for changing minutes.@*
+The stamp is changed in the original Org file, but the change is not directly
+reflected in the agenda buffer.  Use @kbd{r} or @kbd{g} to update the buffer.
 @c
 @orgcmd{S-@key{left},org-agenda-do-date-earlier}
 Change the timestamp associated with the current line by one day
@@ -8990,7 +9002,8 @@ further details.}.  This is done with the @samp{src} block, where you also
 need to specify the name of the major mode that should be used to fontify the
 example@footnote{Code in @samp{src} blocks may also be evaluated either
 interactively or on export.  See @pxref{Working With Source Code} for more
-information on evaluating code blocks.}:
+information on evaluating code blocks.}, see @ref{Easy Templates} for
+shortcuts to easily insert code blocks.
 @cindex #+BEGIN_SRC
 
 @example
@@ -11635,7 +11648,8 @@ The following sections describe Org-mode's code block handling facilities.
 @cindex code block, structure
 @cindex source code, block structure
 
-The structure of code blocks is as follows:
+The structure of code blocks is as follows (empty code blocks may be inserted
+using Org-mode's @ref{Easy Templates} system):
 
 @example
 #+srcname: <name>
@@ -12044,10 +12058,9 @@ language-specific documentation available online at
 
 @node Buffer-wide header arguments, Header arguments in Org-mode properties, Language-specific header arguments, Using header arguments
 @subsubheading Buffer-wide header arguments
-Buffer-wide header arguments may be specified through the use of a special
-line placed anywhere in an Org-mode file.  The line consists of the
-@code{#+BABEL:} keyword followed by a series of header arguments which may be
-specified using the standard header argument syntax.
+Buffer-wide header arguments may be specified as properties through the use
+of @code{#+PROPERTY:} lines placed anywhere in an Org-mode file (see
+@ref{Property syntax}).
 
 For example the following would set @code{session} to @code{*R*}, and
 @code{results} to @code{silent} for every code block in the buffer, ensuring
@@ -12055,7 +12068,8 @@ that all execution took place in the same session, and no results would be
 inserted into the buffer.
 
 @example
-#+BABEL: :session *R* :results silent
+#+PROPERTY: session *R*
+#+PROPERTY: results silent
 @end example
 
 @node Header arguments in Org-mode properties, Code block specific header arguments, Buffer-wide header arguments, Using header arguments
@@ -14121,7 +14135,7 @@ fixed this problem:
 (add-hook 'org-mode-hook
           (lambda ()
             (org-set-local 'yas/trigger-key [tab])
-            (define-key yas/keymap [tab] 'yas/next-field)))
+            (define-key yas/keymap [tab] 'yas/next-field-or-maybe-expand)))
 @end lisp
 
 The latest version of yasnippet doesn't play well with Org mode.  If the

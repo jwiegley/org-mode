@@ -73,7 +73,6 @@
 	  org-deadline-string "\\|"
 	  org-closed-string"\\)")
   "Regexp matching special time planning keywords plus the time after it.")
-
 (defvar org-re-quote)  ; dynamically scoped from org.el
 (defvar org-commentsp) ; dynamically scoped from org.el
 
@@ -355,6 +354,12 @@ string defines the replacement string for this quote."
 
 (defcustom org-export-latex-tables-centered t
   "When non-nil, tables are exported in a center environment."
+  :group 'org-export-latex
+  :type 'boolean)
+
+(defcustom org-export-latex-table-caption-above t
+  "When non-nil, the caption is set above the table.  When nil,
+the caption is set below the table."
   :group 'org-export-latex
   :type 'boolean)
 
@@ -718,7 +723,7 @@ then use this command to convert it."
   (interactive "r")
   (let (reg latex buf)
     (save-window-excursion
-      (if (org-mode-p)
+      (if (eq major-mode 'org-mode)
 	  (setq latex (org-export-region-as-latex
 		       beg end t 'string))
 	(setq reg (buffer-substring beg end)
@@ -864,6 +869,8 @@ when PUB-DIR is set, use this as the publishing directory."
 			  (file-truename (or buffer-file-name "dummy.org")))
 		   (concat filename ".tex")
 		 filename)))
+	 (auto-insert nil); Avoid any auto-insert stuff for the new file
+	 (TeX-master t) ; Avoid the Query for TeX master from AUCTeX
 	 (buffer (if to-buffer
 		     (cond
 		      ((eq to-buffer 'string) (get-buffer-create
@@ -1339,7 +1346,7 @@ LEVEL indicates the default depth for export."
 	      (save-restriction
 		(widen)
 		(goto-char (point-min))
-		(and (re-search-forward "^#\\+LaTeX_CLASS:[ \t]*\\(-[a-zA-Z]+\\)" nil t)
+		(and (re-search-forward "^#\\+LaTeX_CLASS:[ \t]*\\([-/a-zA-Z]+\\)" nil t)
 		     (match-string 1))))
 	    (plist-get org-export-latex-options-plist :latex-class)
 	    org-export-latex-default-class)
@@ -1394,7 +1401,11 @@ OPT-PLIST is the options plist for current buffer."
 	(email (replace-regexp-in-string
 		"_" "\\\\_"
 		(org-export-apply-macros-in-string
-		 (plist-get opt-plist :email)))))
+		 (plist-get opt-plist :email))))
+	(description (org-export-apply-macros-in-string
+		      (plist-get opt-plist :description)))
+	(keywords (org-export-apply-macros-in-string
+		   (plist-get opt-plist :keywords))))
     (concat
      (if (plist-get opt-plist :time-stamp-file)
 	 (format-time-string "%% Created %Y-%m-%d %a %H:%M\n"))
@@ -1428,6 +1439,12 @@ OPT-PLIST is the options plist for current buffer."
 	     (format-time-string
 	      (or (plist-get opt-plist :date)
 		  org-export-latex-date-format)))
+     ;; add some hyperref options
+     ;; FIXME: let's have a defcustom for this?
+     (format "\\hypersetup{\n  pdfkeywords={%s},\n  pdfsubject={%s},\n  pdfcreator={%s}}\n"
+         (org-export-latex-fontify-headline keywords)
+         (org-export-latex-fontify-headline description)
+	 (concat "Emacs Org-mode version " org-version))
      ;; beginning of the document
      "\n\\begin{document}\n\n"
      ;; insert the title command
@@ -1965,13 +1982,13 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
                             (concat "\\begin{longtable}{" align "}\n")
                           (if floatp
 			      (format "\\begin{%s}%s\n" tblenv placement)))
-                        (if floatp
+                        (if (and floatp org-export-latex-table-caption-above)
                             (format
                              "\\caption%s{%s} %s"
                              (if shortn (concat "[" shortn "]") "")
                              (or caption "")
 			     (if label (format "\\label{%s}" label) "")))
-                        (if (and longtblp caption) "\\\\\n" "\n")
+			(if (and longtblp caption) "\\\\\n" "\n")
                         (if (and org-export-latex-tables-centered (not longtblp))
                             "\\begin{center}\n")
                         (if (not longtblp)
@@ -1993,6 +2010,12 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
                         (if (not longtblp) (format "\n\\end{%s}" tabular-env))
                         (if longtblp "\n" (if org-export-latex-tables-centered
                                               "\n\\end{center}\n" "\n"))
+                        (if (and floatp (not org-export-latex-table-caption-above))
+                            (format
+                             "\\caption%s{%s} %s"
+                             (if shortn (concat "[" shortn "]") "")
+                             (or caption "")
+			     (if label (format "\\label{%s}" label) "")))
                         (if longtblp
                             "\\end{longtable}"
                           (if floatp (format "\\end{%s}" tblenv)))))
@@ -2042,11 +2065,12 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
       (setq tbl (concat "\\begin{center}\n" tbl "\\end{center}")))
     (when floatp
       (setq tbl (concat "\\begin{table}\n"
+			(if (not org-export-latex-table-caption-above) tbl)
 			(format "\\caption%s{%s%s}\n"
 				(if shortn (format "[%s]" shortn) "")
 				(if label (format "\\label{%s}" label) "")
 				(or caption ""))
-			tbl
+			(if org-export-latex-table-caption-above tbl)
 			"\n\\end{table}\n")))
     (insert (org-export-latex-protect-string tbl))))
 

@@ -28,9 +28,14 @@
 ;;; Code:
 (require 'ob)
 (require 'calc)
-(require 'calc-store)
-(unless (featurep 'xemacs) (require 'calc-trail))
+(unless (featurep 'xemacs)
+  (require 'calc-trail)
+  (require 'calc-store))
 (eval-when-compile (require 'ob-comint))
+
+(declare-function calc-store-into    "calc-store" (&optional var))
+(declare-function calc-recall        "calc-store" (&optional var))
+(declare-function math-evaluate-expr "calc-ext"   (x))
 
 (defvar org-babel-default-header-args:calc nil
   "Default arguments for evaluating an calc source block.")

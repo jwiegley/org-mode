@@ -715,7 +715,7 @@ See variable `org-export-xhtml-link-org-files-as-html'"
 
 ;;; org-xhtml-format-org-link
 (defun org-xhtml-format-org-link (opt-plist type-1 path fragment desc attr
-					   descp)
+					    descp)
   "Make an HTML link.
 OPT-PLIST is an options list.
 TYPE is the device-type of the link (THIS://foo.html)
@@ -725,11 +725,14 @@ DESC is the link description, if any.
 ATTR is a string of other attributes of the a element.
 MAY-INLINE-P allows inlining it as an image."
   (declare (special org-lparse-par-open))
-  (when (string= type-1 "coderef")
-    (setq attr
-	  (format "class=\"coderef\" onmouseover=\"CodeHighlightOn(this, '%s');\" onmouseout=\"CodeHighlightOff(this, '%s');\""
-		  fragment fragment)))
   (save-match-data
+    (when (string= type-1 "coderef")
+      (let ((ref fragment))
+	(setq desc (format (org-export-get-coderef-format ref (and descp desc))
+			   (cdr (assoc ref org-export-code-refs)))
+	      fragment (concat  "coderef-" ref)
+	      attr (format "class=\"coderef\" onmouseover=\"CodeHighlightOn(this, '%s');\" onmouseout=\"CodeHighlightOff(this, '%s');\""
+			   fragment fragment))))
     (let* ((may-inline-p
 	    (and (member type-1 '("http" "https" "file"))
 		 (org-lparse-should-inline-p path descp)
@@ -1555,7 +1558,7 @@ lang=\"%s\" xml:lang=\"%s\">
    (cons (eval (car org-export-table-row-tags))
 	 (eval (cdr org-export-table-row-tags))) row))
 
-(defun org-xhtml-format-table-cell (text r c)
+(defun org-xhtml-format-table-cell (text r c horiz-span)
   (let ((cell-style-cookie (or (and org-lparse-table-is-styled
 				    (format "@@class%03d@@" c)) "")))
     (cond

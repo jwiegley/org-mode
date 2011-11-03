@@ -157,7 +157,7 @@ If both match values are nil, return all contacts."
     (dolist (file (org-contacts-files))
       (org-check-agenda-file file)
       (with-current-buffer (org-get-agenda-file-buffer file)
-        (unless (org-mode-p)
+        (unless (eq major-mode 'org-mode)
           (error "File %s is no in `org-mode'" file))
         (org-scan-tags
          '(add-to-list 'markers (set-marker (make-marker) (point)))
@@ -169,9 +169,10 @@ If both match values are nil, return all contacts."
 
 (when (not (fboundp 'completion-table-case-fold))
   ;; That function is new in Emacs 24...
-  (defun completion-table-case-fold (table string pred action)
-    (let ((completion-ignore-case t))
-      (complete-with-action action table string pred))))
+  (defun completion-table-case-fold (table &optional dont-fold)
+    (lambda (string pred action)
+      (let ((completion-ignore-case (not dont-fold)))
+	(complete-with-action action table string pred)))))
 
 (defun org-contacts-complete-name (&optional start)
   "Complete text at START with a user name and email."
@@ -226,9 +227,7 @@ If both match values are nil, return all contacts."
                                            ;; If the user has an email address, append USER <EMAIL>.
                                            if email collect (org-contacts-format-email contact-name email))
                                      ", ")))))
-    (list start end (if org-contacts-completion-ignore-case
-			(apply-partially #'completion-table-case-fold completion-list)
-		      completion-list))))
+    (list start end (completion-table-case-fold completion-list (not org-contacts-completion-ignore-case)))))
 
 (defun org-contacts-message-complete-function ()
   "Function used in `completion-at-point-functions' in `message-mode'."
@@ -263,7 +262,7 @@ If both match values are nil, return all contacts."
     (when marker
       (switch-to-buffer-other-window (marker-buffer marker))
       (goto-char marker)
-      (when (org-mode-p)
+      (when (eq major-mode 'org-mode)
         (org-show-context 'agenda)
         (save-excursion
           (and (outline-next-heading)

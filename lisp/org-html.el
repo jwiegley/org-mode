@@ -713,7 +713,7 @@ command to convert it."
   (interactive "r")
   (let (reg html buf pop-up-frames)
     (save-window-excursion
-      (if (org-mode-p)
+      (if (eq major-mode 'org-mode)
 	  (setq html (org-export-region-as-html
 		      beg end t 'string))
 	(setq reg (buffer-substring beg end)
@@ -1046,14 +1046,17 @@ OPT-PLIST is the export options list."
 
        (t
 	;; just publish the path, as default
-	(setq rpl (concat "@<i>&lt;" type ":"
+	(setq rpl (concat "<i>&lt;" type ":"
 			  (save-match-data (org-link-unescape path))
-			  "&gt;@</i>"))))
+			  "&gt;</i>"))))
       (setq line (replace-match rpl t t line)
 	    start (+ start (length rpl))))
     line))
 
 ;;; org-export-as-html
+
+(defvar org-heading-keyword-regexp-format) ; defined in org.el
+
 ;;;###autoload
 (defun org-export-as-html (arg &optional hidden ext-plist
 			       to-buffer body-only pub-dir)
@@ -1147,14 +1150,15 @@ PUB-DIR is set, use this as the publishing directory."
 	 (current-dir (if buffer-file-name
 			  (file-name-directory buffer-file-name)
 			default-directory))
+	 (auto-insert nil); Avoid any auto-insert stuff for the new file
 	 (buffer (if to-buffer
 		     (cond
 		      ((eq to-buffer 'string) (get-buffer-create "*Org HTML Export*"))
 		      (t (get-buffer-create to-buffer)))
 		   (find-file-noselect filename)))
 	 (org-levels-open (make-vector org-level-max nil))
-	 (date (plist-get opt-plist :date))
-	 (author      (plist-get opt-plist :author))
+	 (date        (org-html-expand (plist-get opt-plist :date)))
+	 (author      (org-html-expand (plist-get opt-plist :author)))
 	 (html-validation-link (or org-export-html-validation-link ""))
 	 (title       (org-html-expand
 		       (or (and subtree-p (org-export-get-title-from-subtree))
@@ -1175,15 +1179,16 @@ PUB-DIR is set, use this as the publishing directory."
 			 (plist-get opt-plist :link-home)))
 	 (dummy (setq opt-plist (plist-put opt-plist :title title)))
 	 (html-table-tag (plist-get opt-plist :html-table-tag))
-	 (quote-re0   (concat "^[ \t]*" org-quote-string "\\>"))
-	 (quote-re    (concat "^\\(\\*+\\)\\([ \t]+" org-quote-string "\\>\\)"))
+	 (quote-re0   (concat "^ *" org-quote-string "\\( +\\|[ \t]*$\\)"))
+	 (quote-re    (format org-heading-keyword-regexp-format
+			      org-quote-string))
 	 (inquote     nil)
 	 (infixed     nil)
 	 (inverse     nil)
 	 (email       (plist-get opt-plist :email))
 	 (language    (plist-get opt-plist :language))
-	 (keywords    (plist-get opt-plist :keywords))
-	 (description (plist-get opt-plist :description))
+	 (keywords    (org-html-expand (plist-get opt-plist :keywords)))
+	 (description (org-html-expand (plist-get opt-plist :description)))
 	 (num         (plist-get opt-plist :section-numbers))
 	 (lang-words  nil)
 	 (head-count  0) cnt
@@ -1297,11 +1302,11 @@ PUB-DIR is set, use this as the publishing directory."
 		 "%s
 <!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"
                \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">
-<html xmlns=\"http://www.w3.org/1999/xhtml\"
-lang=\"%s\" xml:lang=\"%s\">
+<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"%s\" xml:lang=\"%s\">
 <head>
 <title>%s</title>
 <meta http-equiv=\"Content-Type\" content=\"text/html;charset=%s\"/>
+<meta name=\"title\" content=\"%s\"/>
 <meta name=\"generator\" content=\"Org-mode\"/>
 <meta name=\"generated\" content=\"%s\"/>
 <meta name=\"author\" content=\"%s\"/>
@@ -1324,7 +1329,7 @@ lang=\"%s\" xml:lang=\"%s\">
 		 language language
 		 title
 		 (or charset "iso-8859-1")
-		 date author description keywords
+		 title date author description keywords
 		 style
 		 mathjax
 		 (if (or link-up link-home)
@@ -1337,23 +1342,30 @@ lang=\"%s\" xml:lang=\"%s\">
 
 	;; insert html preamble
 	(when (plist-get opt-plist :html-preamble)
-	  (let ((html-pre (plist-get opt-plist :html-preamble)))
-	    (insert "<div id=\"" (nth 0 org-export-html-divs) "\">\n")
+	  (let ((html-pre (plist-get opt-plist :html-preamble))
+		html-pre-real-contents)
 	    (cond ((stringp html-pre)
-		   (insert
-		    (format-spec html-pre `((?t . ,title) (?a . ,author)
-					    (?d . ,date) (?e . ,email)))))
+		   (setq html-pre-real-contents
+			 (format-spec html-pre `((?t . ,title) (?a . ,author)
+						 (?d . ,date) (?e . ,email)))))
 		  ((functionp html-pre)
-		   (funcall html-pre))
+		   (insert "<div id=\"" (nth 0 org-export-html-divs) "\">\n")
+		   (funcall html-pre)
+		   (insert "\n</div>\n"))
 		  (t
-		   (insert
+		   (setq html-pre-real-contents
 		    (format-spec
 		     (or (cadr (assoc (nth 0 lang-words)
 				      org-export-html-preamble-format))
 			 (cadr (assoc "en" org-export-html-preamble-format)))
 		     `((?t . ,title) (?a . ,author)
 		       (?d . ,date) (?e . ,email))))))
-	    (insert "\n</div>\n")))
+	    ;; don't output an empty preamble DIV
+	    (unless (and (functionp html-pre)
+			 (equal html-pre-real-contents ""))
+	      (insert "<div id=\"" (nth 0 org-export-html-divs) "\">\n")
+	      (insert html-pre-real-contents)
+	      (insert "\n</div>\n"))))
 
 	;; begin wrap around body
 	(insert (format "\n<div id=\"%s\">"
@@ -1598,7 +1610,8 @@ lang=\"%s\" xml:lang=\"%s\">
 	  (setq line (org-html-handle-links line opt-plist))
 
 	  ;; TODO items
-	  (if (and (string-match org-todo-line-regexp line)
+	  (if (and org-todo-line-regexp
+		   (string-match org-todo-line-regexp line)
 		   (match-beginning 2))
 
 	      (setq line
@@ -1646,7 +1659,7 @@ lang=\"%s\" xml:lang=\"%s\">
 			 t t line))))))
 
 	  (cond
-	   ((string-match "^\\(\\*+\\)[ \t]+\\(.*\\)" line)
+	   ((string-match "^\\(\\*+\\)\\(?: +\\(.*?\\)\\)?[ \t]*$" line)
 	    ;; This is a headline
 	    (setq level (org-tr-level (- (match-end 1) (match-beginning 1)
 					 level-offset))
@@ -1979,8 +1992,8 @@ for formatting.  This is required for the DocBook exporter."
 
   (let* ((caption (org-find-text-property-in-string 'org-caption (car lines)))
 	 (label (org-find-text-property-in-string 'org-label (car lines)))
-	 (forced-aligns (org-find-text-property-in-string 'org-forced-aligns
-							  (car lines)))
+	 (col-cookies (org-find-text-property-in-string 'org-col-cookies
+							(car lines)))
 	 (attributes (org-find-text-property-in-string 'org-attributes
 						       (car lines)))
 	 (html-table-tag (org-export-splice-attributes
@@ -1993,9 +2006,9 @@ for formatting.  This is required for the DocBook exporter."
 	 tbopen line fields html gr colgropen rowstart rowend
 	 ali align aligns n)
     (setq caption (and caption (org-html-do-expand caption)))
-    (when (and forced-aligns org-table-clean-did-remove-column)
-    (setq forced-aligns
-	  (mapcar (lambda (x) (cons (1- (car x)) (cdr x))) forced-aligns)))
+    (when (and col-cookies org-table-clean-did-remove-column)
+      (setq col-cookies
+	    (mapcar (lambda (x) (cons (1- (car x)) (cdr x))) col-cookies)))
     (if splice (setq head nil))
     (unless splice (push (if head "<thead>" "<tbody>") html))
     (setq tbopen t)
@@ -2056,8 +2069,8 @@ for formatting.  This is required for the DocBook exporter."
 	     (lambda (x)
 	       (setq gr (pop org-table-colgroup-info)
 		     i (1+ i)
-		     align (if (assoc i forced-aligns)
-			       (cdr (assoc (cdr (assoc i forced-aligns))
+		     align (if (nth 1 (assoc i col-cookies))
+			       (cdr (assoc (nth 1 (assoc i col-cookies))
 					   '(("l" . "left") ("r" . "right")
 					     ("c" . "center"))))
 			     (if (> (/ (float x) nline)
@@ -2213,19 +2226,20 @@ for further information."
   "Format time stamps in string S, or remove them."
   (catch 'exit
     (let (r b)
-      (while (string-match org-maybe-keyword-time-regexp s)
-	(or b (setq b (substring s 0 (match-beginning 0))))
-	(setq r (concat
-		 r (substring s 0 (match-beginning 0))
-		 " @<span class=\"timestamp-wrapper\">"
-		 (if (match-end 1)
-		     (format "@<span class=\"timestamp-kwd\">%s @</span>"
-			     (match-string 1 s)))
-		 (format " @<span class=\"timestamp\">%s@</span>"
-			 (substring
-			  (org-translate-time (match-string 3 s)) 1 -1))
-		 "@</span>")
-	      s (substring s (match-end 0))))
+      (when org-maybe-keyword-time-regexp
+	(while (string-match org-maybe-keyword-time-regexp s)
+	  (or b (setq b (substring s 0 (match-beginning 0))))
+	  (setq r (concat
+		   r (substring s 0 (match-beginning 0))
+		   " @<span class=\"timestamp-wrapper\">"
+		   (if (match-end 1)
+		       (format "@<span class=\"timestamp-kwd\">%s @</span>"
+			       (match-string 1 s)))
+		   (format " @<span class=\"timestamp\">%s@</span>"
+			   (substring
+			    (org-translate-time (match-string 3 s)) 1 -1))
+		   "@</span>")
+		s (substring s (match-end 0)))))
       ;; Line break if line started and ended with time stamp stuff
       (if (not r)
 	  s
@@ -2296,18 +2310,20 @@ Possible conversions are set in `org-export-html-protect-char-alist'."
 
 (defun org-html-expand (string)
   "Prepare STRING for HTML export.  Apply all active conversions.
-If there are links in the string, don't modify these."
-  (let* ((re (concat org-bracket-link-regexp "\\|"
-		     (org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")))
-	 m s l res)
-    (while (setq m (string-match re string))
-      (setq s (substring string 0 m)
-	    l (match-string 0 string)
-	    string (substring string (match-end 0)))
-      (push (org-html-do-expand s) res)
+If there are links in the string, don't modify these.  If STRING
+is nil, return nil."
+  (when string
+    (let* ((re (concat org-bracket-link-regexp "\\|"
+		       (org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")))
+	   m s l res)
+      (while (setq m (string-match re string))
+	(setq s (substring string 0 m)
+	      l (match-string 0 string)
+	      string (substring string (match-end 0)))
+	(push (org-html-do-expand s) res)
       (push l res))
-    (push (org-html-do-expand string) res)
-    (apply 'concat (nreverse res))))
+      (push (org-html-do-expand string) res)
+      (apply 'concat (nreverse res)))))
 
 (defun org-html-do-expand (s)
   "Apply all active conversions to translate special ASCII to HTML."

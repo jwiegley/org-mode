@@ -181,10 +181,10 @@ Returns non-nil if match-data set"
 	  (when (looking-at org-babel-inline-src-block-regexp)
 	    t ))))))
 
+(defvar org-babel-inline-lob-one-liner-regexp)
 (defun org-babel-get-lob-one-liner-matches()
   "Set match data if on line of an lob one liner.
 Returns non-nil if match-data set"
-
   (save-excursion
     (unless (= (point) (point-at-bol)) ;; move before inline block
       (re-search-backward "[ \f\t\n\r\v]" nil t))
@@ -353,10 +353,35 @@ then run `org-babel-pop-to-session'."
 
 (add-hook 'org-metadown-hook 'org-babel-pop-to-session-maybe)
 
+(defconst org-babel-common-header-args-w-values
+  '((cache	. ((no yes)))
+    (cmdline	. :any)
+    (colnames	. ((nil no yes)))
+    (comments	. ((no link yes org both noweb)))
+    (dir	. :any)
+    (eval	. ((never query)))
+    (exports	. ((code results both none)))
+    (file	. :any)
+    (hlines	. ((no yes)))
+    (mkdirp	. ((yes no)))
+    (no-expand)
+    (noeval)
+    (noweb	. ((yes no tangle)))
+    (noweb-ref	. :any)
+    (padline	. ((yes no)))
+    (results	. ((file list vector table scalar verbatim)
+		    (raw org html latex code pp wrap)
+		    (replace silent append prepend)
+		    (output value)))
+    (rownames	. ((no yes)))
+    (sep	. :any)
+    (session	. :any)
+    (shebang	. :any)
+    (tangle	. ((tangle yes no :any)))
+    (var	. :any)))
+
 (defconst org-babel-header-arg-names
-  '(cache cmdline colnames dir exports file noweb results
-    session tangle var eval noeval comments no-expand shebang
-    padline noweb-ref)
+  (mapcar #'car org-babel-common-header-args-w-values)
   "Common header arguments used by org-babel.
 Note that individual languages may define their own language
 specific header arguments as well.")
@@ -571,6 +596,41 @@ arguments and pop open the results in a preview buffer."
 	  (error "supplied header \"%S\" is suspiciously close to \"%S\""
 		 header name))))
     (message "No suspicious header arguments found.")))
+
+;;;###autoload
+(defun org-babel-insert-header-arg ()
+  "Insert a header argument selecting from lists of common args and values."
+  (interactive)
+  (let* ((lang (car (org-babel-get-src-block-info 'light)))
+	 (lang-headers (intern (concat "org-babel-header-arg-names:" lang)))
+	 (headers (append (if (boundp lang-headers)
+			      (mapcar (lambda (h) (cons h :any))
+				      (eval lang-headers))
+			    nil)
+			  org-babel-common-header-args-w-values))
+	 (arg (org-icompleting-read
+	      "Header Arg: "
+	      (mapcar
+	       (lambda (header-spec) (symbol-name (car header-spec)))
+	       headers))))
+    (insert ":" arg)
+    (let ((vals (cdr (assoc (intern arg) headers))))
+      (when vals
+	(insert
+	 " "
+	 (cond
+	  ((eq vals :any)
+	   (read-from-minibuffer "value: "))
+	  ((listp vals)
+	   (mapconcat
+	    (lambda (group)
+	      (let ((arg (org-icompleting-read
+			  "value: "
+			  (cons "default" (mapcar #'symbol-name group)))))
+		(if (and arg (not (string= "default" arg)))
+		    (concat arg " ")
+		  "")))
+	    vals ""))))))))
 
 ;;;###autoload
 (defun org-babel-load-in-session (&optional arg info)
@@ -987,38 +1047,21 @@ Return an association list of any source block params which
 may be specified in the properties of the current outline entry."
   (save-match-data
     (let (val sym)
-      (delq nil
-	    (mapcar
-	     (lambda (header-arg)
-	       (and (setq val (org-entry-get (point) header-arg t))
-		    (cons (intern (concat ":" header-arg))
-			  (org-babel-read val))))
+      (org-babel-parse-multiple-vars
+       (delq nil
 	     (mapcar
-	      'symbol-name
-	      (append
-	       org-babel-header-arg-names
-	       (progn
-		 (setq sym (intern (concat "org-babel-header-arg-names:" lang)))
-		 (and (boundp sym) (eval sym))))))))))
-
-(defun org-babel-params-from-buffer ()
-  "Retrieve per-buffer parameters.
- Return an association list of any source block params which
-may be specified in the current buffer."
-  (let (local-properties)
-    (save-match-data
-      (save-excursion
-	(save-restriction
-	  (widen)
-	  (goto-char (point-min))
-	  (while (re-search-forward
-		  (org-make-options-regexp (list "BABEL" "PROPERTIES")) nil t)
-	    (setq local-properties
-		  (org-babel-merge-params
-		   local-properties
-		   (org-babel-parse-header-arguments
-		    (org-match-string-no-properties 2)))))
-	  local-properties)))))
+	      (lambda (header-arg)
+		(and (setq val (org-entry-get (point) header-arg t))
+		     (cons (intern (concat ":" header-arg))
+			   (org-babel-read val))))
+	      (mapcar
+	       'symbol-name
+	       (append
+		org-babel-header-arg-names
+		(progn
+		  (setq sym (intern (concat "org-babel-header-arg-names:"
+					    lang)))
+		  (and (boundp sym) (eval sym)))))))))))
 
 (defvar org-src-preserve-indentation)
 (defun org-babel-parse-src-block-match ()
@@ -1045,7 +1088,6 @@ may be specified in the current buffer."
               (buffer-string)))
 	  (org-babel-merge-params
 	   org-babel-default-header-args
-	   (org-babel-params-from-buffer)
            (org-babel-params-from-properties lang)
 	   (if (boundp lang-headers) (eval lang-headers) nil)
 	   (org-babel-parse-header-arguments
@@ -1062,39 +1104,69 @@ may be specified in the current buffer."
            (org-babel-clean-text-properties (match-string 5)))
           (org-babel-merge-params
            org-babel-default-inline-header-args
-	   (org-babel-params-from-buffer)
            (org-babel-params-from-properties lang)
            (if (boundp lang-headers) (eval lang-headers) nil)
            (org-babel-parse-header-arguments
             (org-babel-clean-text-properties (or (match-string 4) "")))))))
 
+(defun org-babel-balanced-split (string alts)
+  "Split STRING on instances of ALTS.
+ALTS is a cons of two character options where each option may be
+either the numeric code of a single character or a list of
+character alternatives.  For example to split on balanced
+instances of \"[ \t]:\" set ALTS to '((32 9) . 58)."
+  (flet ((matches (ch spec) (or (and (numberp spec) (= spec ch))
+				(member ch spec)))
+	 (matched (ch last)
+		  (and (matches ch (cdr alts))
+		       (matches last (car alts)))))
+    (let ((balance 0) (partial nil) (lst nil) (last 0))
+      (mapc (lambda (ch)  ; split on [] or () balanced instances of [ \t]:
+	      (setq balance (+ balance
+			       (cond ((or (equal 91 ch) (equal 40 ch)) 1)
+				     ((or (equal 93 ch) (equal 41 ch)) -1)
+				     (t 0))))
+	      (setq partial (cons ch partial))
+	      (when (and (= balance 0) (matched ch last))
+		(setq lst (cons (apply #'string (nreverse (cddr partial)))
+				lst))
+		(setq partial nil))
+	      (setq last ch))
+	    (string-to-list string))
+      (nreverse (cons (apply #'string (nreverse partial)) lst)))))
+
 (defun org-babel-parse-header-arguments (arg-string)
   "Parse a string of header arguments returning an alist."
   (when (> (length arg-string) 0)
-    (delq nil
-	  (mapcar
-	   (lambda (arg)
-	     (if (string-match
-		  "\\([^ \f\t\n\r\v]+\\)[ \f\t\n\r\v]+\\([^ \f\t\n\r\v]+.*\\)"
-		  arg)
-		 (cons (intern (match-string 1 arg))
-		       (org-babel-read (org-babel-chomp (match-string 2 arg))))
-	       (cons (intern (org-babel-chomp arg)) nil)))
-	   (let ((balance 0) (partial nil) (lst nil) (last 0))
-	     (mapc (lambda (ch)  ; split on [] balanced instances of [ \t]:
-		     (setq balance (+ balance
-				      (cond ((equal 91 ch) 1)
-					    ((equal 93 ch) -1)
-					    (t 0))))
-		     (setq partial (cons ch partial))
-		     (when (and (= ch 58) (= balance 0)
-				(or (= last 32) (= last 9)))
-		       (setq lst (cons (apply #'string (nreverse (cddr partial)))
-				       lst))
-		       (setq partial (list ch)))
-		     (setq last ch))
-		   (string-to-list arg-string))
-	     (nreverse (cons (apply #'string (nreverse partial)) lst)))))))
+    (org-babel-parse-multiple-vars
+     (delq nil
+	   (mapcar
+	    (lambda (arg)
+	      (if (string-match
+		   "\\([^ \f\t\n\r\v]+\\)[ \f\t\n\r\v]+\\([^ \f\t\n\r\v]+.*\\)"
+		   arg)
+		  (cons (intern (match-string 1 arg))
+			(org-babel-read (org-babel-chomp (match-string 2 arg))))
+		(cons (intern (org-babel-chomp arg)) nil)))
+	    ((lambda (raw)
+	       (cons (car raw) (mapcar (lambda (r) (concat ":" r)) (cdr raw))))
+	     (org-babel-balanced-split arg-string '((32 9) . 58))))))))
+
+(defun org-babel-parse-multiple-vars (header-arguments)
+  "Expand multiple variable assignments behind a single :var keyword.
+
+This allows expression of multiple variables with one :var as
+shown below.
+
+#+PROPERTY: var foo=1, bar=2"
+  (let (results)
+    (mapc (lambda (pair)
+	    (if (eq (car pair) :var)
+		(mapcar (lambda (v) (push (cons :var (org-babel-trim v)) results))
+			(org-babel-balanced-split (cdr pair) '(44 . (32 9))))
+	      (push pair results)))
+	  header-arguments)
+    (nreverse results)))
 
 (defun org-babel-process-params (params)
   "Expand variables in PARAMS and add summary parameters."
@@ -1212,7 +1284,7 @@ of the vars, cnames and rnames."
             (setq var (cons (car var) (org-babel-del-hlines (cdr var))))))
         var)
       vars)
-     cnames rnames)))
+     (reverse cnames) (reverse rnames))))
 
 (defun org-babel-reassemble-table (table colnames rownames)
   "Add column and row names to a table.
@@ -1418,7 +1490,6 @@ region is not active then the point is demarcated."
 	(goto-char start) (move-end-of-line 1)))))
 
 (defvar org-babel-lob-one-liner-regexp)
-(defvar org-babel-inline-lob-one-liner-regexp)
 (defun org-babel-where-is-src-block-result (&optional insert info hash indent)
   "Find where the current source block results begin.
 Return the point at the beginning of the result of the current
@@ -1804,12 +1875,11 @@ Later elements of PLISTS override the values of previous elements.
 This takes into account some special considerations for certain
 parameters when merging lists."
   (let ((results-exclusive-groups
-	 '(("file" "list" "vector" "table" "scalar" "verbatim")
-	   ("raw" "org" "html" "latex" "code" "pp" "wrap")
-	   ("replace" "silent" "append" "prepend")
-	   ("output" "value")))
+	 (mapcar (lambda (group) (mapcar #'symbol-name group))
+		 (cdr (assoc 'results org-babel-common-header-args-w-values))))
 	(exports-exclusive-groups
-	 '(("code" "results" "both" "none")))
+	 (mapcar (lambda (group) (mapcar #'symbol-name group))
+		 (cdr (assoc 'exports org-babel-common-header-args-w-values))))
 	(variable-index 0)
 	params results exports tangle noweb cache vars shebang comments padline)
     (flet ((e-merge (exclusive-groups &rest result-params)

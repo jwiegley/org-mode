@@ -160,6 +160,7 @@ LISPF      = 	org.el			\
 		ob-scheme.el		\
 		ob-lilypond.el		\
 		ob-java.el		\
+		ob-shen.el		\
 		ox-lzw.el		\
 		ox-org.el		\
 		ox-plugin.el		\
