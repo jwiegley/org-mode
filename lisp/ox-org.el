@@ -48,7 +48,7 @@
 
 (defvar ox-org 'org-x-org-dispatchers)
 
-(defcustom org-x-priority-B-silent t
+(defcustom org-x-default-priority-silent t
   "If non-nil, priority B is never used since it's the default priority."
   :type 'boolean
   :group 'ox-org)
@@ -74,6 +74,7 @@
       (while (= depth current-depth)
 	(setq identifiers
 	      (cons (if (featurep 'org-id)
+			;; jww (2011-11-08): What is `entry' bound to?
 			(org-x-setter entry 'org-id (org-id-get-create))
 		      (org-x-setter entry 'org-id (point-marker)))
 		    identifiers))
@@ -277,7 +278,7 @@
 	  (insert state ? )))
 
     (let ((priority (org-x-priority entry)))
-      (if (and priority (not (and org-x-priority-B-silent
+      (if (and priority (not (and org-x-default-priority-silent
 				  (= 2 priority))))
 	  (insert "[#" (cond ((= priority 1) "A")
 			     ((= priority 2) "B")
