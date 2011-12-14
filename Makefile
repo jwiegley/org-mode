@@ -96,6 +96,7 @@ LISPF      = 	org.el			\
 		org-irc.el		\
 		org-latex.el		\
 		org-list.el		\
+		org-lparse.el		\
 		org-mac-message.el	\
 	     	org-macs.el		\
 		org-mew.el              \
@@ -103,6 +104,7 @@ LISPF      = 	org.el			\
 		org-mks.el		\
 		org-mobile.el		\
 		org-mouse.el		\
+		org-odt.el		\
 		org-publish.el		\
 		org-plot.el		\
 		org-protocol.el		\
@@ -161,6 +163,8 @@ LISPF      = 	org.el			\
 		ob-lilypond.el		\
 		ob-java.el		\
 		ob-shen.el		\
+		ob-fortran.el		\
+		ob-picolisp.el		\
 		ox-lzw.el		\
 		ox-org.el		\
 		ox-plugin.el		\
@@ -189,13 +193,14 @@ PKG_FILES = $(LISPFILES0)		\
             doc/orgguide.pdf		\
             doc/orgcard.tex		\
             doc/orgcard.pdf		\
-            doc/orgcard_letter.pdf
+            doc/orgcard_letter.pdf	\
+            etc/
 
 .SUFFIXES: .el .elc .texi
 SHELL = /bin/sh
 
 # Additional distribution files
-DISTFILES_extra=  Makefile request-assign-future.txt contrib
+DISTFILES_extra=  Makefile request-assign-future.txt contrib etc
 
 default: $(ELCFILES) $(ELCBFILES)
 
@@ -496,6 +501,7 @@ lisp/org-inlinetask.elc:
 lisp/org-irc.elc:	lisp/org.el
 lisp/org-jsinfo.elc:	lisp/org.el lisp/org-exp.el
 lisp/org-list.elc:	lisp/org-macs.el lisp/org-compat.el
+lisp/org-lparse.elc:	lisp/org-exp.el
 lisp/org-mac-message.elc:	lisp/org.el
 lisp/org-macs.elc:
 lisp/org-mew.elc:	lisp/org.el
@@ -503,6 +509,7 @@ lisp/org-mhe.elc:	lisp/org.el
 lisp/org-mks.elc:
 lisp/org-mobile.elc:	lisp/org.el
 lisp/org-mouse.elc:	lisp/org.el
+lisp/org-odt.elc:	lisp/org-lparse.el
 lisp/org-plot.elc:	lisp/org.el lisp/org-exp.el lisp/org-table.el
 lisp/org-publish.elc:
 lisp/org-protocol.elc:	lisp/org.el

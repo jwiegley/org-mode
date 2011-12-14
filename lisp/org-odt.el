@@ -1,12 +1,11 @@
 ;;; org-odt.el --- OpenDocumentText export for Org-mode
 
-;; Copyright (C) 2010-2011 Jambunathan <kjambunathan at gmail dot com>
+;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 0.8
-
+;;
 ;; This file is not (yet) part of GNU Emacs.
 ;; However, it is distributed under the same license.
 
@@ -27,7 +26,11 @@
 ;;; Commentary:
 
 ;;; Code:
-(eval-when-compile (require 'cl))
+(eval-when-compile
+  (require 'cl)
+  ;; htmlfontify.el was introduce in Emacs 23.2
+  (when (>= (string-to-number emacs-version) 23.2)
+    (require 'htmlfontify)))
 (require 'org-lparse)
 
 (defgroup org-export-odt nil
@@ -73,22 +76,74 @@
   "Regular expressions for special string conversion.")
 
 (defconst org-odt-lib-dir (file-name-directory load-file-name))
-(defconst org-odt-data-dir
-  (let ((dir1 (expand-file-name "../odt" org-odt-lib-dir))	   ; git
-	(dir2 (expand-file-name "./" org-odt-lib-dir)))		   ; elpa
-    (cond
-     ((file-directory-p dir1) dir1)
-     ((file-directory-p dir2) dir2)
-     (t (error "Cannot find factory styles file. Check package dir layout"))))
-  "Directory that holds auxiliary files used by the ODT exporter.
+(defconst org-odt-styles-dir
+  (let* ((styles-dir1 (expand-file-name "../etc/styles/" org-odt-lib-dir))
+	 (styles-dir2 (expand-file-name "./etc/styles/" org-odt-lib-dir))
+	 (styles-dir
+	  (catch 'styles-dir
+	    (mapc (lambda (styles-dir)
+		    (when (and (file-readable-p
+				(expand-file-name
+				 "OrgOdtContentTemplate.xml" styles-dir))
+			       (file-readable-p
+				(expand-file-name
+				 "OrgOdtStyles.xml" styles-dir)))
+		      (throw 'styles-dir styles-dir)))
+		  (list styles-dir1 styles-dir2))
+	    nil)))
+    (unless styles-dir
+      (error "Cannot find factory styles file. Check package dir layout"))
+    styles-dir)
+  "Directory that holds auxiliary XML files used by the ODT exporter.
 
-The 'styles' subdir contains the following xml files -
- 'OrgOdtStyles.xml' and 'OrgOdtContentTemplate.xml' - which are
- used as factory settings of `org-export-odt-styles-file' and
- `org-export-odt-content-template-file'.
+This directory contains the following XML files -
+ \"OrgOdtStyles.xml\" and \"OrgOdtContentTemplate.xml\".  These
+ XML files are used as the default values of
+ `org-export-odt-styles-file' and
+ `org-export-odt-content-template-file'.")
 
-The 'etc/schema' subdir contains rnc files for validating of
-OpenDocument xml files.")
+(defcustom org-export-odt-schema-dir
+  (let ((schema-dir (expand-file-name
+		     "../contrib/odt/etc/schema/" org-odt-lib-dir)))
+    (if (and (file-readable-p
+	      (expand-file-name "od-manifest-schema-v1.2-cs01.rnc" schema-dir))
+	     (file-readable-p
+	      (expand-file-name "od-schema-v1.2-cs01.rnc" schema-dir))
+	     (file-readable-p
+	      (expand-file-name "schemas.xml" schema-dir)))
+	schema-dir
+      (prog1 nil (message "Unable to locate OpenDocument schema files."))))
+  "Directory that contains OpenDocument schema files.
+
+This directory contains rnc files for OpenDocument schema.  It
+also contains a \"schemas.xml\" that can be added to
+`rng-schema-locating-files' for auto validation of OpenDocument
+XML files.  See also `rng-nxml-auto-validate-flag'."
+  :type '(choice
+	  (const :tag "Not set" nil)
+	  (directory :tag "Schema directory"))
+  :group 'org-export-odt
+  :set
+  (lambda (var value)
+    "Set `org-export-odt-schema-dir'.
+Also add it to `rng-schema-locating-files'."
+    (let ((schema-dir value))
+      (set var
+	   (if (and
+		(file-readable-p
+		 (expand-file-name "od-manifest-schema-v1.2-cs01.rnc" schema-dir))
+		(file-readable-p
+		 (expand-file-name "od-schema-v1.2-cs01.rnc" schema-dir))
+		(file-readable-p
+		 (expand-file-name "schemas.xml" schema-dir)))
+	       schema-dir
+	     (prog1 nil
+	       (message "Warning (org-odt): Unable to locate OpenDocument schema files.")))))
+    (when org-export-odt-schema-dir
+      (eval-after-load 'rng-loc
+	'(add-to-list 'rng-schema-locating-files
+		      (expand-file-name "schemas.xml"
+					org-export-odt-schema-dir))))))
 
 (defvar org-odt-file-extensions
   '(("odt" . "OpenDocument Text")
@@ -102,29 +157,7 @@ OpenDocument xml files.")
     ("otp" . "OpenDocument Presentation Template")
     ("odi" . "OpenDocument Image")
     ("odf" . "OpenDocument Formula")
-    ("odc" . "OpenDocument Chart")
-    ("doc" . "Microsoft Text")
-    ("docx" . "Microsoft Text")
-    ("xls" . "Microsoft Spreadsheet")
-    ("xlsx" . "Microsoft Spreadsheet")
-    ("ppt" . "Microsoft Presentation")
-    ("pptx" . "Microsoft Presentation")))
-
-(defvar org-odt-ms-file-extensions
-  '(("doc" . "Microsoft Text")
-    ("docx" . "Microsoft Text")
-    ("xls" . "Microsoft Spreadsheet")
-    ("xlsx" . "Microsoft Spreadsheet")
-    ("ppt" . "Microsoft Presentation")
-    ("pptx" . "Microsoft Presentation")))
-
-;; RelaxNG validation of OpenDocument xml files
-(eval-after-load 'rng-nxml
-  '(setq rng-nxml-auto-validate-flag t))
-
-(eval-after-load 'rng-loc
-  '(add-to-list 'rng-schema-locating-files
-		(expand-file-name "etc/schema/schemas.xml" org-odt-data-dir)))
+    ("odc" . "OpenDocument Chart")))
 
 (mapc
  (lambda (desc)
@@ -135,13 +168,6 @@ OpenDocument xml files.")
    (add-to-list 'auto-mode-alist
 		(cons (concat  "\\." (car desc) "\\'") 'archive-mode)))
  org-odt-file-extensions)
-
-(mapc
- (lambda (desc)
-   ;; Let Org open all Microsoft files using system-registered app
-   (add-to-list 'org-file-apps
-		(cons (concat  "\\." (car desc) "\\'") 'system)))
- org-odt-ms-file-extensions)
 
 ;; register the odt exporter with the pre-processor
 (add-to-list 'org-export-backends 'odt)
@@ -161,7 +187,7 @@ The exporter embeds the exported content just before
 \"</office:text>\" element.
 
 If unspecified, the file named \"OrgOdtContentTemplate.xml\"
-under `org-odt-data-dir' is used."
+under `org-odt-styles-dir' is used."
   :type 'file
   :group 'org-export-odt)
 
@@ -175,7 +201,7 @@ Valid values are one of:
 ...))
 
 In case of option 1, an in-built styles.xml is used. See
-`org-odt-data-dir' for more information.
+`org-odt-styles-dir' for more information.
 
 In case of option 3, the specified file is unzipped and the
 styles.xml embedded therein is used.
@@ -212,7 +238,7 @@ a per-file basis.  For example,
   '(add-to-list 'org-export-inbuffer-options-extra
 		'("ODT_STYLES_FILE" :odt-styles-file)))
 
-(defconst org-export-odt-tmpdir-prefix "odt-")
+(defconst org-export-odt-tmpdir-prefix "%s-")
 (defconst org-export-odt-bookmark-prefix "OrgXref.")
 
 (defvar org-export-odt-embed-images t
@@ -232,6 +258,24 @@ a per-file basis.  For example,
   ""
   :type 'float
   :group 'org-export-odt)
+
+(defcustom org-export-odt-create-custom-styles-for-srcblocks t
+  "Whether custom styles for colorized source blocks be automatically created.
+When this option is turned on, the exporter creates custom styles
+for source blocks based on the advice of `htmlfontify'.  Creation
+of custom styles happen as part of `org-odt-hfy-face-to-css'.
+
+When this option is turned off exporter does not create such
+styles.
+
+Use the latter option if you do not want the custom styles to be
+based on your current display settings.  It is necessary that the
+styles.xml already contains needed styles for colorizing to work.
+
+This variable is effective only if
+`org-export-odt-fontify-srcblocks' is turned on."
+  :group 'org-export-odt
+  :type 'boolean)
 
 (defvar org-export-odt-default-org-styles-alist
   '((paragraph . ((default . "Text_20_body")
@@ -432,8 +476,8 @@ PUB-DIR is set, use this as the publishing directory."
   ;; automatic styles
   (insert-file-contents
    (or org-export-odt-content-template-file
-       (expand-file-name "styles/OrgOdtContentTemplate.xml"
-			 org-odt-data-dir)))
+       (expand-file-name "OrgOdtContentTemplate.xml"
+			 org-odt-styles-dir)))
   (goto-char (point-min))
   (re-search-forward "</office:text>" nil nil)
   (delete-region (match-beginning 0) (point-max)))
@@ -909,14 +953,13 @@ styles congruent with the ODF-1.2 specification."
 (defun org-odt-end-footnote-definition (n)
   (org-lparse-end-paragraph))
 
-(defun org-odt-begin-toc (lang-specific-heading)
+(defun org-odt-begin-toc (lang-specific-heading max-level)
   (insert
    (format "
     <text:table-of-content text:style-name=\"Sect2\" text:protected=\"true\" text:name=\"Table of Contents1\">
-     <text:table-of-content-source text:outline-level=\"10\">
+     <text:table-of-content-source text:outline-level=\"%d\">
       <text:index-title-template text:style-name=\"Contents_20_Heading\">%s</text:index-title-template>
-" lang-specific-heading))
-
+" max-level lang-specific-heading))
   (loop for level from 1 upto 10
 	do (insert (format
 		    "
@@ -1005,12 +1048,16 @@ styles congruent with the ODF-1.2 specification."
 (defun org-odt-format-horizontal-line ()
   (org-odt-format-stylized-paragraph 'horizontal-line ""))
 
+(defun org-odt-encode-plain-text (line &optional no-whitespace-filling)
+  (setq line (org-xml-encode-plain-text line))
+  (if no-whitespace-filling line
+    (org-odt-fill-tabs-and-spaces line)))
+
 (defun org-odt-format-line (line)
   (case org-lparse-dyn-current-environment
     (fixedwidth (concat
 		 (org-odt-format-stylized-paragraph
-		  'fixedwidth (org-odt-fill-tabs-and-spaces
-			       (org-xml-encode-plain-text line))) "\n"))
+		  'fixedwidth (org-odt-encode-plain-text line)) "\n"))
     (t (concat line "\n"))))
 
 (defun org-odt-format-comment (fmt &rest args)
@@ -1060,10 +1107,9 @@ off."
      (lambda (line)
        (incf i)
        (org-odt-format-source-line-with-line-number-and-label
-	line rpllbl num (lambda (line)
-			  (org-odt-fill-tabs-and-spaces
-			   (org-xml-encode-plain-text line)))
-	(if (= i line-count) "OrgFixedWidthBlockLastLine" "OrgFixedWidthBlock")))
+	line rpllbl num 'org-odt-encode-plain-text
+	(if (= i line-count) "OrgFixedWidthBlockLastLine"
+	  "OrgFixedWidthBlock")))
      lines "\n")))
 
 (defvar org-src-block-paragraph-format
@@ -1112,24 +1158,6 @@ and prefix with \"OrgSrc\".  For example,
   <style:text-properties fo:color=\"%s\"/>
  </style:style>" style-name color-val))))))
     (cons style-name style)))
-
-(defcustom org-export-odt-create-custom-styles-for-srcblocks t
-  "Whether custom styles for colorized source blocks be automatically created.
-When this option is turned on, the exporter creates custom styles
-for source blocks based on the advice of `htmlfontify'.  Creation
-of custom styles happen as part of `org-odt-hfy-face-to-css'.
-
-When this option is turned off exporter does not create such
-styles.
-
-Use the latter option if you do not want the custom styles to be
-based on your current display settings.  It is necessary that the
-styles.xml already contains needed styles for colorizing to work.
-
-This variable is effective only if
-`org-export-odt-fontify-srcblocks' is turned on."
-  :group 'org-export-odt
-  :type 'boolean)
 
 (defun org-odt-insert-custom-styles-for-srcblocks (styles)
   "Save STYLES used for colorizing of source blocks.
@@ -1198,7 +1226,7 @@ value of `org-export-odt-fontify-srcblocks."
 	lines (funcall
 	       (or (and org-export-odt-fontify-srcblocks
 			(or (featurep 'htmlfontify)
-			    (require 'htmlfontify))
+			    (require 'htmlfontify nil t))
 			(fboundp 'htmlfontify-string)
 			'org-odt-format-source-code-or-example-colored)
 		   'org-odt-format-source-code-or-example-plain)
@@ -1263,13 +1291,16 @@ value of `org-export-odt-fontify-srcblocks."
     (let* ((caption (org-find-text-property-in-string 'org-caption src))
 	   (caption (and caption (org-xml-format-desc caption)))
 	   (label (org-find-text-property-in-string 'org-label src))
+	   (latex-frag (org-find-text-property-in-string 'org-latex-src src))
 	   (embed-as (or embed-as
-			 (and (org-find-text-property-in-string
-			       'org-latex-src src)
+			 (and latex-frag
 			      (org-find-text-property-in-string
 			       'org-latex-src-embed-type src))
-			 'paragraph))
+			 (if (or caption label) 'paragraph 'character)))
 	   width height)
+      (when latex-frag
+	(setq href (org-propertize href :title "LaTeX Fragment"
+				   :description latex-frag)))
       (cond
        ((eq embed-as 'character)
 	(org-odt-format-entity "InlineFormula" href width height))
@@ -1300,7 +1331,14 @@ value of `org-export-odt-fontify-srcblocks."
 	(org-odt-create-manifest-file-entry
 	 "application/vnd.oasis.opendocument.formula" target-dir "1.2")
 
-	(copy-file src-file target-file 'overwrite)
+	(case (org-odt-is-formula-link-p src-file)
+	  (mathml
+	   (copy-file src-file target-file 'overwrite))
+	  (odf
+	   (org-odt-zip-extract-one src-file "content.xml" target-dir))
+	  (t
+	   (error "%s is not a formula file" src-file)))
+
 	(org-odt-create-manifest-file-entry "text/xml" target-file))
     target-file))
 
@@ -1317,18 +1355,21 @@ value of `org-export-odt-fontify-srcblocks."
 
 (defun org-odt-is-formula-link-p (file)
   (let ((case-fold-search nil))
-    (string-match "\\.mathml\\'" file)))
+    (cond
+     ((string-match "\\.\\(mathml\\|mml\\)\\'" file)
+      'mathml)
+     ((string-match "\\.odf\\'" file)
+      'odf))))
 
 (defun org-odt-format-org-link (opt-plist type-1 path fragment desc attr
 					  descp)
-  "Make an HTML link.
+  "Make a OpenDocument link.
 OPT-PLIST is an options list.
-TYPE is the device-type of the link (THIS://foo.html)
-PATH is the path of the link (http://THIS#locationx)
-FRAGMENT is the fragment part of the link, if any (foo.html#THIS)
+TYPE-1 is the device-type of the link (THIS://foo.html).
+PATH is the path of the link (http://THIS#location).
+FRAGMENT is the fragment part of the link, if any (foo.html#THIS).
 DESC is the link description, if any.
-ATTR is a string of other attributes of the a element.
-MAY-INLINE-P allows inlining it as an image."
+ATTR is a string of other attributes of the a element."
   (declare (special org-lparse-par-open))
   (save-match-data
     (let* ((may-inline-p
@@ -1477,11 +1518,11 @@ MAY-INLINE-P allows inlining it as an image."
 	   (caption (and caption (org-xml-format-desc caption)))
 	   (attr (org-find-text-property-in-string 'org-attributes src))
 	   (label (org-find-text-property-in-string 'org-label src))
-	   (latex-fragment-p (org-find-text-property-in-string
+	   (latex-frag (org-find-text-property-in-string
 			      'org-latex-src src))
-	   (category (and latex-fragment-p "__DvipngImage__"))
+	   (category (and latex-frag "__DvipngImage__"))
 	   (embed-as (or embed-as
-			 (if latex-fragment-p
+			 (if latex-frag
 			     (or (org-find-text-property-in-string
 				  'org-latex-src-embed-type src) 'character)
 			   'paragraph)))
@@ -1491,6 +1532,9 @@ MAY-INLINE-P allows inlining it as an image."
 		  (plist-get attr-plist :height)
 		  (plist-get attr-plist :scale) nil embed-as))
 	   (width (car size)) (height (cdr size)))
+      (when latex-frag
+	(setq href (org-propertize href :title "LaTeX Fragment"
+				   :description latex-frag)))
       (cond
        ((not (or caption label))
 	(case embed-as
@@ -1500,6 +1544,14 @@ MAY-INLINE-P allows inlining it as an image."
        (t
 	(org-odt-format-entity
 	 "CaptionedDisplayImage" href width height caption label category))))))
+
+(defun org-odt-format-object-description (title description)
+  (concat (and title (org-odt-format-tags
+		      '("<svg:title>" . "</svg:title>")
+		      (org-odt-encode-plain-text title t)))
+	  (and description (org-odt-format-tags
+			    '("<svg:desc>" . "</svg:desc>")
+			    (org-odt-encode-plain-text description t)))))
 
 (defun org-odt-format-frame (text width height style &optional
 				  extra anchor-type)
@@ -1511,7 +1563,10 @@ MAY-INLINE-P allows inlining it as an image."
 	  (format " text:anchor-type=\"%s\"" (or anchor-type "paragraph")))))
     (org-odt-format-tags
      '("<draw:frame draw:style-name=\"%s\"%s>" . "</draw:frame>")
-     text style frame-attrs)))
+     (concat text (org-odt-format-object-description
+		   (get-text-property 0 :title text)
+		   (get-text-property 0 :description text)))
+     style frame-attrs)))
 
 (defun org-odt-format-textbox (text width height style &optional
 				    extra anchor-type)
@@ -1594,6 +1649,12 @@ MAY-INLINE-P allows inlining it as an image."
   "Hardcoded image dimensions one for each of the anchor
   methods.")
 
+;; A4 page size is 21.0 by 29.7 cms
+;; The default page settings has 2cm margin on each of the sides. So
+;; the effective text area is 17.0 by 25.7 cm
+(defvar org-export-odt-max-image-size '(17.0 . 20.0)
+  "Limiting dimensions for an embedded image.")
+
 (defun org-odt-do-image-size (probe-method file &optional dpi anchor-type)
   (setq dpi (or dpi org-export-odt-pixels-per-inch))
   (setq anchor-type (or anchor-type "paragraph"))
@@ -1642,6 +1703,14 @@ MAY-INLINE-P allows inlining it as an image."
      (user-width
       (setq height (* user-width (/ height width)) width user-width))
      (t (ignore)))
+    ;; ensure that an embedded image fits comfortably within a page
+    (let ((max-width (car org-export-odt-max-image-size))
+	  (max-height (cdr org-export-odt-max-image-size)))
+      (when (or (> width max-width) (> height max-height))
+	(let* ((scale1 (/ max-width width))
+	       (scale2 (/ max-height height))
+	       (scale (min scale1 scale2)))
+	  (setq width (* scale width) height (* scale height)))))
     (cons width height)))
 
 (defvar org-odt-entity-labels-alist nil
@@ -1782,7 +1851,8 @@ CATEGORY-HANDLE is used.  See
 (defun org-odt-fixup-label-references ()
   (goto-char (point-min))
   (while (re-search-forward
-	  "<text:sequence-ref text:ref-name=\"\\([^\"]+\\)\"/>" nil t)
+	  "<text:sequence-ref text:ref-name=\"\\([^\"]+\\)\">[ \t\n]*</text:sequence-ref>"
+	  nil t)
     (let* ((label (match-string 1))
 	   (label-def (assoc label org-odt-entity-labels-alist))
 	   (rpl (and label-def
@@ -1802,12 +1872,14 @@ CATEGORY-HANDLE is used.  See
 	(suffix (when org-lparse-encode-pending "@")))
     (apply 'org-lparse-format-tags tag text prefix suffix args)))
 
+(defvar org-odt-manifest-file-entries nil)
 (defun org-odt-init-outfile (filename)
   (unless (executable-find "zip")
     ;; Not at all OSes ship with zip by default
     (error "Executable \"zip\" needed for creating OpenDocument files"))
 
-  (let* ((outdir (make-temp-file org-export-odt-tmpdir-prefix t))
+  (let* ((outdir (make-temp-file
+		  (format org-export-odt-tmpdir-prefix org-lparse-backend) t))
 	 (content-file (expand-file-name "content.xml" outdir)))
 
     ;; init conten.xml
@@ -1832,56 +1904,28 @@ visually."
 
 (defvar hfy-user-sheet-assoc)		; bound during org-do-lparse
 (defun org-odt-save-as-outfile (target opt-plist)
-  ;; create mimetype file
-  (write-region "application/vnd.oasis.opendocument.text" nil
-		(expand-file-name "mimetype"))
-
   ;; write meta file
   (org-odt-update-meta-file opt-plist)
 
   ;; write styles file
-  (let ((styles-file (plist-get opt-plist :odt-styles-file)))
-    (org-odt-copy-styles-file (and styles-file
-				   (read (org-trim styles-file)))))
+  (when (equal org-lparse-backend 'odt)
+    (org-odt-update-styles-file opt-plist))
 
-  ;; Update styles.xml - take care of outline numbering
-  (with-current-buffer
-      (find-file-noselect (expand-file-name "styles.xml") t)
-    ;; Don't make automatic backup of styles.xml file. This setting
-    ;; prevents the backedup styles.xml file from being zipped in to
-    ;; odt file. This is more of a hackish fix. Better alternative
-    ;; would be to fix the zip command so that the output odt file
-    ;; includes only the needed files and excludes any auto-generated
-    ;; extra files like backups and auto-saves etc etc. Note that
-    ;; currently the zip command zips up the entire temp directory so
-    ;; that any auto-generated files created under the hood ends up in
-    ;; the resulting odt file.
-    (set (make-local-variable 'backup-inhibited) t)
-
-    ;; Import local setting of `org-export-with-section-numbers'
-    (org-lparse-bind-local-variables opt-plist)
-    (org-odt-configure-outline-numbering
-     (if org-export-with-section-numbers org-export-headline-levels 0)))
-
-  ;; Write custom stlyes for source blocks
-  (org-odt-insert-custom-styles-for-srcblocks
-   (mapconcat
-    (lambda (style)
-      (format " %s\n" (cddr style)))
-    hfy-user-sheet-assoc ""))
+  ;; create mimetype file
+  (let ((mimetype (org-odt-write-mimetype-file org-lparse-backend)))
+    (org-odt-create-manifest-file-entry mimetype "/" "1.2"))
 
   ;; create a manifest entry for content.xml
-  (org-odt-create-manifest-file-entry
-   "application/vnd.oasis.opendocument.text" "/" "1.2")
-
   (org-odt-create-manifest-file-entry "text/xml" "content.xml")
 
   ;; write out the manifest entries before zipping
   (org-odt-write-manifest-file)
 
   (let ((xml-files '("mimetype" "META-INF/manifest.xml" "content.xml"
-		     "meta.xml" "styles.xml"))
+		     "meta.xml"))
 	(zipdir default-directory))
+    (when (equal org-lparse-backend 'odt)
+      (push "styles.xml" xml-files))
     (message "Switching to directory %s" (expand-file-name zipdir))
 
     ;; save all xml files
@@ -1934,29 +1978,28 @@ visually."
   "
 <manifest:file-entry manifest:media-type=\"%s\" manifest:full-path=\"%s\"%s/>")
 
-(defvar org-odt-manifest-file-entries nil)
-
 (defun org-odt-create-manifest-file-entry (&rest args)
   (push args org-odt-manifest-file-entries))
 
 (defun org-odt-write-manifest-file ()
   (make-directory "META-INF")
   (let ((manifest-file (expand-file-name "META-INF/manifest.xml")))
-    (write-region
-     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-     <manifest:manifest xmlns:manifest=\"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\">\n"
-     nil manifest-file)
-    (mapc
-     (lambda (file-entry)
-       (let* ((version (nth 2 file-entry))
-	      (extra (if version
-			 (format  " manifest:version=\"%s\"" version)
-		       "")))
-	 (write-region
-	  (format org-odt-manifest-file-entry-tag
-		  (nth 0 file-entry) (nth 1 file-entry) extra)
-	  nil manifest-file t))) org-odt-manifest-file-entries)
-    (write-region "\n</manifest:manifest>" nil manifest-file t)))
+    (with-current-buffer
+	(find-file-noselect manifest-file t)
+      (insert
+       "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+     <manifest:manifest xmlns:manifest=\"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\">\n")
+      (mapc
+       (lambda (file-entry)
+	 (let* ((version (nth 2 file-entry))
+		(extra (if version
+			   (format  " manifest:version=\"%s\"" version)
+			 "")))
+	   (insert
+	    (format org-odt-manifest-file-entry-tag
+		    (nth 0 file-entry) (nth 1 file-entry) extra))))
+       org-odt-manifest-file-entries)
+      (insert "\n</manifest:manifest>"))))
 
 (defun org-odt-update-meta-file (opt-plist)
   (let ((date (org-odt-iso-date-from-org-timestamp
@@ -1996,6 +2039,48 @@ visually."
 
   ;; create a manifest entry for meta.xml
   (org-odt-create-manifest-file-entry "text/xml" "meta.xml"))
+
+(defun org-odt-update-styles-file (opt-plist)
+  ;; write styles file
+  (let ((styles-file (plist-get opt-plist :odt-styles-file)))
+    (org-odt-copy-styles-file (and styles-file
+				   (read (org-trim styles-file)))))
+
+  ;; Update styles.xml - take care of outline numbering
+  (with-current-buffer
+      (find-file-noselect (expand-file-name "styles.xml") t)
+    ;; Don't make automatic backup of styles.xml file. This setting
+    ;; prevents the backedup styles.xml file from being zipped in to
+    ;; odt file. This is more of a hackish fix. Better alternative
+    ;; would be to fix the zip command so that the output odt file
+    ;; includes only the needed files and excludes any auto-generated
+    ;; extra files like backups and auto-saves etc etc. Note that
+    ;; currently the zip command zips up the entire temp directory so
+    ;; that any auto-generated files created under the hood ends up in
+    ;; the resulting odt file.
+    (set (make-local-variable 'backup-inhibited) t)
+
+    ;; Import local setting of `org-export-with-section-numbers'
+    (org-lparse-bind-local-variables opt-plist)
+    (org-odt-configure-outline-numbering
+     (if org-export-with-section-numbers org-export-headline-levels 0)))
+
+  ;; Write custom stlyes for source blocks
+  (org-odt-insert-custom-styles-for-srcblocks
+   (mapconcat
+    (lambda (style)
+      (format " %s\n" (cddr style)))
+    hfy-user-sheet-assoc "")))
+
+(defun org-odt-write-mimetype-file (format)
+  ;; create mimetype file
+  (let ((mimetype
+	 (case format
+	   (odt "application/vnd.oasis.opendocument.text")
+	   (odf "application/vnd.oasis.opendocument.formula")
+	   (t (error "Unknown OpenDocument backend %S" org-lparse-backend)))))
+    (write-region mimetype nil (expand-file-name "mimetype"))
+    mimetype))
 
 (defun org-odt-finalize-outfile ()
   (org-odt-delete-empty-paragraphs))
@@ -2116,6 +2201,10 @@ configuration."
 			 :value-type
 			 (group (string :tag "Output file extension")))))))
 
+(declare-function org-create-math-formula "org"
+		  (latex-frag &optional mathml-file))
+
+;;;###autoload
 (defun org-export-odt-convert (&optional in-file out-fmt prefix-arg)
   "Convert IN-FILE to format OUT-FMT using a command line converter.
 IN-FILE is the file to be converted.  If unspecified, it defaults
@@ -2189,6 +2278,16 @@ using `org-open-file'."
        org-current-export-dir nil display-msg
        nil nil latex-frag-opt))))
 
+(defadvice org-format-latex-as-mathml
+  (after org-odt-protect-latex-fragment activate)
+  "Encode LaTeX fragment as XML.
+Do this when translation to MathML fails."
+  (when (or (not (> (length ad-return-value) 0))
+	    (get-text-property 0 'org-protected ad-return-value))
+    (setq ad-return-value
+	  (org-propertize (org-odt-encode-plain-text (ad-get-arg 0))
+			  'org-protected t))))
+
 (defun org-export-odt-preprocess-latex-fragments ()
   (when (equal org-export-current-backend 'odt)
     (org-export-odt-do-preprocess-latex-fragments)))
@@ -2209,8 +2308,9 @@ using `org-open-file'."
 	   ;; time we would have seen and collected all the label
 	   ;; definitions in `org-odt-entity-labels-alist'.
 	   (org-odt-format-tags
-	    "<text:sequence-ref text:ref-name=\"%s\"/>" ""
-	    (org-add-props label '(org-protected t)))) t t)))))
+	    '("<text:sequence-ref text:ref-name=\"%s\">" .
+	      "</text:sequence-ref>")
+	    "" (org-add-props label '(org-protected t)))) t t)))))
 
 ;; process latex fragments as part of
 ;; `org-export-preprocess-after-blockquote-hook'. Note that this hook
@@ -2252,8 +2352,8 @@ using `org-open-file'."
   ;; throw an error purely for aesthetic reasons.
   (setq styles-file (or styles-file
 			org-export-odt-styles-file
-			(expand-file-name "styles/OrgOdtStyles.xml"
-					  org-odt-data-dir)
+			(expand-file-name "OrgOdtStyles.xml"
+					  org-odt-styles-dir)
 			(error "org-odt: Missing styles file?")))
   (cond
    ((listp styles-file)
@@ -2297,6 +2397,64 @@ To disable outline numbering pass a LEVEL of 0."
       (when (> (string-to-number (match-string 2)) level)
 	(replace-match replacement t nil))))
   (save-buffer 0))
+
+;;;###autoload
+(defun org-export-as-odf (latex-frag &optional odf-file)
+  "Export LATEX-FRAG as OpenDocument formula file ODF-FILE.
+Use `org-create-math-formula' to convert LATEX-FRAG first to
+MathML.  When invoked as an interactive command, use
+`org-latex-regexps' to infer LATEX-FRAG from currently active
+region.  If no LaTeX fragments are found, prompt for it.  Push
+MathML source to kill ring, if `org-export-copy-to-kill-ring' is
+non-nil."
+  (interactive
+   `(,(let (frag)
+	(setq frag (and (setq frag (and (region-active-p)
+					(buffer-substring (region-beginning)
+							  (region-end))))
+			(loop for e in org-latex-regexps
+			      thereis (when (string-match (nth 1 e) frag)
+					(match-string (nth 2 e) frag)))))
+	(read-string "LaTeX Fragment: " frag nil frag))
+     ,(let ((odf-filename (expand-file-name
+			   (concat
+			    (file-name-sans-extension
+			     (or (file-name-nondirectory buffer-file-name)))
+			    "." "odf")
+			   (file-name-directory buffer-file-name))))
+	(message "default val is %s"  odf-filename)
+	(read-file-name "ODF filename: " nil odf-filename nil
+			(file-name-nondirectory odf-filename)))))
+  (let* ((org-lparse-backend 'odf)
+	 org-lparse-opt-plist
+	 (filename (or odf-file
+		       (expand-file-name
+			(concat
+			 (file-name-sans-extension
+			  (or (file-name-nondirectory buffer-file-name)))
+			 "." "odf")
+			(file-name-directory buffer-file-name))))
+	 (buffer (find-file-noselect (org-odt-init-outfile filename)))
+	 (coding-system-for-write 'utf-8)
+	 (save-buffer-coding-system 'utf-8))
+    (set-buffer buffer)
+    (set-buffer-file-coding-system coding-system-for-write)
+    (let ((mathml (org-create-math-formula latex-frag)))
+      (unless mathml (error "No Math formula created"))
+      (insert mathml)
+      (or (org-export-push-to-kill-ring
+	   (upcase (symbol-name org-lparse-backend)))
+	  (message "Exporting... done")))
+    (org-odt-save-as-outfile filename nil)))
+
+;;;###autoload
+(defun org-export-as-odf-and-open ()
+ "Export LaTeX fragment as OpenDocument formula and immediately open it.
+Use `org-export-as-odf' to read LaTeX fragment and OpenDocument
+formula file."
+  (interactive)
+  (org-lparse-and-open
+   nil nil nil (call-interactively 'org-export-as-odf)))
 
 (provide 'org-odt)
 

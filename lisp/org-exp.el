@@ -52,9 +52,9 @@
 (autoload 'org-export-generic "org-export-generic" "Export using the generic exporter" t)
 
 (autoload 'org-export-as-odt "org-odt"
-  "Export the outline to a OpenDocumentText file." t)
+  "Export the outline to a OpenDocument Text file." t)
 (autoload 'org-export-as-odt-and-open "org-odt"
-  "Export the outline to a OpenDocumentText file and open it." t)
+  "Export the outline to a OpenDocument Text file and open it." t)
 
 (defgroup org-export nil
   "Options for exporting org-listings."
@@ -952,7 +952,7 @@ Pressing `1' will switch between these two options."
 
 \[D] export as DocBook   [V] export as DocBook, process to PDF, and open
 
-\[o] export as OpenDocumentText                    [O] ... and open
+\[o] export as OpenDocument Text                   [O] ... and open
 
 \[j] export as TaskJuggler                         [J] ... and open
 
@@ -1282,6 +1282,9 @@ on this string to produce the exported version."
 
       ;; Remove #+TBLFM and #+TBLNAME lines
       (org-export-handle-table-metalines)
+
+      ;; Remove #+results and #+name lines
+      (org-export-res/src-name-cleanup)
 
       ;; Run the final hook
       (run-hooks 'org-export-preprocess-final-hook)
@@ -1992,6 +1995,18 @@ When it is nil, all comments will be removed."
 	(replace-match "")
 	(goto-char (max (point-min) (1- pos)))))))
 
+(defun org-export-res/src-name-cleanup ()
+  "Clean up #+results and #+name lines for export.
+This function should only be called after all block processing
+has taken place."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (let ((case-fold-search t))
+      (while (org-re-search-forward-unprotected
+	      "#\\+\\(name\\|results\\(\\[[a-z0-9]+\\]\\)?\\):" nil t)
+	(delete-region (match-beginning 0) (progn (forward-line) (point)))))))
+
 (defun org-export-mark-radio-links ()
   "Find all matches for radio targets and turn them into internal links."
   (let ((re-radio (and org-target-link-regexp
@@ -2068,10 +2083,11 @@ Also, store forced alignment information found in such lines."
 	(re-angle-link (concat "\\([^[]\\)" org-angle-link-re))
 	nodesc)
     (goto-char (point-min))
+    (while (re-search-forward org-bracket-link-regexp nil t)
+      (put-text-property (match-beginning 0) (match-end 0) 'org-normalized-link t))
+    (goto-char (point-min))
     (while (re-search-forward re-plain-link nil t)
-      (unless (org-string-match-p
-	       "\\[\\[\\S-+:\\S-*?\\<"
-	       (buffer-substring (point-at-bol) (match-beginning 0)))
+      (unless (get-text-property (match-beginning 0) 'org-normalized-link)
 	(goto-char (1- (match-end 0)))
 	(org-if-unprotected-at (1+ (match-beginning 0))
 	  (let* ((s (concat (match-string 1)
@@ -2151,9 +2167,10 @@ can work correctly."
 		   (save-excursion (outline-next-heading) (point)))))
 	(when (re-search-forward "^[ \t]*[^|# \t\r\n].*\n" end t)
 	  ;; Mark the line so that it will not be exported as normal text.
-	  (org-unmodified
-	   (add-text-properties (match-beginning 0) (match-end 0)
-				(list :org-license-to-kill t)))
+	  (unless (org-in-block-p org-list-forbidden-blocks)
+	    (org-unmodified
+	     (add-text-properties (match-beginning 0) (match-end 0)
+				  (list :org-license-to-kill t))))
 	  ;; Return the title string
 	  (org-trim (match-string 0)))))))
 
@@ -3286,7 +3303,7 @@ If yes remove the column and the special lines."
 
 (defun org-export-push-to-kill-ring (format)
   "Push buffer content to kill ring.
-The depends on the variable `org-export-copy-to-kill'."
+The depends on the variable `org-export-copy-to-kill-ring'."
   (when org-export-copy-to-kill-ring
     (org-kill-new (buffer-string))
     (when (fboundp 'x-set-selection)

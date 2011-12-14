@@ -13,36 +13,6 @@
   (require 'org-test)
   (require 'org-test-ob-consts))
 
-(ert-deftest test-org-babel/src-name-regexp ()
-  (should(equal "^[ \t]*#\\+\\(srcname\\|source\\|function\\):[ \t]*"
-		org-babel-src-name-regexp))
-  (mapcar (lambda (name) 
-	    (should (org-test-string-exact-match
-		     org-babel-src-name-regexp
-		     (concat
-		      "   \t #+"
-		      name
-		      ":    \t src-name \t blah blah blah ")))
-	    (should (string-match
-		     org-babel-src-name-regexp
-		     (concat 
-		      "#+" (upcase name)
-		      ": src-name")))
-	    ;;TODO This should fail no?
-	    (should (org-test-string-exact-match
-		     org-babel-src-name-regexp
-		     (concat
-		      "#+" name ":")))
-	    ;;TODO Check - should this pass?
-	    (should (not (org-test-string-exact-match
-			  org-babel-src-name-regexp
-			  (concat
-			   "#+" name " : src-name")))))
-	  '("srcname" "source" "function"))
-  (should (not  (org-test-string-exact-match
-		 org-babel-src-name-regexp
-		 "#+invalid-name: src-name"))))
-
 (ert-deftest test-org-babel/multi-line-header-regexp ()
   (should(equal "^[ \t]*#\\+headers?:[ \t]*\\([^\n]*\\)$"
 		org-babel-multi-line-header-regexp))
@@ -62,18 +32,6 @@
    (not (org-test-string-exact-match
 	 org-babel-multi-line-header-regexp
 	 "   \t #+headers : blah1 blah2 blah3 \t\n\t\n blah4 blah5 blah6 \n"))))
-
-(ert-deftest test-org-babel/src-name-w-name-regexp ()
-  (should(equal
-	  (concat org-babel-src-name-regexp "\\("
-		  org-babel-multi-line-header-regexp "\\)*"
-		  "\\([^ ()\f\t\n\r\v]+\\)\\(\(\\(.*\\)\)\\|\\)")
-	  org-babel-src-name-w-name-regexp))
-  (should (org-test-string-exact-match
-	   org-babel-src-name-w-name-regexp
-	   (concat
-	    "#+srcname: src-name "
-	    "#+headers: blah1 blah2 blah3 \t\n\t\n blah4 blah5 blah6 \n"))))
 
 (ert-deftest test-org-babel/src-block-regexp ()
   (let ((test-block
@@ -444,6 +402,186 @@ duplicate results block."
     (should (search-forward "Hello")) ; the string inside the source code block
     (should (search-forward "Hello")) ; the same string in the results block
     (should-error (search-forward "Hello"))))
+
+(ert-deftest test-org-babel/nested-code-block ()
+  "Test nested code blocks inside code blocks don't cause problems."
+  (org-test-with-temp-text "#+begin_src org :results silent
+  ,#+begin_src emacs-lisp
+  ,  'foo
+  ,#+end_src
+#+end_src"
+    (should (string= (org-babel-execute-src-block)
+		     "#+begin_src emacs-lisp\n  'foo\n#+end_src"))))
+
+(ert-deftest test-org-babel/partial-nested-code-block ()
+  "Test nested code blocks inside code blocks don't cause problems."
+  (org-test-with-temp-text "#+begin_src org :results silent
+  ,#+begin_src emacs-lisp
+#+end_src"
+    (should (string= "#+begin_src emacs-lisp" (org-babel-execute-src-block)))))
+
+(ert-deftest test-ob/does-not-replace-a-block-with-the-results ()
+  (org-test-with-temp-text "#+NAME: foo
+#+BEGIN_SRC emacs-lisp
+ 'foo
+#+END_SRC\n"
+    (org-babel-next-src-block 1)
+    (should (eq 'foo (org-babel-execute-src-block)))
+    (goto-char (point-min))
+    (org-babel-next-src-block 1)
+    (should (looking-at org-babel-src-block-regexp))))
+
+(ert-deftest test-ob/catches-all-references ()
+  (org-test-with-temp-text "
+#+NAME: literal-example
+#+BEGIN_EXAMPLE
+A literal example
+on two lines
+#+END_EXAMPLE
+
+#+NAME: read-literal-example
+#+BEGIN_SRC emacs-lisp :var x=literal-example
+  (concatenate 'string x \" for me.\")
+#+END_SRC"
+    (org-babel-next-src-block 1)
+    (should (string= (org-babel-execute-src-block)
+		     "A literal example\non two lines for me."))))
+
+(ert-deftest test-ob/resolve-code-blocks-before-data-blocks ()
+  (org-test-with-temp-text "
+#+name: foo
+: bar
+
+#+name: foo
+#+begin_src emacs-lisp
+  \"baz\"
+#+end_src
+
+#+begin_src emacs-lisp :var foo=foo
+  foo
+#+end_src"
+    (org-babel-next-src-block 2)
+    (should (string= (org-babel-execute-src-block) "baz"))))
+
+(ert-deftest test-ob/do-not-resolve-to-partial-names-data ()
+  (org-test-with-temp-text "
+#+tblname: base_plus
+| 1 |
+| 2 |
+
+#+tblname: base
+| 3 |
+| 4 |
+
+#+begin_src emacs-lisp :var x=base
+  x
+#+end_src"
+    (org-babel-next-src-block 1)
+    (should (equal (org-babel-execute-src-block) '((3) (4))))))
+
+(ert-deftest test-ob/do-not-resolve-to-partial-names-code ()
+  (org-test-with-temp-text "
+#+name: base_plus
+#+begin_src emacs-lisp
+  'bar
+#+end_src
+
+#+name: base
+#+begin_src emacs-lisp
+  'foo
+#+end_src
+
+#+begin_src emacs-lisp :var x=base
+  x
+#+end_src"
+    (org-babel-next-src-block 3)
+    (should (equal (org-babel-execute-src-block) "foo"))))
+
+(ert-deftest test-ob/allow-spaces-around-=-in-var-specs ()
+  (org-test-with-temp-text "#+begin_src emacs-lisp :var a = 1 b = 2 c= 3 d =4
+  (+ a b c d)
+#+end_src
+"
+    (should (= 10 (org-babel-execute-src-block)))))
+
+(ert-deftest test-ob/org-babel-update-intermediate ()
+  (org-test-with-temp-text "#+name: foo
+#+begin_src emacs-lisp
+  2
+#+end_src
+
+#+results: foo
+: 4
+
+#+begin_src emacs-lisp :var it=foo
+  (+ it 1)
+#+end_src"
+    (let ((org-babel-update-intermediate nil))
+      (goto-char (point-min))
+      (org-babel-next-src-block 2)
+      (should (= 3 (org-babel-execute-src-block)))
+      (goto-char (point-min))
+      (forward-line 6)
+      (should (looking-at ": 4")))
+    (let ((org-babel-update-intermediate t))
+      (goto-char (point-min))
+      (org-babel-next-src-block 2)
+      (should (= 3 (org-babel-execute-src-block)))
+      (goto-char (point-min))
+      (forward-line 6)
+      (should (looking-at ": 2")))))
+
+(ert-deftest test-ob/eval-header-argument ()
+  (flet ((check-eval (eval runp)
+	   (org-test-with-temp-text (format "#+begin_src emacs-lisp :eval %s
+  (setq foo :evald)
+#+end_src" eval)
+	     (let ((foo :not-run))
+	       (if runp
+		   (progn (should (org-babel-execute-src-block))
+			  (should (eq foo :evald)))
+		 (progn (should-not (org-babel-execute-src-block))
+			(should-not (eq foo :evald))))))))
+    (check-eval "never" nil)
+    (check-eval "no" nil)
+    (check-eval "never-export" t)
+    (check-eval "no-export" t)
+    (let ((org-current-export-file "something"))
+      (check-eval "never" nil)
+      (check-eval "no" nil)
+      (check-eval "never-export" nil)
+      (check-eval "no-export" nil))))
+
+(ert-deftest test-ob/noweb-expansion ()
+  (org-test-with-temp-text "#+begin_src sh :results output :tangle yes
+  <<foo>>
+#+end_src
+
+#+name: foo
+#+begin_src sh
+  bar
+#+end_src"
+    (should (string= (org-babel-expand-noweb-references) "bar")))
+  (org-test-with-temp-text "#+begin_src sh :results output :tangle yes
+  <<foo>>
+#+end_src
+
+#+name: foo
+#+begin_src sh
+  bar
+#+end_src
+
+#+begin_src sh :noweb-ref foo
+  baz
+#+end_src"
+    (should (string= (org-babel-expand-noweb-references) "barbaz"))))
+
+(ert-deftest test-ob/splitting-variable-lists-in-references ()
+  (org-test-with-temp-text ""
+    (should (= 1 (length (org-babel-ref-split-args
+			  "a=\"this, no work\""))))
+    (should (= 2 (length (org-babel-ref-split-args
+			  "a=\"this, no work\", b=1"))))))
 
 (provide 'test-ob)
 

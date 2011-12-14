@@ -28,6 +28,8 @@
 (require 'ob)
 (require 'ob-table)
 
+(declare-function org-babel-in-example-or-verbatim "ob-exp" nil)
+
 (defvar org-babel-library-of-babel nil
   "Library of source-code blocks.
 This is an association list.  Populate the library by adding
@@ -61,24 +63,15 @@ To add files to this list use the `org-babel-lob-ingest' command."
 	     lob-ingest-count (if (> lob-ingest-count 1) "s" ""))
     lob-ingest-count))
 
-(defconst org-babel-lob-call-aliases '("lob" "call")
-  "Aliases to call a source block function.
-If you change the value of this variable then your files may
-  become unusable by other org-babel users, and vice versa.")
-
 (defconst org-babel-block-lob-one-liner-regexp
   (concat
-   "^\\([ \t]*\\)#\\+\\(?:"
-   (mapconcat #'regexp-quote org-babel-lob-call-aliases "\\|")
-   "\\):[ \t]+\\([^\(\)\n]+?\\)\\(\\[\\(.*\\)\\]\\|\\(\\)\\)"
+   "^\\([ \t]*\\)#\\+call:[ \t]+\\([^\(\)\n]+?\\)\\(\\[\\(.*\\)\\]\\|\\(\\)\\)"
    "\(\\([^\n]*\\)\)\\(\\[.+\\]\\|\\)[ \t]*\\(\\([^\n]*\\)\\)?")
   "Regexp to match non-inline calls to predefined source block functions.")
 
 (defconst org-babel-inline-lob-one-liner-regexp
   (concat
-   "\\([^\n]*\\)\\(?:"
-   (mapconcat #'regexp-quote org-babel-lob-call-aliases "\\|")
-   "\\)_\\([^\(\)\n]+?\\)\\(\\[\\(.*\\)\\]\\|\\(\\)\\)"
+   "\\([^\n]*\\)call_\\([^\(\)\n]+?\\)\\(\\[\\(.*\\)\\]\\|\\(\\)\\)"
    "\(\\([^\n]*\\)\)\\(\\[\\(.*?\\)\\]\\)?")
   "Regexp to match inline calls to predefined source block functions.")
 
@@ -88,6 +81,30 @@ If you change the value of this variable then your files may
   "Regexp to match calls to predefined source block functions.")
 
 ;; functions for executing lob one-liners
+
+;;;###autoload
+(defmacro org-babel-map-call-lines (file &rest body)
+  "Evaluate BODY forms on each call line in FILE.
+If FILE is nil evaluate BODY forms on source blocks in current
+buffer."
+  (declare (indent 1))
+  (let ((tempvar (make-symbol "file")))
+    `(let* ((,tempvar ,file)
+	    (visited-p (or (null ,tempvar)
+			   (get-file-buffer (expand-file-name ,tempvar))))
+	    (point (point)) to-be-removed)
+       (save-window-excursion
+	 (when ,tempvar (find-file ,tempvar))
+	 (setq to-be-removed (current-buffer))
+	 (goto-char (point-min))
+	 (while (re-search-forward org-babel-lob-one-liner-regexp nil t)
+	   (goto-char (match-beginning 1))
+	   (save-match-data ,@body)
+	   (goto-char (match-end 0))))
+       (unless visited-p (kill-buffer to-be-removed))
+       (goto-char point))))
+(def-edebug-spec org-babel-map-call-lines (form body))
+
 ;;;###autoload
 (defun org-babel-lob-execute-maybe ()
   "Execute a Library of Babel source block, if appropriate.
@@ -95,7 +112,9 @@ Detect if this is context for a Library Of Babel source block and
 if so then run the appropriate source block from the Library."
   (interactive)
   (let ((info (org-babel-lob-get-info)))
-    (if (nth 0 info) (progn (org-babel-lob-execute info) t) nil)))
+    (if (and (nth 0 info) (not (org-babel-in-example-or-verbatim)))
+	(progn (org-babel-lob-execute info) t)
+      nil)))
 
 ;;;###autoload
 (defun org-babel-lob-get-info ()

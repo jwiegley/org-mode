@@ -658,7 +658,7 @@ Use alsa's aplay tool if available."
 
 (defun org-program-exists (program-name)
   "Checks whenever we can locate program and launch it."
-  (if (eq system-type 'gnu/linux)
+  (if (member system-type '(gnu/linux darwin))
       (= 0 (call-process "which" nil nil nil program-name))))
 
 (defvar org-clock-mode-line-entry nil
@@ -1117,7 +1117,7 @@ the clocking selection, associated with the letter `d'."
 		   (looking-at
 		    (concat "^[ \t]* " org-clock-string
 			    " \\[\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
-			    " +\\sw+\.? +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")))
+			    " *\\sw+\.? +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")))
 	      (message "Matched %s" (match-string 1))
 	      (setq ts (concat "[" (match-string 1) "]"))
 	      (goto-char (match-end 1))
@@ -1249,7 +1249,7 @@ line and position cursor in that line."
 		 (re-search-forward
 		  (concat "^[ \t]* " org-clock-string
 			  " \\[\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
-			  " +\\sw+ +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")
+			  " *\\sw+ +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")
 		  end t))
 	(beginning-of-line 1)
 	(throw 'exit t))
@@ -1696,7 +1696,9 @@ from the `before-change-functions' in the current buffer."
   "Clock out if the current entry contains the running clock.
 This is used to stop the clock after a TODO entry is marked DONE,
 and is only done if the variable `org-clock-out-when-done' is not nil."
-  (when (and org-clock-out-when-done
+  (when (and (org-clocking-p)
+	     org-clock-out-when-done
+	     (marker-buffer org-clock-marker)
 	     (or (and (eq t org-clock-out-when-done)
 		      (member state org-done-keywords))
 		 (and (listp org-clock-out-when-done)
@@ -1919,7 +1921,7 @@ the returned times will be formatted strings."
                shiftedm (- 13 (* 3 (nth 1 tmp)))
                shiftedq (- 5 (nth 1 tmp))))
        (setq d 1 h 0 m 0 d1 1 month shiftedm month1 (+ 3 shiftedm) h1 0 m1 0 y shiftedy))
-       ((> (+ q shift) 0) ; shift is whitin this year
+       ((> (+ q shift) 0) ; shift is within this year
        (setq shiftedq (+ q shift))
        (setq shiftedy y)
        (setq d 1 h 0 m 0 d1 1 month (+ 1 (* 3 (- (+ q shift) 1))) month1 (+ 4 (* 3 (- (+ q shift) 1))) h1 0 m1 0))))

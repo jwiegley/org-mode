@@ -695,6 +695,18 @@ month and 365.24 days for a year)."
   "Face used for agenda entries that come from the Emacs diary."
   :group 'org-faces)
 
+(defface org-agenda-calendar-event
+  (org-compatible-face 'default
+    nil)
+  "Face used to show events and appointments in the agenda."
+  :group 'org-faces)
+
+(defface org-agenda-calendar-sexp
+  (org-compatible-face 'default
+    nil)
+  "Face used to show events computed from a S-expression."
+  :group 'org-faces)
+
 (defconst org-level-faces
   '(org-level-1 org-level-2 org-level-3 org-level-4
     org-level-5 org-level-6 org-level-7 org-level-8

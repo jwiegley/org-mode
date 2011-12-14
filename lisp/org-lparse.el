@@ -1,12 +1,11 @@
 ;;; org-lparse.el --- Line-oriented parser-exporter for Org-mode
 
-;; Copyright (C) 2010-2011 Jambunathan <kjambunathan at gmail dot com>
+;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 0.8
-
+;;
 ;; This file is not (yet) part of GNU Emacs.
 ;; However, it is distributed under the same license.
 
@@ -50,19 +49,23 @@
 ;; FAQs and more information on using this library.
 
 ;;; Code:
-
+(eval-when-compile
+  (require 'cl))
 (require 'org-exp)
 (require 'org-list)
+(require 'format-spec)
 
 ;;;###autoload
-(defun org-lparse-and-open (target-backend native-backend arg)
+(defun org-lparse-and-open (target-backend native-backend arg
+					   &optional file-or-buf)
   "Export outline to TARGET-BACKEND via NATIVE-BACKEND and open exported file.
 If there is an active region, export only the region.  The prefix
 ARG specifies how many levels of the outline should become
 headlines.  The default is 3.  Lower levels will become bulleted
 lists."
-  (let (f (file-or-buf (org-lparse target-backend native-backend
-				   arg 'hidden)))
+  (let (f (file-or-buf (or file-or-buf
+			   (org-lparse target-backend native-backend
+				       arg 'hidden))))
     (when file-or-buf
       (setq f (cond
 	       ((bufferp file-or-buf) buffer-file-name)
@@ -241,10 +244,12 @@ OPT-PLIST is the export options list."
 
        ((functionp (setq fnc (nth 2 (assoc type org-link-protocols))))
 	;; The link protocol has a function for format the link
-	(setq rpl
-	      (save-match-data
-		(funcall fnc (org-link-unescape path) desc1 'html))))
-
+	(setq rpl (save-match-data
+		    (funcall fnc (org-link-unescape path)
+			     desc1 (and (boundp 'org-lparse-backend)
+					(case org-lparse-backend
+					  (xhtml 'html)
+					  (t org-lparse-backend)))))))
        ((string= type "file")
 	;; FILE link
 	(save-match-data
@@ -469,6 +474,9 @@ This is a helper routine for interactive use."
 	       in-fmt))))
     (list in-file out-fmt)))
 
+(eval-when-compile
+  (require 'browse-url))
+
 (defun org-lparse-do-convert (in-file out-fmt &optional prefix-arg)
   "Workhorse routine for `org-export-odt-convert'."
   (require 'browse-url)
@@ -561,6 +569,7 @@ and then converted to \"doc\" then org-lparse-backend is set to
 	(setq params (format "(%s)" params)))
       (ignore-errors (read params)))))
 
+(defvar org-heading-keyword-regexp-format) ; defined in org.el
 (defvar org-lparse-special-blocks '("list-table" "annotation"))
 (defun org-do-lparse (arg &optional hidden ext-plist
 			  to-buffer body-only pub-dir)
@@ -672,6 +681,7 @@ version."
 	 (current-dir (if buffer-file-name
 			  (file-name-directory buffer-file-name)
 			default-directory))
+	 (auto-insert nil) ; Avoid any auto-insert stuff for the new file
 	 (buffer (if to-buffer
 		     (cond
 		      ((eq to-buffer 'string)
@@ -682,6 +692,12 @@ version."
 			  (and f (functionp f) (funcall f filename)))
 			filename))))
 	 (org-levels-open (make-vector org-level-max nil))
+	 (dummy (mapc
+		 (lambda(p)
+		   (let* ((val (plist-get opt-plist p))
+			  (val (org-xml-encode-org-text-skip-links val)))
+		     (setq opt-plist (plist-put opt-plist p val))))
+		 '(:date :author :keywords :description)))
 	 (date (plist-get opt-plist :date))
 	 (date (cond
 		((and date (string-match "%" date))
@@ -702,8 +718,9 @@ version."
 			   "UNTITLED")))
 	 (dummy (setq opt-plist (plist-put opt-plist :title title)))
 	 (html-table-tag (plist-get opt-plist :html-table-tag))
-	 (quote-re0   (concat "^[ \t]*" org-quote-string "\\>"))
-	 (quote-re    (concat "^\\(\\*+\\)\\([ \t]+" org-quote-string "\\>\\)"))
+	 (quote-re0 (concat "^ *" org-quote-string "\\( +\\|[ \t]*$\\)"))
+	 (quote-re (format org-heading-keyword-regexp-format
+			   org-quote-string))
 	 (org-lparse-dyn-current-environment nil)
 	 ;; Get the language-dependent settings
 	 (lang-words (or (assoc (plist-get opt-plist :language)
@@ -993,7 +1010,8 @@ version."
 	  (setq line (org-lparse-format-org-link line opt-plist))
 
 	  ;; TODO items
-	  (if (and (string-match org-todo-line-regexp line)
+	  (if (and org-todo-line-regexp
+		   (string-match org-todo-line-regexp line)
 		   (match-beginning 2))
 	      (setq line (concat
 			  (substring line 0 (match-beginning 2))
@@ -1035,7 +1053,7 @@ version."
 			 t t line))))))
 
 	  (cond
-	   ((string-match "^\\(\\*+\\)[ \t]+\\(.*\\)" line)
+	   ((string-match "^\\(\\*+\\)\\(?: +\\(.*?\\)\\)?[ \t]*$" line)
 	    ;; This is a headline
 	    (setq level (org-tr-level (- (match-end 1) (match-beginning 1)
 					 level-offset))
@@ -1406,24 +1424,26 @@ for further information."
   "Format time stamps in string S, or remove them."
   (catch 'exit
     (let (r b)
-      (while (string-match org-maybe-keyword-time-regexp s)
-	(or b (setq b (substring s 0 (match-beginning 0))))
-	(setq r (concat
-		 r (substring s 0 (match-beginning 0)) " "
-		 (org-lparse-format
-		  'FONTIFY
-		  (concat
-		   (if (match-end 1)
-		       (org-lparse-format
-			'FONTIFY
-			(match-string 1 s) "timestamp-kwd"))
-		   " "
+      (when org-maybe-keyword-time-regexp
+	(while (string-match org-maybe-keyword-time-regexp s)
+	  (or b (setq b (substring s 0 (match-beginning 0))))
+	  (setq r (concat
+		   r (substring s 0 (match-beginning 0)) " "
 		   (org-lparse-format
 		    'FONTIFY
-		    (substring (org-translate-time (match-string 3 s)) 1 -1)
-		    "timestamp"))
-		  "timestamp-wrapper"))
-	      s (substring s (match-end 0))))
+		    (concat
+		     (if (match-end 1)
+			 (org-lparse-format
+			  'FONTIFY
+			  (match-string 1 s) "timestamp-kwd"))
+		     " "
+		     (org-lparse-format
+		      'FONTIFY
+		      (substring (org-translate-time (match-string 3 s)) 1 -1)
+		      "timestamp"))
+		    "timestamp-wrapper"))
+		s (substring s (match-end 0)))))
+
       ;; Line break if line started and ended with time stamp stuff
       (if (not r)
 	  s
@@ -1445,18 +1465,20 @@ Possible conversions are set in `org-export-html-protect-char-alist'."
 
 (defun org-xml-encode-org-text-skip-links (string)
   "Prepare STRING for HTML export.  Apply all active conversions.
-If there are links in the string, don't modify these."
-  (let* ((re (concat org-bracket-link-regexp "\\|"
-		     (org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")))
-	 m s l res)
-    (while (setq m (string-match re string))
-      (setq s (substring string 0 m)
-	    l (match-string 0 string)
-	    string (substring string (match-end 0)))
-      (push (org-xml-encode-org-text s) res)
-      (push l res))
-    (push (org-xml-encode-org-text string) res)
-    (apply 'concat (nreverse res))))
+If there are links in the string, don't modify these.  If STRING
+is nil, return nil."
+  (when string
+    (let* ((re (concat org-bracket-link-regexp "\\|"
+		       (org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")))
+	   m s l res)
+      (while (setq m (string-match re string))
+	(setq s (substring string 0 m)
+	      l (match-string 0 string)
+	      string (substring string (match-end 0)))
+	(push (org-xml-encode-org-text s) res)
+	(push l res))
+      (push (org-xml-encode-org-text string) res)
+      (apply 'concat (nreverse res)))))
 
 (defun org-xml-encode-org-text (s)
   "Apply all active conversions to translate special ASCII to HTML."
@@ -1781,17 +1803,15 @@ Stripping happens only when the exported backend is not one of
   (case style
     (list-table
      (setq org-lparse-list-table-p t))
-    (t
-     (setq org-lparse-dyn-current-environment style)
-     (org-lparse-begin 'ENVIRONMENT  style env-options-plist))))
+    (t (setq org-lparse-dyn-current-environment style)
+       (org-lparse-begin 'ENVIRONMENT  style env-options-plist))))
 
 (defun org-lparse-end-environment (style &optional env-options-plist)
   (case style
     (list-table
      (setq org-lparse-list-table-p nil))
-    (t
-     (org-lparse-end 'ENVIRONMENT style env-options-plist)
-     (setq org-lparse-dyn-current-environment nil))))
+    (t (org-lparse-end 'ENVIRONMENT style env-options-plist)
+       (setq org-lparse-dyn-current-environment nil))))
 
 (defun org-lparse-current-environment-p (style)
   (eq org-lparse-dyn-current-environment style))
@@ -1870,7 +1890,7 @@ See `org-xhtml-entity-format-callbacks-alist' for more information."
     (with-temp-buffer
       (org-lparse-bind-local-variables opt-plist)
       (erase-buffer)
-      (org-lparse-begin 'TOC (nth 3 (plist-get opt-plist :lang-words)))
+      (org-lparse-begin 'TOC (nth 3 (plist-get opt-plist :lang-words)) umax-toc)
       (setq
        lines
        (mapcar

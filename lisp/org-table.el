@@ -241,6 +241,14 @@ days."
 		 (symbol :tag "Hours  " 'hours)
 		 (symbol :tag "Days   " 'days)))
 
+(defcustom org-table-formula-field-format "%s"
+  "Format for fields which contain the result of a formula.
+For example, using \"~%s~\" will display the result within tilde
+characters.  Beware that modifying the display can prevent the
+field from being used in another formula."
+  :group 'org-table-settings
+  :type 'string)
+
 (defcustom org-table-formula-evaluate-inline t
   "Non-nil means TAB and RET evaluate a formula in current table field.
 If the current field starts with an equal sign, it is assumed to be a formula
@@ -1718,6 +1726,34 @@ blindly applies a recipe that works for simple tables."
 	    (replace-match "-+"))
 	  (goto-char beg)))))
 
+(defun org-table-transpose-table-at-point ()
+  "Transpose orgmode table at point and eliminate hlines.
+So a table like
+
+| 1 | 2 | 4 | 5 |
+|---+---+---+---|
+| a | b | c | d |
+| e | f | g | h |
+
+will be transposed as
+
+| 1 | a | e |
+| 2 | b | f |
+| 4 | c | g |
+| 5 | d | h |
+
+Note that horizontal lines disappeared."
+  (interactive)
+  (let ((contents
+         (apply #'mapcar* #'list
+                ;; remove 'hline from list
+		(delq nil (mapcar (lambda (x) (when (listp x) x))
+				  (org-table-to-lisp))))))
+    (delete-region (org-table-begin) (org-table-end))
+    (insert (mapconcat (lambda(x) (concat "| " (mapconcat 'identity x " | " ) "  |\n" ))
+                       contents ""))
+    (org-table-align)))
+
 (defun org-table-wrap-region (arg)
   "Wrap several fields in a column like a paragraph.
 This is useful if you'd like to spread the contents of a field over several
@@ -2572,7 +2608,8 @@ $1->    %s\n" orig formula form0 form))
 	    (message "")))
 	(if (listp ev) (setq fmt nil ev "#ERROR"))
 	(org-table-justify-field-maybe
-	 (if fmt (format fmt (string-to-number ev)) ev))
+	 (format org-table-formula-field-format
+		 (if fmt (format fmt (string-to-number ev)) ev)))
 	(if (and down (> ndown 0) (looking-at ".*\n[ \t]*|[^-]"))
 	    (call-interactively 'org-return)
 	  (setq ndown 0)))
@@ -3898,6 +3935,7 @@ to execute outside of tables."
 	   ("\C-c\C-w"		 org-table-cut-region)
 	   ("\C-c\M-w"		 org-table-copy-region)
 	   ("\C-c\C-y"		 org-table-paste-rectangle)
+	   ("\C-c\C-w"           org-table-wrap-region)
 	   ("\C-c-"		 org-table-insert-hline)
 	   ("\C-c}"		 org-table-toggle-coordinate-overlays)
 	   ("\C-c{"		 org-table-toggle-formula-debugger)

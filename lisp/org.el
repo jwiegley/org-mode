@@ -6,7 +6,7 @@
 ;; Maintainer: Bastien Guerry <bzg at gnu dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.7
+;; Version: 7.8.02
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -164,6 +164,7 @@ requirements) is loaded."
 		 (const :tag "Ditaa" ditaa)
 		 (const :tag "Dot" dot)
 		 (const :tag "Emacs Lisp" emacs-lisp)
+		 (const :tag "Fortran" fortran)
 		 (const :tag "Gnuplot" gnuplot)
 		 (const :tag "Haskell" haskell)
 		 (const :tag "Java" java)
@@ -178,6 +179,7 @@ requirements) is loaded."
 		 (const :tag "Octave" octave)
 		 (const :tag "Org" org)
 		 (const :tag "Perl" perl)
+		 (const :tag "Pico Lisp" picolisp)
 		 (const :tag "PlantUML" plantuml)
 		 (const :tag "Python" python)
 		 (const :tag "Ruby" ruby)
@@ -201,7 +203,7 @@ identifier."
 
 ;;; Version
 
-(defconst org-version "7.7"
+(defconst org-version "7.8.02"
   "The version number of the file org.el.")
 
 (defun org-version (&optional here)
@@ -347,7 +349,6 @@ to add the symbol `xyz', and the package must have a call to
 	(const :tag "C  mac-link-grabber   Grab links and URLs from various Mac applications" org-mac-link-grabber)
 	(const :tag "C  man:               Support for links to manpages in Org-mode" org-man)
 	(const :tag "C  mtags:             Support for muse-like tags" org-mtags)
-	(const :tag "C  odt:               OpenDocumentText exporter for Org-mode" org-odt)
 	(const :tag "C  panel:             Simple routines for us with bad memory" org-panel)
 	(const :tag "C  registry:          A registry for Org-mode links" org-registry)
 	(const :tag "C  org2rem:           Convert org appointments into reminders" org2rem)
@@ -846,7 +847,7 @@ than its value."
 	  (const :tag "No limit" nil)
 	  (integer :tag "Maximum level")))
 
-(defcustom org-drawers '("PROPERTIES" "CLOCK" "LOGBOOK")
+(defcustom org-drawers '("PROPERTIES" "CLOCK" "LOGBOOK" "RESULTS")
   "Names of drawers.  Drawers are not opened by cycling on the headline above.
 Drawers only open with a TAB on the drawer line itself.  A drawer looks like
 this:
@@ -2651,7 +2652,7 @@ To turn this on on a per-file basis, insert anywhere in the file:
 (defcustom org-time-stamp-custom-formats
   '("<%m/%d/%y %a>" . "<%m/%d/%y %a %H:%M>") ; american
   "Custom formats for time stamps.  See `format-time-string' for the syntax.
-These are overlayed over the default ISO format if the variable
+These are overlaid over the default ISO format if the variable
 `org-display-custom-times' is set.  Time like %H:%M should be at the
 end of the second format.  The custom formats are also honored by export
 commands, if custom time display is turned on at the time of export."
@@ -4438,6 +4439,31 @@ in the #+STARTUP line, the corresponding variable, and the value to
 set this variable to if the option is found.  An optional forth element PUSH
 means to push this value onto the list in the variable.")
 
+(defun org-update-property-plist (key val props)
+  "Update PROPS with KEY and VAL."
+  (if (string= "+" (substring key (- (length key) 1)))
+      (let* ((key (substring key 0 (- (length key) 1)))
+	     (previous (cdr (assoc key props))))
+	(cons (cons key (concat previous " " val))
+	      (org-remove-if (lambda (p) (string= (car p) key)) props)))
+    (cons (cons key val) props)))
+
+(defconst org-block-regexp
+  "^[ \t]*#\\+begin_?\\([^ \n]+\\)\\(\\([^\n]+\\)\\)?\n\\([^\000]+?\\)#\\+end_?\\1[ \t]*$"
+  "Regular expression for hiding blocks.")
+(defconst org-heading-keyword-regexp-format
+  "^\\(\\*+\\)\\(?: +%s\\)\\(?: +\\(.*?\\)\\)?[ \t]*$"
+  "Printf format for a regexp matching an headline with some keyword.
+This regexp will match the headline of any node which has the
+exact keyword that is put into the format.  The keyword isn't in
+any group by default, but the stars and the body are.")
+(defconst org-heading-keyword-maybe-regexp-format
+  "^\\(\\*+\\)\\(?: +%s\\)?\\(?: +\\(.*?\\)\\)?[ \t]*$"
+  "Printf format for a regexp matching an headline, possibly with some keyword.
+This regexp can match any headline with the specified keyword, or
+without a keyword.  The keyword isn't in any group by default,
+but the stars and the body are.")
+
 (defun org-set-regexps-and-options ()
   "Precompute regular expressions for current buffer."
   (when (eq major-mode 'org-mode)
@@ -4499,8 +4525,9 @@ means to push this value onto the list in the variable.")
 	      (setq prio (org-split-string value " +")))
 	     ((equal key "PROPERTY")
 	      (when (string-match "\\(\\S-+\\)\\s-+\\(.*\\)" value)
-		(push (cons (match-string 1 value) (match-string 2 value))
-		      props)))
+		(setq props (org-update-property-plist (match-string 1 value)
+						       (match-string 2 value)
+						       props))))
 	     ((equal key "FILETAGS")
 	      (when (string-match "\\S-" value)
 		(setq ftags
@@ -4552,8 +4579,9 @@ means to push this value onto the list in the variable.")
 	      (setq value (replace-regexp-in-string
 			   "[\n\r]" " " (match-string 4)))
 	      (when (string-match "\\(\\S-+\\)\\s-+\\(.*\\)" value)
-		(push (cons (match-string 1 value) (match-string 2 value))
-		      props))))))
+		(setq props (org-update-property-plist (match-string 1 value)
+						       (match-string 2 value)
+						       props)))))))
       (org-set-local 'org-use-sub-superscripts scripts)
       (when cat
 	(org-set-local 'org-category (intern cat))
@@ -4725,7 +4753,7 @@ means to push this value onto the list in the variable.")
 		    "\\|" org-deadline-string
 		    "\\|" org-closed-string
 		    "\\|" org-clock-string "\\)\\)?"
-		    " *\\([[<][0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [^]\r\n>]*?[]>]\\|<%%([^\r\n>]*>\\)")
+		    " *\\([[<][0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} ?[^]\r\n>]*?[]>]\\|<%%([^\r\n>]*>\\)")
 	    org-planning-or-clock-line-re
 	    (concat "\\(?:^[ \t]*\\(" org-scheduled-string
 		    "\\|" org-deadline-string
@@ -4858,18 +4886,6 @@ sure that we are at the beginning of the line.")
 (defconst org-heading-regexp "^\\(\\*+\\)\\(?: +\\(.*?\\)\\)?[ \t]*$"
   "Matches an headline, putting stars and text into groups.
 Stars are put in group 1 and the trimmed body in group 2.")
-(defconst org-heading-keyword-regexp-format
-  "^\\(\\*+\\)\\(?: +%s\\)\\(?: +\\(.*?\\)\\)?[ \t]*$"
-  "Printf format for a regexp matching an headline with some keyword.
-This regexp will match the headline of any node which has the
-exact keyword that is put into the format.  The keyword isn't in
-any group by default, but the stars and the body are.")
-(defconst org-heading-keyword-maybe-regexp-format
-  "^\\(\\*+\\)\\(?: +%s\\)?\\(?: +\\(.*?\\)\\)?[ \t]*$"
-  "Printf format for a regexp matching an headline, possibly with some keyword.
-This regexp can match any headline with the specified keyword, or
-without a keyword.  The keyword isn't in any group by default,
-but the stars and the body are.")
 
 ;;;###autoload
 (define-derived-mode org-mode outline-mode "Org"
@@ -5190,15 +5206,15 @@ This should be called after the variable `org-link-types' has changed."
 
 (org-make-link-regexps)
 
-(defconst org-ts-regexp "<\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [^\r\n>]*?\\)>"
+(defconst org-ts-regexp "<\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} ?[^\r\n>]*?\\)>"
   "Regular expression for fast time stamp matching.")
-(defconst org-ts-regexp-both "[[<]\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [^]\r\n>]*?\\)[]>]"
+(defconst org-ts-regexp-both "[[<]\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} ?[^]\r\n>]*?\\)[]>]"
   "Regular expression for fast time stamp matching.")
 (defconst org-ts-regexp0 "\\(\\([0-9]\\{4\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) *\\([^]+0-9>\r\n -]*\\)\\( \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)\\)?\\)"
   "Regular expression matching time strings for analysis.
 This one does not require the space after the date, so it can be used
 on a string that terminates immediately after the date.")
-(defconst org-ts-regexp1 "\\(\\([0-9]\\{4\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) +\\([^]+0-9>\r\n -]*\\)\\( \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)\\)?\\)"
+(defconst org-ts-regexp1 "\\(\\([0-9]\\{4\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) *\\([^]+0-9>\r\n -]*\\)\\( \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)\\)?\\)"
   "Regular expression matching time strings for analysis.")
 (defconst org-ts-regexp2 (concat "<" org-ts-regexp1 "[^>\n]\\{0,16\\}>")
   "Regular expression matching time stamps, with groups.")
@@ -5425,9 +5441,8 @@ will be prompted for."
 	     '(font-lock-fontified t face org-meta-line))
 	    t)
 	   ((or (member dc1 '("begin:" "end:" "caption:" "label:"
-			      "orgtbl:" "tblfm:" "tblname:" "result:"
-			      "results:" "source:" "srcname:" "call:"
-			      "data:" "header:" "headers:"))
+			      "orgtbl:" "tblfm:" "tblname:" "results:"
+			      "call:" "header:" "headers:" "name:"))
 		(and (match-end 4) (equal dc3 "attr")))
 	    (add-text-properties
 	     beg (match-end 0)
@@ -6144,6 +6159,8 @@ in special contexts.
 	     (or (bolp) (not (eq org-cycle-emulate-tab 'exc-hl-bol))))
 	(org-inlinetask-toggle-visibility))
 
+       ((org-try-cdlatex-tab))
+
        ;; At an item/headline: delegate to `org-cycle-internal-local'.
        ((and (or (and org-cycle-include-plain-lists (org-at-item-p))
 		 (save-excursion (beginning-of-line 1)
@@ -6158,8 +6175,6 @@ in special contexts.
 	 'org-tab-after-check-for-cycling-hook))
 
        ((org-try-structure-completion))
-
-       ((org-try-cdlatex-tab))
 
        ((run-hook-with-args-until-success
 	 'org-tab-before-tab-emulation-hook))
@@ -6616,15 +6631,10 @@ DATA should have been made by `org-outline-overlay-data'."
 	(widen)
 	(show-all)
 	(mapc (lambda (c)
-		(setq o (make-overlay (car c) (cdr c)))
-		(overlay-put o 'invisible 'outline))
+		(outline-flag-region (car c) (cdr c) t))
 	      data)))))
 
 ;;; Folding of blocks
-
-(defconst org-block-regexp
-  "^[ \t]*#\\+begin_?\\([^ \n]+\\)\\(\\([^\n]+\\)\\)?\n\\([^\000]+?\\)#\\+end_?\\1[ \t]*$"
-  "Regular expression for hiding blocks.")
 
 (defvar org-hide-block-overlays nil
   "Overlays hiding blocks.")
@@ -7879,7 +7889,8 @@ I this way you can spell out a number of instances of a repeating task,
 and still retain the repeater to cover future instances of the task."
   (interactive "nNumber of clones to produce: \nsDate shift per clone (e.g. +1w, empty to copy unchanged): ")
   (let (beg end template task idprop
-	    shift-n shift-what doshift nmin nmax (n-no-remove -1))
+	    shift-n shift-what doshift nmin nmax (n-no-remove -1)
+	    (drawer-re org-drawer-regexp))
     (if (not (and (integerp n) (> n 0)))
 	(error "Invalid number of replications %s" n))
     (if (and (setq doshift (and (stringp shift) (string-match "\\S-" shift)))
@@ -7900,19 +7911,6 @@ and still retain the repeater to cover future instances of the task."
     (or (bolp) (insert "\n"))
     (setq end (point))
     (setq template (buffer-substring beg end))
-    ;; Remove clocks and empty drawers
-    (with-temp-buffer
-      (insert template)
-      (goto-char (point-min))
-      (while (re-search-forward
-	      "^[ \t]*CLOCK:.*$" (save-excursion (org-end-of-subtree t t)) t)
-	(replace-match "")
-	(kill-whole-line))
-      (goto-char (point-min))
-      (while (re-search-forward
-	      (concat "^[ \t]*:" (regexp-opt org-drawers) ":[ \t]*$") nil t)
-	(mapc (lambda(d) (org-remove-empty-drawer-at d (point))) org-drawers))
-      (setq template (buffer-substring (point-min) (point-max))))
     (when (and doshift
 	       (string-match "<[^<>\n]+ \\+[0-9]+[dwmy][^<>\n]*>" template))
       (delete-region beg end)
@@ -7925,11 +7923,17 @@ and still retain the repeater to cover future instances of the task."
 	    (insert template)
 	    (org-mode)
 	    (goto-char (point-min))
+	    (org-show-subtree)
 	    (and idprop (if org-clone-delete-id
 			    (org-entry-delete nil "ID")
 			  (org-id-get-create t)))
-	    (while (re-search-forward org-property-start-re nil t)
-	      (org-remove-empty-drawer-at "PROPERTIES" (point)))
+	    (unless (= n 0)
+	      (while (re-search-forward "^[ \t]*CLOCK:.*$" nil t)
+		(kill-whole-line))
+	      (goto-char (point-min))
+	      (while (re-search-forward drawer-re nil t)
+		(mapc (lambda (d)
+			(org-remove-empty-drawer-at d (point))) org-drawers)))
 	    (goto-char (point-min))
 	    (when doshift
 	      (while (re-search-forward org-ts-regexp-both nil t)
@@ -8942,7 +8946,7 @@ If optional argument MERGE is set, merge TABLE into
 	 (char-to-string char))) text "")))
 
 (defun org-link-unescape (str)
-  "Unhex hexified unicode strings as returned from the JavaScript function
+  "Unhex hexified Unicode strings as returned from the JavaScript function
 encodeURIComponent.  E.g. `%C3%B6' is the german Umlaut `ö'."
   (unless (and (null str) (string= "" str))
     (let ((pos 0) (case-fold-search t) unhexed)
@@ -8953,7 +8957,7 @@ encodeURIComponent.  E.g. `%C3%B6' is the german Umlaut `ö'."
   str)
 
 (defun org-link-unescape-compound (hex)
-  "Unhexify unicode hex-chars.  E.g. `%C3%B6' is the German Umlaut `ö'.
+  "Unhexify Unicode hex-chars.  E.g. `%C3%B6' is the German Umlaut `ö'.
 Note: this function also decodes single byte encodings like
 `%E1' (\"á\") if not followed by another `%[A-F0-9]{2}' group."
   (save-match-data
@@ -9675,7 +9679,7 @@ there is one, offer it as link number zero."
      ((equal (length links) 1)
       (setq link (list (car links))))
      ((and (integerp nth) (>= (length links) (if have-zero (1+ nth) nth)))
-      (setq link (nth (if have-zero nth (1- nth)) links)))
+      (setq link (list (nth (if have-zero nth (1- nth)) links))))
      (t ; we have to select a link
       (save-excursion
 	(save-window-excursion
@@ -10998,10 +11002,8 @@ This function can be used in a hook."
     "BEGIN_CENTER" "END_CENTER"
     "BEGIN_SRC" "END_SRC"
     "BEGIN_RESULT" "END_RESULT"
-    "SOURCE:" "SRCNAME:" "FUNCTION:"
-    "RESULTS:" "DATA:"
+    "NAME:" "RESULTS:"
     "HEADER:" "HEADERS:"
-    "BABEL:"
     "CATEGORY:" "COLUMNS:" "PROPERTY:"
     "CAPTION:" "LABEL:"
     "SETUPFILE:"
@@ -11142,12 +11144,14 @@ nil or a string to be used for the todo mark." )
     ct1))
 
 (defun org-todo-yesterday (&optional arg)
-  "Like `org-todo' but the time of change will be 23:59 of yesterday"
+  "Like `org-todo' but the time of change will be 23:59 of yesterday."
   (interactive "P")
-  (let* ((hour (third (decode-time
-                       (org-current-time))))
-         (org-extend-today-until (1+ hour)))
-    (org-todo arg)))
+  (if (eq major-mode 'org-agenda-mode)
+      (apply 'org-agenda-todo-yesterday arg)
+    (let* ((hour (third (decode-time
+			 (org-current-time))))
+	   (org-extend-today-until (1+ hour)))
+      (org-todo arg))))
 
 (defun org-todo (&optional arg)
   "Change the TODO state of an item.
@@ -11168,6 +11172,7 @@ With numeric prefix arg, switch to that state.
 With a double \\[universal-argument] prefix, switch to the next set of TODO \
 keywords (nextset).
 With a triple \\[universal-argument] prefix, circumvent any state blocking.
+With a numeric prefix arg of 0, inhibit note taking for the change.
 
 For calling through lisp, arg is also interpreted in the following way:
 'none             -> empty state
@@ -11199,6 +11204,9 @@ For calling through lisp, arg is also interpreted in the following way:
 	       (org-log-done org-log-done)
 	       (org-log-repeat org-log-repeat)
 	       (org-todo-log-states org-todo-log-states)
+	       (org-inhibit-logging
+		(if (equal arg 0)
+		    (progn (setq arg nil) 'note) org-inhibit-logging))
 	       (this (match-string 1))
 	       (hl-pos (match-beginning 0))
 	       (head (org-get-todo-sequence-head this))
@@ -12071,9 +12079,8 @@ be removed."
 		  default-input (and ts (org-get-compact-tod ts))))))
       (when what
 	(setq time
-	      (if (and (stringp time)
-		       (string-match "^[-+]+[0-9]" time))
-		  ;; This is a relative time, set the proper date
+	      (if (stringp time)
+		  ;; This is a string (relative or absolute), set proper date
 		  (apply 'encode-time
 			 (org-read-date-analyze
 			  time default-time (decode-time default-time)))
@@ -14083,17 +14090,23 @@ when a \"nil\" value can supersede a non-nil value higher up the hierarchy."
 	  (cdr (assoc property (org-entry-properties nil 'special property)))
 	(let ((range (unless (org-before-first-heading-p)
 		       (org-get-property-block))))
-	  (if (and range
-		   (goto-char (car range))
-		   (re-search-forward
-		    (org-re-property property)
-		    (cdr range) t))
-	      ;; Found the property, return it.
-	      (if (match-end 1)
-		  (if literal-nil
-		      (org-match-string-no-properties 1)
-		    (org-not-nil (org-match-string-no-properties 1)))
-		"")))))))
+	  (when (and range (goto-char (car range)))
+	    ((lambda (val) (when val (if literal-nil val (org-not-nil val))))
+	     (cond
+	      ((re-search-forward
+		(org-re-property property) (cdr range) t)
+	       (if (match-end 1) (org-match-string-no-properties 1) ""))
+	      ((re-search-forward
+		(org-re-property (concat property "+")) (cdr range) t)
+	       (cdr (assoc
+		     property
+		     (org-update-property-plist
+		      (concat property "+")
+		      (if (match-end 1) (org-match-string-no-properties 1) "")
+		      (list (or (assoc property org-file-properties)
+				(assoc property org-global-properties)
+				(assoc property org-global-properties-fixed)
+				))))))))))))))
 
 (defun org-property-or-variable-value (var &optional inherit)
   "Check if there is a property fixing the value of VAR.
@@ -14794,7 +14807,7 @@ The prompt will suggest to enter an ISO date, but you can also enter anything
 which will at least partially be understood by `parse-time-string'.
 Unrecognized parts of the date will default to the current day, month, year,
 hour and minute.  If this command is called to replace a timestamp at point,
-of to enter the second timestamp of a range, the default time is taken
+or to enter the second timestamp of a range, the default time is taken
 from the existing stamp.  Furthermore, the command prefers the future,
 so if you are giving a date where the year is not given, and the day-month
 combination is already past in the current year, it will assume you
@@ -15223,6 +15236,7 @@ WHAT       is \"d\", \"w\", \"m\", or \"y\" for day, week, month, year.
 N          is the number of WHATs to shift.
 DEF-FLAG   is t when a double ++ or -- indicates shift relative to
            the DEFAULT date rather than TODAY."
+  (require 'parse-time)
   (when (and
 	 (string-match
 	  (concat
@@ -15336,7 +15350,7 @@ The command returns the inserted time stamp."
   (org-restart-font-lock)
   (setq org-table-may-need-update t)
   (if org-display-custom-times
-      (message "Time stamps are overlayed with custom format")
+      (message "Time stamps are overlaid with custom format")
     (message "Time stamp overlays removed")))
 
 (defun org-display-custom-time (beg end)
@@ -16563,14 +16577,16 @@ It makes sense to do so if `org-cdlatex-mode' is active and if the cursor is
     insert a LaTeX environment."
   (when org-cdlatex-mode
     (cond
+     ;; Before any word on the line: No expansion possible.
+     ((save-excursion (skip-chars-backward " \t") (bolp)) nil)
+     ;; Just after first word on the line: Expand it.  Make sure it
+     ;; cannot happen on headlines, though.
      ((save-excursion
 	(skip-chars-backward "a-zA-Z0-9*")
 	(skip-chars-backward " \t")
-	(bolp))
+	(and (bolp) (not (org-at-heading-p))))
       (cdlatex-tab) t)
-     ((org-inside-LaTeX-fragment-p)
-      (cdlatex-tab) t)
-     (t nil))))
+     ((org-inside-LaTeX-fragment-p) (cdlatex-tab) t))))
 
 (defun org-cdlatex-underscore-caret (&optional arg)
   "Execute `cdlatex-sub-superscript' in LaTeX fragments.
@@ -17074,9 +17090,43 @@ BEG and END default to the buffer boundaries."
 
 ;;;; Key bindings
 
-;; Remap outline keys
+;; Outline functions from `outline-mode-prefix-map'
+;; that can be remapped in Org:
+(define-key org-mode-map [remap outline-mark-subtree] 'org-mark-subtree)
+(define-key org-mode-map [remap show-subtree] 'org-show-subtree)
+(define-key org-mode-map [remap outline-forward-same-level]
+  'org-forward-same-level)
+(define-key org-mode-map [remap outline-backward-same-level]
+  'org-backward-same-level)
+(define-key org-mode-map [remap show-branches]
+  'org-kill-note-or-show-branches)
 (define-key org-mode-map [remap outline-promote] 'org-promote-subtree)
 (define-key org-mode-map [remap outline-demote] 'org-demote-subtree)
+(define-key org-mode-map [remap outline-insert-heading] 'org-ctrl-c-ret)
+
+;; Outline functions from `outline-mode-prefix-map'
+;; that can not be remapped in Org:
+;; - the column "key binding" shows whether the Outline function is still
+;;   available in Org mode on the same key that it has been bound to in
+;;   Outline mode:
+;;   - "overridden": key used for a different functionality in Org mode
+;;   - else: key still bound to the same Outline function in Org mode
+;; | Outline function                   | key binding | Org replacement       |
+;; |------------------------------------+-------------+-----------------------|
+;; | `outline-next-visible-heading'     | `C-c C-n'   | still same function   |
+;; | `outline-previous-visible-heading' | `C-c C-p'   | still same function   |
+;; | `show-children'                    | `C-c C-i'   | visibility cycling    |
+;; | `hide-subtree'                     | overridden  | visibility cycling    |
+;; | `outline-up-heading'               | `C-c C-u'   | still same function   |
+;; | `hide-body'                        | overridden  | no replacement        |
+;; | `show-all'                         | overridden  | no replacement        |
+;; | `hide-entry'                       | overridden  | visibility cycling    |
+;; | `show-entry'                       | overridden  | no replacement        |
+;; | `hide-leaves'                      | overridden  | no replacement        |
+;; | `hide-sublevels'                   | overridden  | no replacement        |
+;; | `hide-other'                       | overridden  | no replacement        |
+;; | `outline-move-subtree-up'          | `C-c C-^'   | better: org-shiftup   |
+;; | `outline-move-subtree-down'        | overridden  | better: org-shiftdown |
 
 ;; Make `C-c C-x' a prefix key
 (org-defkey org-mode-map "\C-c\C-x" (make-sparse-keymap))
@@ -18237,6 +18287,8 @@ This command does many different things, depending on context:
 	   (fboundp org-finish-function))
       (funcall org-finish-function))
      ((run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-hook))
+     ((org-in-regexp org-ts-regexp-both)
+      (org-timestamp-change 0 'day))
      ((or (looking-at org-property-start-re)
 	  (org-at-property-p))
       (call-interactively 'org-property-action))
@@ -19385,7 +19437,7 @@ contexts are:
 :target           on a <<target>>
 :radio-target     on a <<<radio-target>>>
 :latex-fragment   on a LaTeX fragment
-:latex-preview    on a LaTeX fragment with overlayed preview image
+:latex-preview    on a LaTeX fragment with overlaid preview image
 
 This function expects the position to be visible because it uses font-lock
 faces as a help to recognize the following contexts: :table-special, :link,
@@ -19638,6 +19690,18 @@ Taken from `count' in cl-seq.el with all keyword arguments removed."
       (setq e (pop seq))
       (if (funcall predicate e) (push e res)))
     (nreverse res)))
+
+(defun org-reduce (cl-func cl-seq &rest cl-keys)
+  "Reduce two-argument FUNCTION across SEQ.
+Taken from `reduce' in cl-seq.el with all keyword arguments but
+\":initial-value\" removed."
+  (let ((cl-accum (cond ((memq :initial-value cl-keys)
+                         (cadr (memq :initial-value cl-keys)))
+                        (cl-seq (pop cl-seq))
+                        (t (funcall cl-func)))))
+    (while cl-seq
+      (setq cl-accum (funcall cl-func cl-accum (pop cl-seq))))
+    cl-accum))
 
 (defun org-back-over-empty-lines ()
   "Move backwards over whitespace, to the beginning of the first empty line.

@@ -821,7 +821,7 @@ will only be dimmed."
   :group 'org-agenda-todo-list
   :type '(choice
 	  (const :tag "Do not dim" nil)
-	  (const :tag "Dim to a grey face" t)
+	  (const :tag "Dim to a gray face" t)
 	  (const :tag "Make invisible" invisible)))
 
 (defcustom org-timeline-show-empty-dates 3
@@ -1742,7 +1742,7 @@ in that string.  If STRING is nil, it will be fetched from the beginning
 of the current line."
   (org-with-gensyms (marker)
     `(let ((,marker (get-text-property (if string 0 (point-at-bol))
-				       'org-hd-marker string)))
+				       'org-hd-marker ,string)))
        (with-current-buffer (marker-buffer ,marker)
 	 (save-excursion
 	   (goto-char ,marker)
@@ -3636,7 +3636,7 @@ given in `org-agenda-start-on-weekday'."
 	      (setq rtn (apply 'org-agenda-get-day-entries
 			       file date
 			       org-agenda-entry-types)))))
-	  (setq rtnall (append rtnall rtn))))
+	  (setq rtnall (append rtnall rtn)))) ;; all entries
       (if org-agenda-include-diary
 	  (let ((org-agenda-search-headline-for-time t))
 	    (require 'diary-lib)
@@ -3658,7 +3658,7 @@ given in `org-agenda-start-on-weekday'."
 	    (put-text-property s (1- (point)) 'org-day-cnt day-cnt)
 	    (when todayp
 	      (put-text-property s (1- (point)) 'org-today t))
-	    (if rtnall (insert
+	    (if rtnall (insert ;; all entries
 			(org-finalize-agenda-entries
 			 (org-agenda-add-time-grid-maybe
 			  rtnall ndays todayp))
@@ -4626,7 +4626,8 @@ the documentation of `org-diary'."
 	(setq marker (org-agenda-new-marker (match-beginning 0))
 	      category (org-get-category)
 	      org-category-pos (get-text-property (point) 'org-category-position)
-	      txt (buffer-substring (match-beginning 2) (match-end 3))
+	      txt (org-trim
+		   (buffer-substring (match-beginning 2) (match-end 0)))
 	      tags (org-get-tags-at (point))
 	      txt (org-agenda-format-item "" txt category tags)
 	      priority (1+ (org-get-priority txt))
@@ -4720,7 +4721,7 @@ This function is invoked if `org-agenda-todo-ignore-deadlines',
 
 (defun org-agenda-get-timestamps ()
   "Return the date stamp information for agenda display."
-  (let* ((props (list 'face nil
+  (let* ((props (list 'face 'org-agenda-calendar-event
 		      'org-not-done-regexp org-not-done-regexp
 		      'org-todo-regexp org-todo-regexp
 		      'org-complex-heading-regexp org-complex-heading-regexp
@@ -4821,7 +4822,8 @@ This function is invoked if `org-agenda-todo-ignore-deadlines',
 (defun org-agenda-get-sexps ()
   "Return the sexp information for agenda display."
   (require 'diary-lib)
-  (let* ((props (list 'mouse-face 'highlight
+  (let* ((props (list 'face 'org-agenda-calendar-sexp
+		      'mouse-face 'highlight
 		      'help-echo
 		      (format "mouse-2 or RET jump to org file %s"
 			      (abbreviate-file-name buffer-file-name))))
@@ -5830,7 +5832,7 @@ could bind the variable in the options section of a custom command.")
 (defun org-agenda-highlight-todo (x)
   (let ((org-done-keywords org-done-keywords-for-agenda)
 	(case-fold-search nil)
-	 re)
+	re)
     (if (eq x 'line)
 	(save-excursion
 	  (beginning-of-line 1)
@@ -5851,13 +5853,13 @@ could bind the variable in the options section of a custom command.")
 	  (add-text-properties
 	   (or (match-end 1) (match-end 0)) (match-end 0)
 	   (list 'face (org-get-todo-face (match-string 2 x)))
-	 x)
+	   x)
 	  (when (match-end 1)
 	    (setq x (concat (substring x 0 (match-end 1))
 			    (format org-agenda-todo-keyword-format
 				    (match-string 2 x))
-			  (org-add-props " " (text-properties-at 0 x))
-			  (substring x (match-end 3)))))))
+			    (org-add-props " " (text-properties-at 0 x))
+			    (substring x (match-end 3)))))))
       x)))
 
 (defsubst org-cmp-priority (a b)
@@ -7197,6 +7199,22 @@ With numerical prefix arg ARG, go up to this level and then take that tree.
 With a \\[universal-argument] prefix, make a separate frame for this tree (i.e. don't
 use the dedicated frame)."
   (interactive)
+  (if (and current-prefix-arg (listp current-prefix-arg))
+      (org-agenda-do-tree-to-indirect-buffer)
+    (let ((agenda-window (selected-window))
+          (indirect-window (get-buffer-window org-last-indirect-buffer)))
+      (save-window-excursion (org-agenda-do-tree-to-indirect-buffer))
+      (unwind-protect
+          (progn
+            (unless indirect-window
+              (setq indirect-window (split-window agenda-window)))
+            (select-window indirect-window)
+            (switch-to-buffer org-last-indirect-buffer :norecord)
+            (fit-window-to-buffer indirect-window))
+        (select-window agenda-window)))))
+
+(defun org-agenda-do-tree-to-indirect-buffer ()
+  "Same as `org-agenda-tree-to-indirect-buffer' without saving window."
   (org-agenda-check-no-diary)
   (let* ((marker (or (org-get-at-bol 'org-marker)
 		     (org-agenda-error)))
