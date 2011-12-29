@@ -5724,7 +5724,7 @@ Use `org-reduced-level' to remove the effect of `org-odd-levels'."
 
 (defvar org-font-lock-keywords nil)
 
-(defconst org-property-re (org-re "^[ \t]*\\(:\\([-[:alnum:]_]+\\):\\)[ \t]*\\([^ \t\r\n].*\\)")
+(defconst org-property-re (org-re "^[ \t]*\\(:\\([-[:alnum:]_]+\\+?\\):\\)[ \t]*\\([^ \t\r\n].*\\)")
   "Regular expression matching a property line.")
 
 (defvar org-font-lock-hook nil
@@ -9570,13 +9570,16 @@ application the system uses for this file type."
 	    (apply cmd (nreverse args1))))
 
 	 ((member type '("http" "https" "ftp" "news"))
-	  (browse-url (concat type ":" (org-link-escape
-					path org-link-escape-chars-browser))))
+	  (browse-url (concat type ":" (if (org-string-match-p "[[:nonascii:] ]" path)
+					   (org-link-escape
+					    path org-link-escape-chars-browser)
+					 path))))
 
 	 ((string= type "doi")
-	  (browse-url (concat "http://dx.doi.org/"
-                              (org-link-escape
-                               path org-link-escape-chars-browser))))
+	  (browse-url (concat "http://dx.doi.org/" (if (org-string-match-p "[[:nonascii:] ]" path)
+						       (org-link-escape
+							path org-link-escape-chars-browser)
+						     path))))
 
 	 ((member type '("message"))
 	  (browse-url (concat type ":" path)))
@@ -10406,7 +10409,8 @@ on the system \"/user@host:\"."
 			   (or (funcall org-refile-target-verify-function)
 			       (throw 'next t))))
 		       (when (and (looking-at org-complex-heading-regexp)
-				  (not (member (match-string 4) excluded-entries)))
+				  (not (member (match-string 4) excluded-entries))
+				  (match-string 4))
 			 (setq level (org-reduced-level
 				      (- (match-end 1) (match-beginning 1)))
 			       txt (org-link-display-format (match-string 4))

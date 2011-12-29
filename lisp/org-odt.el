@@ -27,10 +27,7 @@
 
 ;;; Code:
 (eval-when-compile
-  (require 'cl)
-  ;; htmlfontify.el was introduce in Emacs 23.2
-  (when (>= (string-to-number emacs-version) 23.2)
-    (require 'htmlfontify)))
+  (require 'cl))
 (require 'org-lparse)
 
 (defgroup org-export-odt nil
@@ -77,8 +74,9 @@
 
 (defconst org-odt-lib-dir (file-name-directory load-file-name))
 (defconst org-odt-styles-dir
-  (let* ((styles-dir1 (expand-file-name "../etc/styles/" org-odt-lib-dir))
-	 (styles-dir2 (expand-file-name "./etc/styles/" org-odt-lib-dir))
+  (let* ((styles-dir1 (expand-file-name "../etc/styles/" org-odt-lib-dir)) ; git
+	 (styles-dir2 (expand-file-name "./etc/styles/" org-odt-lib-dir)) ; elpa
+	 (styles-dir3 (expand-file-name "./etc/org/" data-directory)) ; system
 	 (styles-dir
 	  (catch 'styles-dir
 	    (mapc (lambda (styles-dir)
@@ -89,7 +87,7 @@
 				(expand-file-name
 				 "OrgOdtStyles.xml" styles-dir)))
 		      (throw 'styles-dir styles-dir)))
-		  (list styles-dir1 styles-dir2))
+		  (list styles-dir1 styles-dir2 styles-dir3))
 	    nil)))
     (unless styles-dir
       (error "Cannot find factory styles file. Check package dir layout"))
@@ -100,7 +98,12 @@ This directory contains the following XML files -
  \"OrgOdtStyles.xml\" and \"OrgOdtContentTemplate.xml\".  These
  XML files are used as the default values of
  `org-export-odt-styles-file' and
- `org-export-odt-content-template-file'.")
+ `org-export-odt-content-template-file'.
+
+The default value of this variable varies depending on the
+version of org in use.  Note that the user could be using org
+from one of: org's own private git repository, GNU ELPA tar or
+standard Emacs.")
 
 (defcustom org-export-odt-schema-dir
   (let ((schema-dir (expand-file-name
@@ -115,10 +118,20 @@ This directory contains the following XML files -
       (prog1 nil (message "Unable to locate OpenDocument schema files."))))
   "Directory that contains OpenDocument schema files.
 
-This directory contains rnc files for OpenDocument schema.  It
-also contains a \"schemas.xml\" that can be added to
-`rng-schema-locating-files' for auto validation of OpenDocument
-XML files.  See also `rng-nxml-auto-validate-flag'."
+This directory contains:
+1. rnc files for OpenDocument schema
+2. a \"schemas.xml\" file that specifies locating rules needed
+   for auto validation of OpenDocument XML files.
+
+Use the customize interface to set this variable.  This ensures
+that `rng-schema-locating-files' is updated and auto-validation
+of OpenDocument XML takes place based on the value
+`rng-nxml-auto-validate-flag'.
+
+The default value of this variable varies depending on the
+version of org in use.  The OASIS schema files are available only
+in the org's private git repository.  It is *not* bundled with
+GNU ELPA tar or standard Emacs distribution."
   :type '(choice
 	  (const :tag "Not set" nil)
 	  (directory :tag "Schema directory"))
@@ -286,7 +299,8 @@ This variable is effective only if
 		  (center . "OrgCenter")
 		  (left . "OrgLeft")
 		  (right . "OrgRight")
-		  (title . "Heading_20_1.title")
+		  (title . "OrgTitle")
+		  (subtitle . "OrgSubtitle")
 		  (footnote . "Footnote")
 		  (src . "OrgSrcBlock")
 		  (illustration . "Illustration")
@@ -485,16 +499,67 @@ PUB-DIR is set, use this as the publishing directory."
 ;; Following variable is let bound when `org-do-lparse' is in
 ;; progress. See org-html.el.
 (defvar org-lparse-toc)
+(defun org-odt-format-toc ()
+  (if (not org-lparse-toc) "" (concat  "\n" org-lparse-toc "\n")))
+
+(defun org-odt-format-preamble (opt-plist)
+  (let* ((title (plist-get opt-plist :title))
+	 (author (plist-get opt-plist :author))
+	 (date (plist-get opt-plist :date))
+	 (iso-date (org-odt-format-date date))
+	 (date (org-odt-format-date date "%d %b %Y"))
+	 (email (plist-get opt-plist :email))
+	 ;; switch on or off above vars based on user settings
+	 (author (and (plist-get opt-plist :author-info) (or author email)))
+	 (email (and (plist-get opt-plist :email-info) email))
+	 (date (and (plist-get opt-plist :time-stamp-file) date)))
+    (concat
+     ;; title
+     (when title
+       (concat
+	(org-odt-format-stylized-paragraph
+	 'title (org-odt-format-tags
+		 '("<text:title>" . "</text:title>") title))
+	;; separator
+	"<text:p text:style-name=\"OrgTitle\"/>"))
+     (cond
+      ((and author (not email))
+       ;; author only
+       (concat
+	(org-odt-format-stylized-paragraph
+	 'subtitle
+	 (org-odt-format-tags
+	  '("<text:initial-creator>" . "</text:initial-creator>")
+	  author))
+	;; separator
+	"<text:p text:style-name=\"OrgSubtitle\"/>"))
+      ((and author email)
+       ;; author and email
+       (concat
+	(org-odt-format-stylized-paragraph
+	 'subtitle
+	 (org-odt-format-link
+	  (org-odt-format-tags
+	   '("<text:initial-creator>" . "</text:initial-creator>")
+	   author) (concat "mailto:" email)))
+	;; separator
+	"<text:p text:style-name=\"OrgSubtitle\"/>")))
+     ;; date
+     (when date
+       (concat
+	(org-odt-format-stylized-paragraph
+	 'subtitle
+	 (org-odt-format-tags
+	  '("<text:date style:data-style-name=\"%s\" text:date-value=\"%s\">"
+	    . "</text:date>") date "N75" iso-date))
+	;; separator
+	"<text:p text:style-name=\"OrgSubtitle\"/>"))
+     ;; toc
+     (org-odt-format-toc))))
+
 (defun org-odt-begin-document-body (opt-plist)
   (org-odt-begin-office-body)
-  (let ((title (plist-get opt-plist :title)))
-    (when title
-      (insert
-       (org-odt-format-stylized-paragraph 'title title))))
-
-  ;; insert toc
-  (when org-lparse-toc
-    (insert "\n" org-lparse-toc "\n")))
+  (insert (org-odt-format-preamble opt-plist)))
 
 (defvar org-lparse-body-only)		; let bound during org-do-lparse
 (defvar org-lparse-to-buffer)		; let bound during org-do-lparse
@@ -553,7 +618,7 @@ PUB-DIR is set, use this as the publishing directory."
   (when (setq author (or author (plist-get org-lparse-opt-plist :author)))
     (org-odt-format-tags '("<dc:creator>" . "</dc:creator>") author)))
 
-(defun org-odt-iso-date-from-org-timestamp (&optional org-ts)
+(defun org-odt-format-date (&optional org-ts fmt)
   (save-match-data
     (let* ((time
 	    (and (stringp org-ts)
@@ -561,8 +626,11 @@ PUB-DIR is set, use this as the publishing directory."
 		 (apply 'encode-time
 			(org-fix-decoded-time
 			 (org-parse-time-string (match-string 0 org-ts) t)))))
-	   (date (format-time-string "%Y-%m-%dT%H:%M:%S%z" time)))
-      (format "%s:%s" (substring date 0 -2) (substring date -2)))))
+	   date)
+      (cond
+       (fmt (format-time-string fmt time))
+       (t (setq date (format-time-string "%Y-%m-%dT%H:%M:%S%z" time))
+	  (format "%s:%s" (substring date 0 -2) (substring date -2)))))))
 
 (defun org-odt-begin-annotation (&optional author date)
   (org-lparse-insert-tag "<office:annotation>")
@@ -570,7 +638,7 @@ PUB-DIR is set, use this as the publishing directory."
     (insert author))
   (insert (org-odt-format-tags
 	   '("<dc:date>" . "</dc:date>")
-	   (org-odt-iso-date-from-org-timestamp
+	   (org-odt-format-date
 	    (or date (plist-get org-lparse-opt-plist :date)))))
   (org-lparse-begin-paragraph))
 
@@ -1124,6 +1192,10 @@ This style is much the same as that of \"OrgFixedWidthBlock\"
 except that the foreground and background colors are set
 according to the default face identified by the `htmlfontify'.")
 
+(defvar hfy-optimisations)
+(declare-function hfy-face-to-style "htmlfontify" (fn))
+(declare-function hfy-face-or-def-to-name "htmlfontify" (fn))
+
 (defun org-odt-hfy-face-to-css (fn)
   "Create custom style for face FN.
 When FN is the default face, use it's foreground and background
@@ -1226,6 +1298,8 @@ value of `org-export-odt-fontify-srcblocks."
 	lines (funcall
 	       (or (and org-export-odt-fontify-srcblocks
 			(or (featurep 'htmlfontify)
+			    ;; htmlfontify.el was introduced in Emacs 23.2
+			    ;; So load it with some caution
 			    (require 'htmlfontify nil t))
 			(fboundp 'htmlfontify-string)
 			'org-odt-format-source-code-or-example-colored)
@@ -1309,7 +1383,7 @@ value of `org-export-odt-fontify-srcblocks."
 	(org-lparse-insert-list-table
 	 `((,(org-odt-format-entity
 	      (if caption "CaptionedDisplayFormula" "DisplayFormula")
-	      href width height caption nil)
+	      href width height :caption caption :label nil)
 	    ,(if (not label) ""
 	       (org-odt-format-entity-caption label nil "__MathFormula__"))))
 	 nil nil nil "OrgEquation" nil '((1 "c" 8) (2 "c" 1)))
@@ -1511,7 +1585,7 @@ ATTR is a string of other attributes of the a element."
    (expand-file-name
     (concat (sha1 file-name) "." (file-name-extension file-name)) "Pictures")))
 
-(defun org-export-odt-format-image (src href &optional embed-as)
+(defun org-export-odt-format-image (src href)
   "Create image tag with source and attributes."
   (save-match-data
     (let* ((caption (org-find-text-property-in-string 'org-caption src))
@@ -1519,14 +1593,27 @@ ATTR is a string of other attributes of the a element."
 	   (attr (org-find-text-property-in-string 'org-attributes src))
 	   (label (org-find-text-property-in-string 'org-label src))
 	   (latex-frag (org-find-text-property-in-string
-			      'org-latex-src src))
+			'org-latex-src src))
 	   (category (and latex-frag "__DvipngImage__"))
-	   (embed-as (or embed-as
-			 (if latex-frag
-			     (or (org-find-text-property-in-string
-				  'org-latex-src-embed-type src) 'character)
-			   'paragraph)))
 	   (attr-plist (org-lparse-get-block-params attr))
+	   (user-frame-anchor
+	    (car (assoc-string (plist-get attr-plist :anchor)
+			       (if (or caption label)
+				   '(("paragraph") ("page"))
+				 '(("character") ("paragraph") ("page"))) t)))
+	   (user-frame-style
+	    (and user-frame-anchor (plist-get attr-plist :style)))
+	   (user-frame-attrs
+	    (and user-frame-anchor (plist-get attr-plist :attributes)))
+	   (user-frame-params
+	    (list user-frame-style user-frame-attrs user-frame-anchor))
+	   (embed-as (cond
+		      (latex-frag
+		       (symbol-name
+			(or (org-find-text-property-in-string
+			     'org-latex-src-embed-type src) 'character)))
+		      (user-frame-anchor)
+		      (t "paragraph")))
 	   (size (org-odt-image-size-from-file
 		  src (plist-get attr-plist :width)
 		  (plist-get attr-plist :height)
@@ -1535,15 +1622,12 @@ ATTR is a string of other attributes of the a element."
       (when latex-frag
 	(setq href (org-propertize href :title "LaTeX Fragment"
 				   :description latex-frag)))
-      (cond
-       ((not (or caption label))
-	(case embed-as
-	  (paragraph (org-odt-format-entity "DisplayImage" href width height))
-	  (character (org-odt-format-entity "InlineImage" href width height))
-	  (t (error "Unknown value for embed-as %S" embed-as))))
-       (t
+      (let ((frame-style-handle (concat (and (or caption label) "Captioned")
+					embed-as "Image")))
 	(org-odt-format-entity
-	 "CaptionedDisplayImage" href width height caption label category))))))
+	 frame-style-handle href width height
+	 :caption caption :label label :category category
+	 :user-frame-params user-frame-params)))))
 
 (defun org-odt-format-object-description (title description)
   (concat (and title (org-odt-format-tags
@@ -1589,31 +1673,55 @@ ATTR is a string of other attributes of the a element."
 		content) nil nil "OrgInlineTaskFrame" " style:rel-width=\"100%\"")))
 
 (defvar org-odt-entity-frame-styles
-  '(("InlineImage" "__Figure__" ("OrgInlineImage" nil "as-char"))
-    ("DisplayImage" "__Figure__" ("OrgDisplayImage" nil "paragraph"))
-    ("CaptionedDisplayImage" "__Figure__"
+  '(("CharacterImage" "__Figure__" ("OrgInlineImage" nil "as-char"))
+    ("ParagraphImage" "__Figure__" ("OrgDisplayImage" nil "paragraph"))
+    ("PageImage" "__Figure__" ("OrgPageImage" nil "page"))
+    ("CaptionedParagraphImage" "__Figure__"
      ("OrgCaptionedImage"
       " style:rel-width=\"100%\" style:rel-height=\"scale\"" "paragraph")
-     ("OrgImageCaptionFrame"))
+     ("OrgImageCaptionFrame" nil "paragraph"))
+    ("CaptionedPageImage" "__Figure__"
+     ("OrgCaptionedImage"
+      " style:rel-width=\"100%\" style:rel-height=\"scale\"" "paragraph")
+     ("OrgPageImageCaptionFrame" nil "page"))
     ("InlineFormula" "__MathFormula__" ("OrgInlineFormula" nil "as-char"))
     ("DisplayFormula" "__MathFormula__" ("OrgDisplayFormula" nil "as-char"))
     ("CaptionedDisplayFormula" "__MathFormula__"
      ("OrgCaptionedFormula" nil "paragraph")
      ("OrgFormulaCaptionFrame" nil "as-char"))))
 
-(defun org-odt-format-entity (entity href width height
-				     &optional caption label category)
-  (let* ((entity-style (assoc entity org-odt-entity-frame-styles))
-	 (entity-frame (apply 'org-odt-format-frame
-			      href width height (nth 2 entity-style))))
-    (if (not (or caption label)) entity-frame
+(defun org-odt-merge-frame-params(default-frame-params user-frame-params)
+  (if (not user-frame-params) default-frame-params
+    (assert (= (length default-frame-params) 3))
+    (assert (= (length user-frame-params) 3))
+    (loop for user-frame-param in user-frame-params
+	  for default-frame-param in default-frame-params
+	  collect (or user-frame-param default-frame-param))))
+
+(defun* org-odt-format-entity (entity href width height
+				      &key caption label category
+				      user-frame-params)
+  (let* ((entity-style (assoc-string entity org-odt-entity-frame-styles t))
+	 default-frame-params frame-params)
+    (cond
+     ((not (or caption label))
+      (setq default-frame-params (nth 2 entity-style))
+      (setq frame-params (org-odt-merge-frame-params
+			  default-frame-params user-frame-params))
+      (apply 'org-odt-format-frame href width height frame-params))
+     (t
+      (setq default-frame-params (nth 3 entity-style))
+      (setq frame-params (org-odt-merge-frame-params
+			  default-frame-params user-frame-params))
       (apply 'org-odt-format-textbox
 	     (org-odt-format-stylized-paragraph
 	      'illustration
-	      (concat entity-frame
-		      (org-odt-format-entity-caption
-		       label caption (or category (nth 1 entity-style)))))
-	     width height (nth 3 entity-style)))))
+	      (concat
+	       (apply 'org-odt-format-frame href width height
+		      (nth 2 entity-style))
+	       (org-odt-format-entity-caption
+		label caption (or category (nth 1 entity-style)))))
+	     width height frame-params)))))
 
 (defvar org-odt-embedded-images-count 0)
 (defun org-odt-copy-image-file (path)
@@ -2002,8 +2110,7 @@ visually."
       (insert "\n</manifest:manifest>"))))
 
 (defun org-odt-update-meta-file (opt-plist)
-  (let ((date (org-odt-iso-date-from-org-timestamp
-	       (plist-get opt-plist :date)))
+  (let ((date (org-odt-format-date (plist-get opt-plist :date)))
 	(author (or (plist-get opt-plist :author) ""))
 	(email (plist-get opt-plist :email))
 	(keywords (plist-get opt-plist :keywords))

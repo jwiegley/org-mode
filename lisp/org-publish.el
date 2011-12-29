@@ -984,7 +984,9 @@ the project."
 	 main last-main letter last-letter file sub link tgext)
     ;; `files' contains the list of relative file names
     (dolist (file files)
-      (setq origfile (substring file 1 -1))
+      (setq origfile
+	    (concat (file-name-directory file)
+		    (substring (file-name-nondirectory file) 1 -1)))
       (setq buf (find-file-noselect file))
       (with-current-buffer buf
 	(goto-char (point-min))
@@ -995,7 +997,7 @@ the project."
       (kill-buffer buf))
     (setq index (sort index (lambda (a b) (string< (downcase (car a))
 						   (downcase (car b))))))
-    (setq ibuffer (find-file-noselect (expand-file-name "theindex.org" directory)))
+    (setq ibuffer (find-file-noselect (expand-file-name "theindex.inc" directory)))
     (with-current-buffer ibuffer
       (erase-buffer)
       (insert "* Index\n")
@@ -1022,7 +1024,16 @@ the project."
 	    (insert "     - " link "\n")
 	  (insert "   - " link "\n")))
       (save-buffer))
-    (kill-buffer ibuffer)))
+    (kill-buffer ibuffer)
+    ;; Create theindex.org if it doesn't exist already
+    (let ((index-file (expand-file-name "theindex.org" directory)))
+      (unless (file-exists-p index-file)
+       (setq ibuffer (find-file-noselect index-file))
+       (with-current-buffer ibuffer
+         (erase-buffer)
+         (insert "\n\n#+include: \"theindex.inc\"\n\n")
+         (save-buffer))
+       (kill-buffer ibuffer)))))
 
 ;; Caching functions:
 
