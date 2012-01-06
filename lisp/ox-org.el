@@ -39,8 +39,8 @@
 
 (defvar org-x-org-dispatchers
   '((applicable-backend . ignore)	; not meaningful
-    (get-identifier	. org-x-get-identifier)
-    (group-identifiers	. org-x-group-identifiers)
+    (get-identifier	. org-x-org-get-identifier)
+    (group-identifiers	. org-x-org-group-identifiers)
     (read-entry		. org-x-parse-entry)
     (write-entry	. org-x-insert-entry)
     (delete-entry	. org-x-delete-entry)
@@ -60,7 +60,7 @@
 
 ;;; Org contextual info:
 
-(defun org-x-get-identifier (entry)
+(defun org-x-org-get-identifier (entry)
   (org-x-getter entry 'org-id))
 
 (defsubst org-x--heading-depth ()
@@ -69,7 +69,7 @@
     (if (let (case-fold-search) (looking-at org-complex-heading-regexp))
 	(length (match-string 1)))))
 
-(defun org-x-group-identifiers ()
+(defun org-x-org-group-identifiers ()
   (save-excursion
     (outline-up-heading 1)
     (outline-next-heading)

@@ -36,6 +36,8 @@
 
 ;;; Customization variables:
 
+(eval-when-compile
+  (defvar org-x-backends))
 (defvar org-x-backends-loaded nil)
 
 (defun org-x-set-backends (var value)
@@ -129,7 +131,7 @@ the majority of dispatch API functions.")
 	   (with-org-x-context (cdr backend)
 	     (apply func args))))))
 
-(defsubst org-x-applicable-backend (backend entry-or-pos)
+(defun org-x-applicable-backend (backend entry-or-pos)
   (org-x-dispatch backend 'applicable-backend entry-or-pos))
 
 (defsubst org-x-get-identifier (backend entry)
@@ -840,6 +842,10 @@ can be passed to org-x-apply-changes."
 
 ;;; Entry updating:
 
+(eval-when-compile
+  (autoload 'org-x-parse-entry "ox-org")
+  (autoload 'org-x-replace-entry "ox-org"))
+
 (defun org-x-pull (&optional changes-too position backends)
   (interactive)
   (let ((entry (org-x-parse-entry position))
@@ -848,16 +854,15 @@ can be passed to org-x-apply-changes."
     (dolist (backend (or backends (org-x-backends position)))
       (let ((ident (org-x-get-identifier backend entry)))
 	(when ident
-	  (if (called-interactively-p)
+	  (if (called-interactively-p 'any)
 	      (message "Reading data from backend %s..."
 		       (org-x-backend-symbol backend)))
 	  (let ((changes (org-x-compare-entries
 			  entry (org-x-read-entry backend ident)
 			  t (not changes-too))))
 	    (when changes
-	      (org-x-apply-changes nil entry changes)
-	      ))
-	  (if (called-interactively-p)
+	      (org-x-apply-changes nil entry changes)))
+	  (if (called-interactively-p 'any)
 	      (message "Pulling data from backend %s...done"
 		       (org-x-backend-symbol backend))))))
     (when all-changes
@@ -872,7 +877,7 @@ can be passed to org-x-apply-changes."
     (dolist (backend (or backends (org-x-backends position)))
       (let ((ident (org-x-get-identifier backend entry)))
 	(when ident
-	  (if (called-interactively-p)
+	  (if (called-interactively-p 'any)
 	      (message "Pushing data to backend %s..."
 		       (org-x-backend-symbol backend)))
 	  (let ((changes (org-x-compare-entries
@@ -882,7 +887,7 @@ can be passed to org-x-apply-changes."
 	      (org-x-apply-changes backend entry changes)
 	      (setq all-changes (cons (cons backend changes)
 				      all-changes))))
-	  (if (called-interactively-p)
+	  (if (called-interactively-p 'any)
 	      (message "Pushing data to backend %s...done"
 		       (org-x-backend-symbol backend))))))
     (cons entry all-changes)))

@@ -96,7 +96,7 @@
      (prin1-to-string data)))))
 
 (defun org-x-decompress-data (str)
-  (read-from-whole-string
+  (read
    (lzw-decompress-string
     (string-as-multibyte
      (base64-decode-string str)))))
