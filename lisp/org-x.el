@@ -196,6 +196,13 @@ the majority of dispatch API functions.")
 
 (defsubst org-x-scheduled (entry) (cdr (assq 'scheduled entry)))
 
+(defun org-x-scheduled-time (entry)
+  (let ((time (cdr (assq 'scheduled-time entry))))
+    (if (null time)
+        nil
+      (assert (stringp time) nil "Org-X log scheduled time must be a string")
+      time)))
+
 (defun org-x-scheduled-repeat (entry)
   (let ((repeat (cdr (assq 'scheduled-repeat entry))))
     (if (null repeat)
@@ -204,6 +211,13 @@ the majority of dispatch API functions.")
       repeat)))
 
 (defsubst org-x-deadline (entry) (cdr (assq 'deadline entry)))
+
+(defun org-x-deadline-time (entry)
+  (let ((time (cdr (assq 'deadline-time entry))))
+    (if (null time)
+        nil
+      (assert (stringp time) nil "Org-X log deadline time must be a string")
+      time)))
 
 (defun org-x-deadline-repeat (entry)
   (let ((repeat (cdr (assq 'deadline-repeat entry))))
@@ -296,6 +310,43 @@ the majority of dispatch API functions.")
 (defsubst org-x-log-is-note (log-entry)
   (cdr (assq 'note log-entry)))
 
+;;; Entry logbook getters:
+
+(defun org-x-logbook-entries (entry)
+  (let ((logbook-entries (cdr (assq 'logbook entry))))
+    (if (null logbook-entries)
+        nil
+      (assert (listp logbook-entries) nil
+	      "Org-X logbook entries must be a list")
+      logbook-entries)))
+
+(defsubst org-x-has-logbook-entry (entry begin)
+  (not (null (assoc begin (org-x-logbook-entries entry)))))
+
+(defsubst org-x-get-logbook-entry (entry begin)
+  (cdr (assoc begin (org-x-logbook-entries entry))))
+
+(defun org-x-logbook-begin (logbook-entry)
+  (let ((begin (cdr (assq 'begin logbook-entry))))
+    (if (null begin)
+        nil
+      (assert (listp begin) nil "Org-X logbook begin must be a time value")
+      begin)))
+
+(defun org-x-logbook-end (logbook-entry)
+  (let ((end (cdr (assq 'end logbook-entry))))
+    (if (null end)
+        nil
+      (assert (listp end) nil "Org-X logbook end must be a time value")
+      end)))
+
+(defun org-x-logbook-duration (logbook-entry)
+  (let ((duration (cdr (assq 'duration logbook-entry))))
+    (if (null duration)
+        nil
+      (assert (stringp duration) nil "Org-X logbook duration must be a string")
+      duration)))
+
 ;;; Entry atttribute setters:
 
 (defun org-x-propagate (entry symbol data)
@@ -332,7 +383,9 @@ the majority of dispatch API functions.")
 
 (defun org-x-set-body (entry body &optional no-overwrite propagate)
   (assert (stringp body) nil "Org-X entry body must be a string")
-  (org-x-setter entry 'body body no-overwrite propagate))
+  (if (and body (> (length body) 0))
+      (org-x-setter entry 'body body no-overwrite propagate)
+    (org-x-clear-body entry propagate)))
 (defun org-x-clear-body (entry &optional propagate)
   (org-x-eraser entry 'body propagate))
 
@@ -360,6 +413,13 @@ the majority of dispatch API functions.")
 (defun org-x-clear-scheduled (entry &optional propagate)
   (org-x-eraser entry 'scheduled propagate))
 
+(defun org-x-set-scheduled-time
+  (entry time &optional no-overwrite propagate)
+  (assert (stringp time) nil "Org-X log scheduled time must be a string")
+  (org-x-setter entry 'scheduled-time time no-overwrite propagate))
+(defun org-x-clear-scheduled-time (entry &optional propagate)
+  (org-x-eraser entry 'scheduled-time propagate))
+
 (defun org-x-set-scheduled-repeat
   (entry repeat &optional no-overwrite propagate)
   (assert (stringp repeat) nil "Org-X log scheduled repeat must be a string")
@@ -371,6 +431,13 @@ the majority of dispatch API functions.")
   (org-x-setter entry 'deadline deadline no-overwrite propagate))
 (defun org-x-clear-deadline (entry &optional propagate)
   (org-x-eraser entry 'deadline propagate))
+
+(defun org-x-set-deadline-time
+  (entry time &optional no-overwrite propagate)
+  (assert (stringp time) nil "Org-X log deadline time must be a string")
+  (org-x-setter entry 'deadline-time time no-overwrite propagate))
+(defun org-x-clear-deadline-time (entry &optional propagate)
+  (org-x-eraser entry 'deadline-time propagate))
 
 (defun org-x-set-deadline-repeat
   (entry repeat &optional no-overwrite propagate)
@@ -500,7 +567,9 @@ the majority of dispatch API functions.")
 
 (defun org-x-log-set-body (log-entry body &optional no-overwrite propagate)
   (assert (stringp body) nil "Org-X log entry body must be a string")
-  (org-x-log-setter log-entry 'body body no-overwrite propagate))
+  (if (and body (> (length body) 0))
+      (org-x-log-setter log-entry 'body body no-overwrite propagate)
+    (org-x-log-clear-body log-entry propagate)))
 (defun org-x-log-clear-body (log-entry &optional propagate)
   (org-x-log-eraser log-entry 'log-clear-body propagate))
 
@@ -557,6 +626,91 @@ the majority of dispatch API functions.")
 (defun org-x-log-clear-is-note-by-timestamp
   (entry timestamp &optional propagate)
   (org-x-log-clear-is-note (org-x-get-log-entry entry timestamp) propagate))
+
+;;; Entry logbook setters:
+
+(defun org-x-add-logbook-entry (entry begin &optional end duration
+				      no-overwrite propagate)
+  (let ((new-logbook (list (cons 'begin begin))))
+    (let* ((logbook-entries (assq 'logbook entry))
+           (logbook (assoc begin (cdr logbook-entries))))
+      (unless (and logbook no-overwrite)
+        (if end      (add-to-list 'new-logbook (cons 'end end)))
+        (if duration (add-to-list 'new-logbook (cons 'duration duration)))
+
+        (if (and logbook logbook-entries)
+            (setcdr logbook-entries (delq logbook (cdr logbook-entries))))
+        (if logbook-entries
+            (setcdr logbook-entries
+                    (cons (cons begin new-logbook)
+                          (cdr logbook-entries)))
+          (nconc entry
+		 (list (cons 'logbook (list (cons begin new-logbook))))))))
+    (if propagate
+        (org-x-propagate entry 'add-logbook-entry (list begin end duration)))
+    new-logbook))
+
+(defun org-x-add-whole-logbook-entry (entry logbook
+					    &optional no-overwrite propagate)
+  (org-x-add-logbook-entry entry (org-x-logbook-begin logbook)
+			   (org-x-logbook-end logbook)
+			   (org-x-logbook-duration logbook)
+			   no-overwrite propagate))
+
+(defun org-x-remove-logbook-entry (entry begin &optional propagate)
+  (let* ((logbook-entries (assq 'logbook entry))
+         (logbook (assoc begin (cdr logbook-entries))))
+    (if (and logbook logbook-entries)
+        (setcdr logbook-entries (delq logbook (cdr logbook-entries)))))
+  (if propagate
+      (org-x-propagate entry 'remove-logbook-entry begin)))
+
+(defun org-x-logbook-setter (logbook-entry symbol data
+					   &optional no-overwrite propagate)
+  (let ((cell (assq symbol logbook-entry)))
+    (if cell
+        (unless (and (cdr cell) no-overwrite)
+          (setcdr cell data))
+      (nconc logbook-entry (list (cons symbol data)))))
+  (if propagate
+      (org-x-propagate logbook-entry
+                       (intern (concat "logbook-set-" (symbol-name symbol)))
+                       data)))
+
+(defun org-x-logbook-eraser (logbook-entry symbol
+					   &optional no-overwrite propagate)
+  (let ((cell (assq symbol logbook-entry)))
+    (unless (and (cdr cell) no-overwrite)
+      (if cell
+          (setcdr logbook-entry (delq cell (cdr logbook-entry))))))
+  (if propagate
+      ;; jww (2011-08-07): Should I propagate logbook-entry changes?
+      (org-x-propagate logbook-entry
+                       (intern (concat "logbook-clear-" (symbol-name symbol)))
+                       nil)))
+
+(defun org-x-logbook-set-begin (logbook-entry begin
+					      &optional no-overwrite propagate)
+  (assert (listp begin) nil "Org-X logbook entry begin must be a time value")
+  (org-x-logbook-setter logbook-entry 'begin begin no-overwrite propagate))
+(defun org-x-logbook-clear-begin (logbook-entry &optional propagate)
+  (org-x-logbook-eraser logbook-entry 'logbook-clear-begin propagate))
+
+(defun org-x-logbook-set-end (logbook-entry end
+					    &optional no-overwrite propagate)
+  (assert (listp end) nil "Org-X logbook entry end must be a time value")
+  (org-x-logbook-setter logbook-entry 'end end no-overwrite propagate))
+(defun org-x-logbook-clear-end (logbook-entry &optional propagate)
+  (org-x-logbook-eraser logbook-entry 'logbook-clear-end propagate))
+
+(defun org-x-logbook-set-duration
+  (logbook-entry duration &optional no-overwrite propagate)
+  (assert (stringp duration) nil
+	  "Org-X logbook entry duration must be a string")
+  (org-x-logbook-setter logbook-entry 'duration duration
+			no-overwrite propagate))
+(defun org-x-logbook-clear-duration (logbook-entry &optional propagate)
+  (org-x-logbook-eraser logbook-entry 'logbook-clear-duration propagate))
 
 ;;; Entry comparison:
 

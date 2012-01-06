@@ -52,6 +52,11 @@
   "If non-nil, priority B is never used since it's the default priority."
   :type 'boolean
   :group 'ox-org)
+
+(defcustom org-x-element-order '(log-entries body logbook properties)
+  "If non-nil, priority B is never used since it's the default priority."
+  :type '(repeat symbol)
+  :group 'ox-org)
 
 ;;; Org contextual info:
 
@@ -85,8 +90,9 @@
 ;;; Org parser:
 
 (defvar org-x-org-repeat-regexp
-  (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [^>\n]*?\\)"
-	  "\\(\\([.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)\\)"))
+  (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [A-Za-z]+\\)"
+	  "\\( [-:0-9]+\\)?"
+	  "\\( [.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)?"))
 
 (defsubst org-x-narrow-to-entry ()
   (outline-back-to-heading)
@@ -107,7 +113,7 @@
 	  (org-x-setter entry 'org-id (point-marker)))
 	(org-x-narrow-to-entry)
 
-	(let (log-entry body)
+	(let (log-entry body main-body)
 	  (while (not (eobp))
 	    (cond
 	     ((looking-at (concat "^\\(\\*+\\)\\( \\([A-Z][A-Z]+\\)\\)?"
@@ -145,7 +151,9 @@
 					 nil nil
 					 (match-string-no-properties 2)
 					 (and (match-string-no-properties 3)
-					      (match-string-no-properties 4)))))
+					      (match-string-no-properties 4))))
+	      (unless (match-string 6)
+		(setq log-entry nil)))
 
 	     ((looking-at (concat "^\\(\\s-*\\)- Note taken on\\s-*"
 				  "\\[\\([^]]+\\)\\]"
@@ -159,7 +167,9 @@
 						(save-match-data
 						  (org-parse-time-string
 						   (match-string 2))))
-					 nil t)))
+					 nil t))
+	      (unless (match-string 3)
+		(setq log-entry nil)))
 
 	     ((re-search-forward ":PROPERTIES:" (line-end-position) t)
 	      (while (not (re-search-forward ":END:" (line-end-position) t))
@@ -168,6 +178,23 @@
 		    (let ((name (match-string-no-properties 1))
 			  (data (match-string-no-properties 2)))
 		      (org-x-set-property entry name data)))
+		(forward-line)))
+
+	     ((re-search-forward ":LOGBOOK:" (line-end-position) t)
+	      (while (not (re-search-forward ":END:" (line-end-position) t))
+		(assert (not (eobp)))
+		(if (looking-at (concat "^\\s-*CLOCK:\\s-+\\[\\([^]]+\\)\\]"
+					"\\(--\\[\\([^]]+\\)\\]\\s-+=>\\s-+"
+					"\\([-:0-9]+\\)\\)?"))
+		    (let ((start (save-match-data
+				   (org-time-string-to-time (match-string 1))))
+			  (end
+			   (and (match-string 3)
+				(save-match-data
+				  (org-time-string-to-time (match-string 3)))))
+			  (duration (and (match-string 4)
+					 (match-string-no-properties 4))))
+		      (org-x-add-logbook-entry entry start end duration)))
 		(forward-line)))
 
 	     ;; An old way of timestamping entries
@@ -189,8 +216,11 @@
 						(org-parse-time-string
 						 (match-string 1)))))
 		  (if (match-string 2)
+		      (org-x-set-scheduled-time
+		       entry (substring (match-string-no-properties 2) 1)))
+		  (if (match-string 3)
 		      (org-x-set-scheduled-repeat
-		       entry (match-string-no-properties 2)))
+		       entry (substring (match-string-no-properties 3) 1)))
 		  (setq skip-line t))
 
 		(goto-char (line-beginning-position))
@@ -203,8 +233,11 @@
 					       (org-parse-time-string
 						(match-string 1)))))
 		  (if (match-string 2)
-		      (org-x-set-deadline-repeat
+		      (org-x-set-deadline-time
 		       entry (match-string-no-properties 2)))
+		  (if (match-string 3)
+		      (org-x-set-deadline-repeat
+		       entry (match-string-no-properties 3)))
 		  (setq skip-line t))
 
 		(goto-char (line-beginning-position))
@@ -238,17 +271,22 @@
 		      (org-x-log-set-body log-entry (trim-string body))
 		      (setq log-entry nil body nil)))))
 
-	      (setq body (concat body "\n"
-				 (buffer-substring-no-properties
-				  (point) (line-end-position))))))
+	      (let ((line
+		     (buffer-substring-no-properties (point)
+						     (line-end-position)))
+		    (var (if log-entry 'body 'main-body)))
+		(if (symbol-value var)
+		    (set var (concat (symbol-value var) "\n" line))
+		  (set var line)))))
+
 	    (forward-line))
 
 	  (when (and log-entry body)
 	    (org-x-log-set-body log-entry body)
 	    (setq log-entry nil body nil))
 
-	  (if body
-	      (org-x-set-body entry (trim-string body)))
+	  (if main-body
+	      (org-x-set-body entry (trim-string main-body)))
 
 	  (save-restriction
 	    (save-excursion
@@ -294,14 +332,19 @@
     (insert ?\n)
 
     (let ((scheduled (org-x-scheduled entry))
+	  (scheduled-time (org-x-scheduled-time entry))
 	  (scheduled-repeat (org-x-scheduled-repeat entry))
 	  (deadline (org-x-deadline entry))
+	  (deadline-time (org-x-deadline-time entry))
 	  (deadline-repeat (org-x-deadline-repeat entry)))
       (when (or scheduled deadline)
-	(insert (make-string (1+ depth) ? ))
+	(if org-adapt-indentation
+	    (insert (make-string (1+ depth) ? )))
 
 	(when scheduled
 	  (insert "SCHEDULED: <" (time-to-org-timestamp scheduled))
+	  (if scheduled-time
+	      (insert " " scheduled-time))
 	  (if scheduled-repeat
 	      (insert " " scheduled-repeat))
 	  (insert ">"))
@@ -310,54 +353,99 @@
 	  (if scheduled
 	      (insert ? ))
 	  (insert "DEADLINE: <" (time-to-org-timestamp deadline))
+	  (if deadline-time
+	      (insert " " deadline-time))
 	  (if deadline-repeat
 	      (insert " " deadline-repeat))
 	  (insert ">"))
 
 	(insert ?\n)))
 
-    (let ((log-entries (org-x-log-entries entry)))
-      (dolist (log log-entries)
-	(setq log (cdr log))
+    (dolist (element-type org-x-element-order)
+      (cond
+       ((eq element-type 'log-entries)
+	(let ((log-entries
+	       (sort (org-x-log-entries entry)
+		     #'(lambda (a b)
+			 (not (time-less-p (org-x-log-timestamp a)
+					   (org-x-log-timestamp b)))))))
+	  (dolist (log log-entries)
+	    (setq log (cdr log))
 
-	(let ((to-state (org-x-log-to-state log)))
-	  (insert (make-string (1+ depth) ? ))
+	    (let ((to-state (org-x-log-to-state log)))
+	      (if org-adapt-indentation
+		  (insert (make-string (1+ depth) ? )))
 
-	  (cond
-	   ((org-x-log-is-note log)
-	    (insert "- Note taken on ["
-		    (time-to-org-timestamp (org-x-log-timestamp log) t) "]"))
-	   ((org-x-log-from-state log)
-	    (insert (format "- State %-12s from %-12s [%s]"
-			    (concat "\"" to-state "\"")
-			    (concat "\"" (org-x-log-from-state log) "\"")
-			    (time-to-org-timestamp (org-x-log-timestamp log) t))))
-	   (t
-	    (insert (format "- State %-12s [%s]"
-			    (concat "\"" to-state "\"")
-			    (time-to-org-timestamp (org-x-log-timestamp log) t)))))
+	      (cond
+	       ((org-x-log-is-note log)
+		(insert "- Note taken on ["
+			(time-to-org-timestamp (org-x-log-timestamp log) t)
+			"]"))
+	       ((org-x-log-from-state log)
+		(insert
+		 (format "- State %-12s from %-12s [%s]"
+			 (concat "\"" to-state "\"")
+			 (concat "\"" (org-x-log-from-state log) "\"")
+			 (time-to-org-timestamp (org-x-log-timestamp log) t))))
+	       (t
+		(insert
+		 (format "- State %-12s [%s]"
+			 (concat "\"" to-state "\"")
+			 (time-to-org-timestamp (org-x-log-timestamp log) t)))))
 
-	  (let ((body (org-x-log-body log)))
-	    (if body
-		(progn
-		  (insert " \\\\\n")
-		  (dolist (line (split-string body "\n"))
-		    (insert (make-string (+ 3 depth) ? ) line ?\n)))
-	      (insert ?\n))))))
+	      (let ((body (org-x-log-body log)))
+		(if body
+		    (progn
+		      (insert " \\\\\n")
+		      (dolist (line (split-string body "\n"))
+			(let ((depth (if org-adapt-indentation depth -1)))
+			  (insert (make-string (+ 3 depth) ? ) line ?\n))))
+		  (insert ?\n)))))))
+       
+       ((eq element-type 'body)
+	(let ((body (org-x-body entry)))
+	  (if body
+	      (dolist (line (split-string body "\n"))
+		(if org-adapt-indentation
+		    (insert (make-string (1+ depth) ? )))
+		(insert line ?\n)))))
 
-    (let ((body (org-x-body entry)))
-      (if body
-	  (dolist (line (split-string body "\n"))
-	    (insert (make-string (1+ depth) ? ) line ?\n))))
+       ((eq element-type 'logbook)
+	(let ((logbook (org-x-logbook-entries entry)))
+	  (when logbook
+	    (if org-adapt-indentation
+		(insert (make-string (1+ depth) ? )))
+	    (insert ":LOGBOOK:\n")
+	    (dolist (entry logbook)
+	      (if org-adapt-indentation
+		  (insert (make-string (1+ depth) ? )))
+	      (let ((begin (org-x-logbook-begin entry))
+		    (end (org-x-logbook-end entry)))
+		(insert (format "CLOCK: [%s]"
+				(time-to-org-timestamp begin t t)))
+		(if end
+		    (insert (format "--[%s] => %4s"
+				    (time-to-org-timestamp end t t)
+				    (org-x-logbook-duration entry))))
+		(insert ?\n)))
+	    (if org-adapt-indentation
+		(insert (make-string (1+ depth) ? )))
+	    (insert ":END:\n"))))
 
-    (let ((props (org-x-properties entry)))
-      (when props
-	(insert (make-string (1+ depth) ? ) ":PROPERTIES:\n")
-	(dolist (prop props)
-	  (insert (make-string (1+ depth) ? )
-		  (format "%-10s %s\n"
-			  (concat ":" (car prop) ":") (cdr prop))))
-	(insert (make-string (1+ depth) ? ) ":END:\n")))
+       ((eq element-type 'properties)
+	(let ((props (org-x-properties entry)))
+	  (when props
+	    (if org-adapt-indentation
+		(insert (make-string (1+ depth) ? )))
+	    (insert ":PROPERTIES:\n")
+	    (dolist (prop props)
+	      (if org-adapt-indentation
+		  (insert (make-string (1+ depth) ? )))
+	      (insert (format "%-10s %s\n"
+			      (concat ":" (car prop) ":") (cdr prop))))
+	    (if org-adapt-indentation
+		(insert (make-string (1+ depth) ? )))
+	    (insert ":END:\n"))))))
 
     (outline-back-to-heading)
     (org-set-tags t)))
@@ -379,6 +467,8 @@
 (defun org-x-normalize-entry ()
   (interactive)
   (org-x-replace-entry (org-x-parse-entry)))
+
+(defalias 'org-normalize 'org-x-normalize-entry)
 
 (defun org-x-normalize-all-entries ()
   (interactive)
