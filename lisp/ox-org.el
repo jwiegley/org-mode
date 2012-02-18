@@ -91,8 +91,7 @@
 
 (defvar org-x-org-repeat-regexp
   (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [A-Za-z]+\\)"
-	  "\\( [-:0-9]+\\)?"
-	  "\\( [.+]?\\+[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)?"))
+	  "\\s-*\\(\\.?[-+]?[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)?"))
 
 (defsubst org-x-narrow-to-entry ()
   (outline-back-to-heading)
@@ -411,7 +410,11 @@
 		(insert line ?\n)))))
 
        ((eq element-type 'logbook)
-	(let ((logbook (org-x-logbook-entries entry)))
+	(let ((logbook
+	       (sort (org-x-logbook-entries entry)
+		     #'(lambda (a b)
+			 (not (time-less-p (org-x-logbook-begin a)
+					   (org-x-logbook-end b)))))))
 	  (when logbook
 	    (if org-adapt-indentation
 		(insert (make-string (1+ depth) ? )))
