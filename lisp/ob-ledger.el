@@ -1,6 +1,6 @@
 ;;; ob-ledger.el --- org-babel functions for ledger evaluation
 
-;; Copyright (C) 2010-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2010-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric S Fraga
 ;; Keywords: literate programming, reproducible research, accounting
@@ -29,7 +29,7 @@
 ;;
 ;; 1) there is no such thing as a "session" in ledger
 ;;
-;; 2) we are generally only going to return output from the leger program
+;; 2) we are generally only going to return output from the ledger program
 ;;
 ;; 3) we are adding the "cmdline" header argument
 ;;

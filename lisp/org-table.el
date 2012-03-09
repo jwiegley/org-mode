@@ -1,6 +1,6 @@
 ;;; org-table.el --- The table editor for Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -50,7 +50,7 @@
 (defvar orgtbl-after-send-table-hook nil
   "Hook for functions attaching to `C-c C-c', if the table is sent.
 This can be used to add additional functionality after the table is sent
-to the receiver position, othewise, if table is not sent, the functions
+to the receiver position, otherwise, if table is not sent, the functions
 are not run.")
 
 (defcustom orgtbl-optimized (eq org-enable-table-editor 'optimized)
@@ -169,11 +169,13 @@ window configuration, it is not recommended to set this variable to nil,
 except maybe locally in a special file that has mostly tables with long
 fields."
   :group 'org-table
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-table-fix-formulas-confirm nil
   "Whether the user should confirm when Org fixes formulas."
   :group 'org-table-editing
+  :version "24.1"
   :type '(choice
 	  (const :tag "with yes-or-no" yes-or-no-p)
 	  (const :tag "with y-or-n" y-or-n-p)
@@ -236,6 +238,7 @@ number of hours.  Other allowed values are 'seconds, 'minutes and
 'days, and the output will be a fraction of seconds, minutes or
 days."
   :group 'org-table-calculation
+  :version "24.1"
   :type '(choice (symbol :tag "Seconds" 'seconds)
 		 (symbol :tag "Minutes" 'minutes)
 		 (symbol :tag "Hours  " 'hours)
@@ -247,6 +250,7 @@ For example, using \"~%s~\" will display the result within tilde
 characters.  Beware that modifying the display can prevent the
 field from being used in another formula."
   :group 'org-table-settings
+  :version "24.1"
   :type 'string)
 
 (defcustom org-table-formula-evaluate-inline t
@@ -1299,7 +1303,7 @@ However, when FORCE is non-nil, create new columns if necessary."
 (defun org-table-line-to-dline (line &optional above)
   "Turn a buffer line number into a data line number.
 If there is no data line in this line, return nil.
-If there is no matchin dline (most likely te refrence was a hline), the
+If there is no matching dline (most likely te reference was a hline), the
 first dline below it is used.  When ABOVE is non-nil, the one above is used."
   (catch 'exit
     (let ((ll (length org-table-dlines))
@@ -2436,7 +2440,7 @@ not overwrite the stored one."
 	   (modes (copy-sequence org-calc-default-modes))
 	   (numbers nil) ; was a variable, now fixed default
 	   (keep-empty nil)
-	   n form form0 formrpl formrg bw fmt x ev orig c lispp literal 
+	   n form form0 formrpl formrg bw fmt x ev orig c lispp literal
 	   duration duration-output-format)
       ;; Parse the format string.  Since we have a lot of modes, this is
       ;; a lot of work.  However, I think calc still uses most of the time.
@@ -2461,7 +2465,7 @@ not overwrite the stored one."
 		      duration-output-format nil
 		      fmt (replace-match "" t t fmt)))
 	    (if (string-match "t" fmt)
-		(setq duration t 
+		(setq duration t
 		      duration-output-format org-table-duration-custom-format
 		      numbers t
 		      fmt (replace-match "" t t fmt)))
@@ -2529,7 +2533,7 @@ not overwrite the stored one."
 	;; Insert complex ranges
 	(while (and (string-match org-table-range-regexp form)
 		    (> (length (match-string 0 form)) 1))
-	  (setq formrg (save-match-data 
+	  (setq formrg (save-match-data
 			 (org-table-get-range (match-string 0 form) nil n0)))
 	  (setq formrpl
 		(save-match-data
@@ -2671,7 +2675,7 @@ in the buffer and column1 and column2 are table column numbers."
 	    (prog1 (org-trim (org-table-get-field c1))
 	      (if highlight (org-table-highlight-rectangle (point) (point)))))
 	;; A range, return a vector
-	;; First sort the numbers to get a regular ractangle
+	;; First sort the numbers to get a regular rectangle
 	(if (< r2 r1) (setq tmp r1 r1 r2 r2 tmp))
 	(if (< c2 c1) (setq tmp c1 c1 c2 c2 tmp))
 	(if corners-only
@@ -2931,7 +2935,7 @@ known that the table will be realigned a little later anyway."
 
 (defun org-table-iterate (&optional arg)
   "Recalculate the table until it does not change anymore.
-The maximun number of iterations is 10, but you can chose a different value
+The maximun number of iterations is 10, but you can choose a different value
 with the prefix ARG."
   (interactive "P")
   (let ((imax (if arg (prefix-numeric-value arg) 10))
@@ -3019,7 +3023,7 @@ them to individual field equations for each field."
 So @< and $< will always be replaced with @1 and $1, respectively.
 The advantage of these special markers are that structure editing of
 the table will not change them, while @1 and $1 will be modified
-when a line/row is swaped out of that privileged position.  So for
+when a line/row is swapped out of that privileged position.  So for
 formulas that use a range of rows or columns, it may often be better
 to anchor the formula with \"I\" row markers, or to offset from the
 borders of the table using the @< @> $< $> makers."
@@ -4759,4 +4763,3 @@ list of the fields in the rectangle ."
 (provide 'org-table)
 
 ;;; org-table.el ends here
-

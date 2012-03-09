@@ -1,6 +1,6 @@
 ;;; org-mime.el --- org html export for text/html MIME emails
 
-;; Copyright (C) 2010-2011 Eric Schulte
+;; Copyright (C) 2010-2012 Eric Schulte
 
 ;; Author: Eric Schulte
 ;; Keywords: mime, mail, email, html
@@ -43,13 +43,13 @@
 ;;
 ;; you might want to bind this to a key with something like the
 ;; following message-mode binding
-;; 
+;;
 ;;   (add-hook 'message-mode-hook
 ;;             (lambda ()
 ;;               (local-set-key "\C-c\M-o" 'org-mime-htmlize)))
 ;;
 ;; and the following org-mode binding
-;; 
+;;
 ;;   (add-hook 'org-mode-hook
 ;;             (lambda ()
 ;;               (local-set-key "\C-c\M-o" 'org-mime-org-buffer-htmlize)))
