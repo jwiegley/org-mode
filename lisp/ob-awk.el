@@ -1,6 +1,6 @@
 ;;; ob-awk.el --- org-babel functions for awk evaluation
 
-;; Copyright (C) 2011  Free Software Foundation, Inc.
+;; Copyright (C) 2011-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -24,9 +24,9 @@
 ;;; Commentary:
 
 ;; Babel's awk can use special header argument:
-;; 
+;;
 ;; - :in-file takes a path to a file of data to be processed by awk
-;;   
+;;
 ;; - :stdin takes an Org-mode data or code block reference, the value
 ;;          of which will be passed to the awk process through STDIN
 

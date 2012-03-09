@@ -1,6 +1,6 @@
 ;;; ob-R.el --- org-babel functions for R code evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;;	Dan Davison
@@ -279,7 +279,8 @@ last statement in BODY, as elisp."
      (with-temp-buffer
        (insert (org-babel-chomp body))
        (let ((ess-local-process-name
-	      (process-name (get-buffer-process session))))
+	      (process-name (get-buffer-process session)))
+	     (ess-eval-visibly-p nil))
 	 (ess-eval-buffer nil)))
      (let ((tmp-file (org-babel-temp-file "R-")))
        (org-babel-comint-eval-invisibly-and-wait-for-file

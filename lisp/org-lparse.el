@@ -1,13 +1,12 @@
 ;;; org-lparse.el --- Line-oriented parser-exporter for Org-mode
 
-;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2012 Free Software Foundation, Inc.
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;;
-;; This file is not (yet) part of GNU Emacs.
-;; However, it is distributed under the same license.
+
+;; This file is part of GNU Emacs.
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -21,8 +20,7 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
+
 ;;; Commentary:
 
 ;; `org-lparse' is the entry point for the generic line-oriented
@@ -44,9 +42,6 @@
 ;; The new interactive command `org-lparse-convert' can be used to
 ;; convert documents between various formats.  Use this to command,
 ;; for example, to convert odt file to doc or pdf format.
-
-;; See README.org file that comes with this library for answers to
-;; FAQs and more information on using this library.
 
 ;;; Code:
 (eval-when-compile
@@ -489,37 +484,33 @@ This is a helper routine for interactive use."
 		  (error "Cannot convert from %s format to %s format?"
 			 in-fmt out-fmt)))
 	 (convert-process (car how))
-	 (program (car convert-process))
-	 (dummy (and (or program (error "Converter not configured"))
-		     (or (executable-find program)
-			 (error "Cannot find converter %s" program))))
 	 (out-file (concat (file-name-sans-extension in-file) "."
 			   (nth 1 (or (cdr how) out-fmt))))
+	 (extra-options (or (nth 2 (cdr how)) ""))
 	 (out-dir (file-name-directory in-file))
-	 (arglist (mapcar (lambda (arg)
-			    (format-spec
-			     arg `((?i . ,in-file)
-				   (?I . ,(browse-url-file-url in-file))
-				   (?f . ,out-fmt)
-				   (?o . ,out-file)
-				   (?O . ,(browse-url-file-url out-file))
-				   (?d . ,out-dir)
-				   (?D . ,(browse-url-file-url out-dir)))))
-			  (cdr convert-process))))
+	 (cmd (format-spec convert-process
+			   `((?i . ,(shell-quote-argument in-file))
+			     (?I . ,(browse-url-file-url in-file))
+			     (?f . ,out-fmt)
+			     (?o . ,out-file)
+			     (?O . ,(browse-url-file-url out-file))
+			     (?d . , (shell-quote-argument out-dir))
+			     (?D . ,(browse-url-file-url out-dir))
+			     (?x . ,extra-options)))))
     (when (file-exists-p out-file)
       (delete-file out-file))
 
-    (message "Executing %s %s" program (mapconcat 'identity arglist " "))
-    (apply 'call-process program nil nil nil arglist)
+    (message "Executing %s" cmd)
+    (let ((cmd-output (shell-command-to-string cmd)))
+      (message "%s" cmd-output))
+
     (cond
      ((file-exists-p out-file)
-      (message "Exported to %s using %s" out-file program)
+      (message "Exported to %s" out-file)
       (when prefix-arg
 	(message "Opening %s..."  out-file)
 	(org-open-file out-file))
-      out-file
-      ;; (set-buffer (find-file-noselect out-file))
-      )
+      out-file)
      (t
       (message "Export to %s failed" out-file)
       nil))))
@@ -603,11 +594,7 @@ version."
 	 (org-lparse-par-open-stashed 0)
 
 	 ;; list related vars
-	 (org-lparse-list-level 0)	; list level starts at 1. A
-					; value of 0 implies we are
-					; outside of any list
-	 (org-lparse-list-item-count 0)
-	 org-lparse-list-stack
+	 (org-lparse-list-stack '())
 
 	 ;; list-table related vars
 	 org-lparse-list-table-p
@@ -859,7 +846,7 @@ version."
 	    (throw 'nextline nil))
 
 	  ;; Notes: The baseline version of org-html.el (git commit
-	  ;; 3d802e), while encoutering a *line-long* protected text,
+	  ;; 3d802e), while encountering a *line-long* protected text,
 	  ;; does one of the following two things based on the state
 	  ;; of the export buffer.
 
@@ -874,10 +861,10 @@ version."
 	  ;; I think --->
 
 	  ;; Scenario 1 mentioned above kicks in when a block of
-	  ;; protected text has to be inserted enbloc. For example,
+	  ;; protected text has to be inserted en bloc. For example,
 	  ;; this happens, when inserting an source or example block
 	  ;; or preformatted content enclosed in #+backend,
-	  ;; #+begin_bakend ... #+end_backend)
+	  ;; #+begin_backend ... #+end_backend)
 
 	  ;; Scenario 2 mentioned above kicks in when the protected
 	  ;; text is part of a running sentence. For example this
@@ -1086,10 +1073,11 @@ version."
 		    table-buffer (nreverse table-buffer)
 		    table-orig-buffer (nreverse table-orig-buffer))
 	      (org-lparse-end-paragraph)
+	      (when org-lparse-list-table-p
+		(error "Regular tables are not allowed in a list-table block"))
 	      (org-lparse-insert 'TABLE table-buffer table-orig-buffer)))
 
 	   ;; Normal lines
-
 	   (t
 	    ;; This line either is list item or end a list.
 	    (when (get-text-property 0 'list-item line)
@@ -1194,7 +1182,7 @@ version."
        (t (current-buffer))))))
 
 (defun org-lparse-format-table (lines olines)
-  "Retuns backend-specific code for org-type and table-type tables."
+  "Returns backend-specific code for org-type and table-type tables."
   (if (stringp lines)
       (setq lines (org-split-string lines "\n")))
   (if (string-match "^[ \t]*|" (car lines))
@@ -1825,6 +1813,12 @@ Stripping happens only when the exported backend is not one of
   (org-lparse-end 'FOOTNOTE-DEFINITION n)
   (setq org-lparse-insert-tag-with-newlines 'both)
   (let ((footnote-def (org-lparse-end-collect)))
+    ;; Cleanup newlines in footnote definition.  This ensures that a
+    ;; transcoded line is never (wrongly) broken in to multiple lines.
+    (let ((pos 0))
+      (while (string-match "[\r\n]+" footnote-def pos)
+	(setq pos (1+ (match-beginning 0)))
+	(setq footnote-def (replace-match " " t t footnote-def))))
     (push (cons n footnote-def) org-lparse-footnote-definitions)))
 
 (defvar org-lparse-collect-buffer nil
@@ -2109,8 +2103,6 @@ When TITLE is nil, just close all open levels."
 		      ("d" . description)))))
 
 ;; following vars are bound during `org-do-lparse'
-(defvar org-lparse-list-level)
-(defvar org-lparse-list-item-count)
 (defvar org-lparse-list-stack)
 (defvar org-lparse-list-table:table-row)
 (defvar org-lparse-list-table:lines)
@@ -2152,73 +2144,69 @@ When TITLE is nil, just close all open levels."
 ;; https://lists.gnu.org/archive/html/emacs-orgmode/2011-03/msg01101.html
 
 (defun org-lparse-begin-list (ltype)
-  (incf org-lparse-list-level)
-  (push org-lparse-list-item-count org-lparse-list-stack)
-  (setq org-lparse-list-item-count 0)
-  (cond
-   ((not org-lparse-list-table-p)
-    (org-lparse-begin 'LIST ltype))
-   ;; process LIST-TABLE
-   ((= 1 org-lparse-list-level)
-    ;; begin LIST-TABLE
-    (setq org-lparse-list-table:lines nil)
-    (setq org-lparse-list-table:table-row nil))
-   ((= 2 org-lparse-list-level)
-    (ignore))
-   (t
-    (org-lparse-begin 'LIST ltype))))
+  (push ltype org-lparse-list-stack)
+  (let ((list-level (length org-lparse-list-stack)))
+    (cond
+     ((not org-lparse-list-table-p)
+      (org-lparse-begin 'LIST ltype))
+     ;; process LIST-TABLE
+     ((= 1 list-level)
+      ;; begin LIST-TABLE
+      (setq org-lparse-list-table:lines nil)
+      (setq org-lparse-list-table:table-row nil))
+     ((= 2 list-level)
+      (ignore))
+     (t
+      (org-lparse-begin 'LIST ltype)))))
 
 (defun org-lparse-end-list (ltype)
-  (setq org-lparse-list-item-count (pop org-lparse-list-stack))
-  (decf org-lparse-list-level)
-  (cond
-   ((not org-lparse-list-table-p)
-    (org-lparse-end 'LIST ltype))
-   ;; process LIST-TABLE
-   ((= 0 org-lparse-list-level)
-    ;; end LIST-TABLE
-    (insert (org-lparse-format-list-table
-	     (nreverse org-lparse-list-table:lines))))
-   ((= 1 org-lparse-list-level)
-    (ignore))
-   (t
-    (org-lparse-end 'LIST ltype))))
+  (pop org-lparse-list-stack)
+  (let ((list-level (length org-lparse-list-stack)))
+    (cond
+     ((not org-lparse-list-table-p)
+      (org-lparse-end 'LIST ltype))
+     ;; process LIST-TABLE
+     ((= 0 list-level)
+      ;; end LIST-TABLE
+      (insert (org-lparse-format-list-table
+	       (nreverse org-lparse-list-table:lines))))
+     ((= 1 list-level)
+      (ignore))
+     (t
+      (org-lparse-end 'LIST ltype)))))
 
 (defun org-lparse-begin-list-item (ltype &optional arg headline)
-  (incf org-lparse-list-item-count)
-  (cond
-   ((not org-lparse-list-table-p)
-    (org-lparse-begin 'LIST-ITEM ltype arg headline))
-   ;; process LIST-TABLE
-   ((and (= 1 org-lparse-list-level)
-	 (= 1 org-lparse-list-item-count))
-    ;; begin TABLE-ROW for LIST-TABLE
-    (setq org-lparse-list-table:table-row nil)
-    (org-lparse-begin-list-table:table-cell))
-   ((and (= 2 org-lparse-list-level)
-	 (= 1 org-lparse-list-item-count))
-    ;; begin TABLE-CELL for LIST-TABLE
-    (org-lparse-begin-list-table:table-cell))
-   (t
-    (org-lparse-begin 'LIST-ITEM ltype arg headline))))
+  (let ((list-level (length org-lparse-list-stack)))
+    (cond
+     ((not org-lparse-list-table-p)
+      (org-lparse-begin 'LIST-ITEM ltype arg headline))
+     ;; process LIST-TABLE
+     ((= 1 list-level)
+      ;; begin TABLE-ROW for LIST-TABLE
+      (setq org-lparse-list-table:table-row nil)
+      (org-lparse-begin-list-table:table-cell))
+     ((= 2 list-level)
+      ;; begin TABLE-CELL for LIST-TABLE
+      (org-lparse-begin-list-table:table-cell))
+     (t
+      (org-lparse-begin 'LIST-ITEM ltype arg headline)))))
 
 (defun org-lparse-end-list-item (ltype)
-  (decf org-lparse-list-item-count)
-  (cond
-   ((not org-lparse-list-table-p)
-    (org-lparse-end 'LIST-ITEM ltype))
-   ;; process LIST-TABLE
-   ((and (= 1 org-lparse-list-level)
-	 (= 0 org-lparse-list-item-count))
-    ;; end TABLE-ROW for LIST-TABLE
-    (org-lparse-end-list-table:table-cell)
-    (push (nreverse org-lparse-list-table:table-row)
-	  org-lparse-list-table:lines))
-   ((= 2 org-lparse-list-level)
-    ;; end TABLE-CELL for LIST-TABLE
-    (org-lparse-end-list-table:table-cell))
-   (t
-    (org-lparse-end 'LIST-ITEM ltype))))
+  (let ((list-level (length org-lparse-list-stack)))
+    (cond
+     ((not org-lparse-list-table-p)
+      (org-lparse-end 'LIST-ITEM ltype))
+     ;; process LIST-TABLE
+     ((= 1 list-level)
+      ;; end TABLE-ROW for LIST-TABLE
+      (org-lparse-end-list-table:table-cell)
+      (push (nreverse org-lparse-list-table:table-row)
+	    org-lparse-list-table:lines))
+     ((= 2 list-level)
+      ;; end TABLE-CELL for LIST-TABLE
+      (org-lparse-end-list-table:table-cell))
+     (t
+      (org-lparse-end 'LIST-ITEM ltype)))))
 
 (defvar org-lparse-list-table:table-cell-open)
 (defun org-lparse-begin-list-table:table-cell ()

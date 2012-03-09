@@ -1,6 +1,6 @@
 ;;; org-exp.el --- ASCII, HTML, XOXO and iCalendar export for Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -98,6 +98,7 @@ is nil, the buffer remains buried also in these cases."
 This applied to the commands `org-export-as-html-and-open' and
 `org-export-as-pdf-and-open'."
   :group 'org-export-general
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-export-run-in-background nil
@@ -120,6 +121,7 @@ force an export command into the current process."
   "The initial scope when exporting with `org-export'.
 This variable can be either set to 'buffer or 'subtree."
   :group 'org-export-general
+  :version "24.1"
   :type '(choice
 	  (const :tag "Export current buffer" 'buffer)
 	  (const :tag "Export current subtree" 'subtree)))
@@ -217,6 +219,12 @@ and in `org-clock-clocktable-language-setup'."
   :group 'org-export-general
   :type 'string)
 
+(defcustom org-export-date-timestamp-format "%Y-%m-%d"
+  "Time string format for Org timestamps in the #+DATE option."
+  :group 'org-export-general
+  :version "24.1"
+  :type 'string)
+
 (defvar org-export-page-description ""
   "The page description, for the XHTML meta tag.
 This is best set with the #+DESCRIPTION line in a file, it does not make
@@ -312,6 +320,7 @@ done                 include only tasks that are already done.
 nil                  remove all tasks before export
 list of TODO kwds    keep only tasks with these keywords"
   :group 'org-export-general
+  :version "24.1"
   :type '(choice
 	  (const :tag "All tasks" t)
 	  (const :tag "No tasks" nil)
@@ -362,6 +371,7 @@ e.g. \"author:nil\"."
 This option can also be set with the +OPTIONS line,
 e.g. \"email:t\"."
   :group 'org-export-general
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-export-creator-info t
@@ -589,6 +599,7 @@ the values of constants may be useful to have."
 This is the global equivalent of the :remove-nil-lines option
 when locally sending a table with #+ORGTBL."
   :group 'org-export-tables
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-export-prefer-native-exporter-for-tables nil
@@ -726,6 +737,7 @@ must accept the property list as an argument, and must return the (possibly
 modified) list.")
 
 ;; FIXME: should we fold case here?
+
 (defun org-infile-export-plist ()
   "Return the property list with file-local settings for export."
   (save-excursion
@@ -759,7 +771,15 @@ modified) list.")
 	   ((string-equal key "TITLE") (setq p (plist-put p :title val)))
 	   ((string-equal key "AUTHOR")(setq p (plist-put p :author val)))
 	   ((string-equal key "EMAIL") (setq p (plist-put p :email val)))
-	   ((string-equal key "DATE") (setq p (plist-put p :date val)))
+	   ((string-equal key "DATE")
+	    ;; If date is an Org timestamp, convert it to a time
+	    ;; string using `org-export-date-timestamp-format'
+	    (when (string-match org-ts-regexp3 val)
+	      (setq val (format-time-string
+			 org-export-date-timestamp-format
+			 (apply 'encode-time (org-parse-time-string
+					      (match-string 0 val))))))
+	    (setq p (plist-put p :date val)))
 	   ((string-equal key "KEYWORDS") (setq p (plist-put p :keywords val)))
 	   ((string-equal key "DESCRIPTION")
 	    (setq p (plist-put p :description val)))
@@ -1416,7 +1436,7 @@ the current file."
 		   (setq found (condition-case nil (org-link-search link)
 				 (error nil)))
 		   (when (and found
-			      (or (org-on-heading-p)
+			      (or (org-at-heading-p)
 				  (not (eq found 'dedicated))))
 		     (or (get-text-property (point) 'target)
 			 (get-text-property
@@ -1527,7 +1547,7 @@ removed as well."
       (setq beg (point))
       (put-text-property beg (point-max) :org-delete t)
       (while (re-search-forward re-sel nil t)
-	(when (org-on-heading-p)
+	(when (org-at-heading-p)
 	  (org-back-to-heading)
 	  (remove-text-properties
 	   (max (1- (point)) (point-min))
@@ -1597,7 +1617,7 @@ from the buffer."
     (when (not (eq export-archived-trees t))
       (goto-char (point-min))
       (while (re-search-forward re-archive nil t)
-	(if (not (org-on-heading-p t))
+	(if (not (org-at-heading-p t))
 	    (goto-char (point-at-eol))
 	  (beginning-of-line 1)
 	  (setq a (if export-archived-trees
@@ -1716,10 +1736,11 @@ from the buffer."
 					":[ \t]*\\(.*\\)") nil t)
 	(if (not (eq backend org-export-current-backend))
 	    (delete-region (point-at-bol) (min (1+ (point-at-eol)) (point-max)))
-	  (replace-match "\\1\\2" t)
-	  (add-text-properties
-	   (point-at-bol) (min (1+ (point-at-eol)) (point-max))
-	   `(org-protected t original-indentation ,ind org-native-text t))))
+	  (let ((ind (get-text-property (point-at-bol) 'original-indentation)))
+	    (replace-match "\\1\\2" t)
+	    (add-text-properties
+	     (point-at-bol) (min (1+ (point-at-eol)) (point-max))
+	     `(org-protected t original-indentation ,ind org-native-text t)))))
       ;; Delete #+ATTR_BACKEND: stuff of another backend. Those
       ;; matching the current backend will be taken care of by
       ;; `org-export-attach-captions-and-attributes'
@@ -1734,7 +1755,8 @@ from the buffer."
       (while (re-search-forward (concat "^[ \t]*#\\+BEGIN_" backend-name "\\>.*\n?")
 				nil t)
 	(setq beg (match-beginning 0) beg-content (match-end 0))
-	(setq ind (save-excursion (goto-char beg) (org-get-indentation)))
+	(setq ind (or (get-text-property beg 'original-indentation)
+		      (save-excursion (goto-char beg) (org-get-indentation))))
 	(when (re-search-forward (concat "^[ \t]*#\\+END_" backend-name "\\>.*\n?")
 				 nil t)
 	  (setq end (match-end 0) end-content (match-beginning 0))
@@ -1745,17 +1767,7 @@ from the buffer."
 		 beg-content end-content
 		 `(org-protected t original-indentation ,ind org-native-text t))
 		;; strip protective commas
-		(save-excursion
-		  (save-match-data
-		    (goto-char beg-content)
-		    (let ((front-line (save-excursion
-					(re-search-forward
-					 "[^[:space:]]" end-content t)
-					(goto-char (match-beginning 0))
-					(current-column))))
-		      (while (re-search-forward "^[ \t]*\\(,\\)" end-content t)
-			(when (= (current-column) front-line)
-			  (replace-match "" nil nil nil 1))))))
+		(org-strip-protective-commas beg-content end-content)
 		(delete-region (match-beginning 0) (match-end 0))
 		(save-excursion
 		  (goto-char beg)
@@ -1802,8 +1814,7 @@ These special cookies will later be interpreted by the backend."
 		  (top (point-at-bol))
 		  (top-ind (org-list-get-ind top struct)))
 	     (goto-char bottom)
-	     (when (and (not (eq org-list-ending-method 'indent))
-			(not (looking-at "[ \t]*$"))
+	     (when (and (not (looking-at "[ \t]*$"))
 			(looking-at org-list-end-re))
 	       (replace-match ""))
 	     (unless (bolp) (insert "\n"))
@@ -1861,8 +1872,7 @@ These special properties will later be interpreted by the backend."
 	      ;; useful to line processing exporters.
 	      (goto-char bottom)
 	      (when (or (looking-at "^ORG-LIST-END-MARKER\n")
-			(and (not (eq org-list-ending-method 'indent))
-			     (not (looking-at "[ \t]*$"))
+			(and (not (looking-at "[ \t]*$"))
 			     (looking-at org-list-end-re)))
 		(replace-match ""))
 	      (unless (bolp) (insert "\n"))
@@ -2189,7 +2199,7 @@ can work correctly."
 	;; This is a subtree, we take the title from the first heading
 	(goto-char rbeg)
 	(looking-at org-todo-line-tags-regexp)
-	(setq title (if (eq tags t)
+	(setq title (if (and (eq tags t) (match-string 4))
 			(format "%s\t%s" (match-string 3) (match-string 4))
 		      (match-string 3)))
 	(org-unmodified
@@ -2333,7 +2343,7 @@ TYPE must be a string, any of:
 			    (plist-get org-export-opt-plist
 				       (intern (concat ":" key)))))
 	  (save-match-data
-	    ;; If arguments are provided, first retreive them properly
+	    ;; If arguments are provided, first retrieve them properly
 	    ;; (in ARGS, as a list), then replace them in VAL.
 	    (when args
 	      (setq args (org-split-string args ",") args2 nil)
@@ -2786,7 +2796,7 @@ continue numbering from the last numbered block.
 REPLACE-LABELS is dual-purpose.
 1. It controls the retention of labels in the exported block.
 2. It specifies in what manner the links (or references) to a
-   labelled line be formatted.
+   labeled line be formatted.
 
 REPLACE-LABELS is the symbol `keep' if the literal example
 specifies \"-k\" option, is numeric if the literal example
@@ -2794,12 +2804,12 @@ specifies \"-r\" option and is nil otherwise.
 
 Handle REPLACE-LABELS as below:
 - If nil, retain labels in the exported block and use
-  user-provided labels for referencing the labelled lines.
+  user-provided labels for referencing the labeled lines.
 - If it is a number, remove labels in the exported block and use
-  one of line numbers or labels for referencing labelled lines based
+  one of line numbers or labels for referencing labeled lines based
   on NUMBER option.
 - If it is a keep, retain labels in the exported block and use
-  one of line numbers or labels for referencing labelled lines
+  one of line numbers or labels for referencing labeled lines
   based on NUMBER option.
 
 LABEL-FORMAT is the value of \"-l\" switch associated with
@@ -2809,8 +2819,8 @@ PREPROCESS is intended for backend-agnostic handling of source
 block numbering.  When non-nil do the following:
 - do not number the lines
 - always strip the labels from exported block
-- do not make the labelled line a target of an incoming link.
-  Instead mark the labelled line with `org-coderef' property and
+- do not make the labeled line a target of an incoming link.
+  Instead mark the labeled line with `org-coderef' property and
   store the label in it."
   (setq skip1 (or skip1 0) skip2 (or skip2 0))
   (if (and number (not cont)) (setq org-export-last-code-line-counter-value 0))
@@ -3007,7 +3017,7 @@ to the value of `temporary-file-directory'."
 	  (org-load-modules-maybe)
 	  (unless org-local-vars
 	    (setq org-local-vars (org-get-local-variables)))
-	  (eval ;; convert to fmt -- mimicing `org-run-like-in-org-mode'
+	  (eval ;; convert to fmt -- mimicking `org-run-like-in-org-mode'
 	   (list 'let org-local-vars
 		 (list (intern (format "org-export-as-%s" fmt))
 		       nil nil nil ''string t))))
@@ -3263,7 +3273,7 @@ If yes remove the column and the special lines."
 	      ((org-table-cookie-line-p x)
 	       ;; This line contains formatting cookies, discard it
 	       nil)
-	      ((string-match "^[ \t]*| *[!_^/] *|" x)
+	      ((string-match "^[ \t]*| *\\([!_^/$]\\|\\\\\\$\\) *|" x)
 	       ;; ignore this line
 	       nil)
 	      ((or (string-match "^\\([ \t]*\\)|-+\\+" x)

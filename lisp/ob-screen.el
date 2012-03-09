@@ -1,6 +1,6 @@
 ;;; ob-screen.el --- org-babel support for interactive terminal
 
-;; Copyright (C) 2009-2011  Free Software Foundation
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
 ;; Author: Benjamin Andresen
 ;; Keywords: literate programming, interactive shell
@@ -37,7 +37,7 @@
 (require 'ob-ref)
 
 (defvar org-babel-screen-location "screen"
-  "The command location for screen. 
+  "The command location for screen.
 In case you want to use a different screen than one selected by your $PATH")
 
 (defvar org-babel-default-header-args:screen
@@ -111,7 +111,7 @@ In case you want to use a different screen than one selected by your $PATH")
     (with-temp-file tmpfile
       (insert body)
 
-      ;; org-babel has superflous spaces
+      ;; org-babel has superfluous spaces
       (goto-char (point-min))
       (delete-matching-lines "^ +$"))
     tmpfile))
