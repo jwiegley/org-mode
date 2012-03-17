@@ -1,6 +1,6 @@
 ;;; ob-latex.el --- org-babel functions for latex "evaluation"
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -132,7 +132,7 @@ This function is called by `org-babel-execute-src-block'."
 	      (when (file-exists-p transient-pdf-file)
 		(delete-file transient-pdf-file))))))
          ((string-match "\\.\\([^\\.]+\\)$" out-file)
-          (error "can not create %s files, please specify a .png or .pdf file or try the :imagemagick header arguement"
+          (error "can not create %s files, please specify a .png or .pdf file or try the :imagemagick header argument"
 		 (match-string 1 out-file))))
         nil) ;; signal that output has already been written to file
     body))
@@ -190,7 +190,7 @@ Extracted from `org-export-as-pdf' in org-latex.el."
       pdffile)))
 
 (defun org-babel-prep-session:latex (session params)
-  "Return an error because LaTeX doesn't support sesstions."
+  "Return an error because LaTeX doesn't support sessions."
   (error "LaTeX does not support sessions"))
 
 (provide 'ob-latex)

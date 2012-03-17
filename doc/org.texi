@@ -4,8 +4,8 @@
 @setfilename ../../info/org
 @settitle The Org Manual
 
-@set VERSION 7.8.02
-@set DATE December 2011
+@set VERSION 7.8.03
+@set DATE January 2012
 
 @c Use proper quote and backtick for code sections in PDF output
 @c Cf. Texinfo manual 14.2
@@ -36,7 +36,7 @@
 
 @c orgkey{key}                        A key item
 @c orgcmd{key,cmd}                    Key with command name
-@c xorgcmd{key,cmmand}                Key with command name as @itemx
+@c xorgcmd{key,cmd}                   Key with command name as @itemx
 @c orgcmdnki{key,cmd}                 Like orgcmd, but do not index the key
 @c orgcmdtkc{text,key,cmd}            Like orgcmd,special text instead of key
 @c orgcmdkkc{key1,key2,cmd}           Two keys with one command name, use "or"
@@ -265,7 +265,7 @@
 @copying
 This manual is for Org version @value{VERSION}.
 
-Copyright @copyright{} 2004-2011  Free Software Foundation, Inc.
+Copyright @copyright{} 2004-2012  Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -613,27 +613,28 @@ DocBook export
 
 OpenDocument Text export
 
-* Pre-requisites for @acronym{ODT} export::  What packages @acronym{ODT} exporter relies on
-* @acronym{ODT} export commands::  How to invoke @acronym{ODT} export
+* Pre-requisites for ODT export::  What packages ODT exporter relies on
+* ODT export commands::  How to invoke ODT export
+* Extending ODT export:: How to produce @samp{doc}, @samp{pdf} files
 * Applying custom styles::      How to apply custom styles to the output
-* Links in @acronym{ODT} export::  How links will be interpreted and formatted
-* Tables in @acronym{ODT} export::  How Tables are exported
-* Images in @acronym{ODT} export::  How to insert images
-* Math formatting in @acronym{ODT} export::  How @LaTeX{} fragments are formatted
-* Literal examples in @acronym{ODT} export::  How source and example blocks are formatted
-* Advanced topics in @acronym{ODT} export::  Read this if you are a power user
+* Links in ODT export::  How links will be interpreted and formatted
+* Tables in ODT export::  How Tables are exported
+* Images in ODT export::  How to insert images
+* Math formatting in ODT export::  How @LaTeX{} fragments are formatted
+* Literal examples in ODT export::  How source and example blocks are formatted
+* Advanced topics in ODT export::  Read this if you are a power user
 
-Math formatting in @acronym{ODT} export
+Math formatting in ODT export
 
 * Working with @LaTeX{} math snippets::  How to embed @LaTeX{} math fragments
 * Working with MathML or OpenDocument formula files::  How to embed equations in native format
 
-Advanced topics in @acronym{ODT} export
+Advanced topics in ODT export
 
-* Exporting and converting to other formats::  How to produce @samp{pdf} and other formats
+* Configuring a document converter::  How to register a document converter
 * Working with OpenDocument style files::  Explore the internals
 * Creating one-off styles::     How to produce custom highlighting etc
-* Customizing tables in @acronym{ODT} export::  How to define and use Table templates
+* Customizing tables in ODT export::  How to define and use Table templates
 * Validating OpenDocument XML::  How to debug corrupt OpenDocument files
 
 Publishing
@@ -709,6 +710,7 @@ Specific header arguments
 * session::                     Preserve the state of code evaluation
 * noweb::                       Toggle expansion of noweb references
 * noweb-ref::                   Specify block's noweb reference resolution target
+* noweb-sep::                   String used to separate noweb references
 * cache::                       Avoid re-evaluating unchanged code blocks
 * sep::                         Delimiter for writing tabular results outside Org
 * hlines::                      Handle horizontal lines in tables
@@ -716,6 +718,7 @@ Specific header arguments
 * rownames::                    Handle row names in tables
 * shebang::                     Make tangled files executable
 * eval::                        Limit evaluation of specific code blocks
+* wrap::                        Mark source block evaluation results
 
 Org-X: External Data
 
@@ -1010,7 +1013,7 @@ from within Emacs, please copy and paste the content into your Email program.
 Sometimes you might face a problem due to an error in your Emacs or Org mode
 setup.  Before reporting a bug, it is very helpful to start Emacs with minimal
 customisations and reproduce the problem.  Doing so often helps you determine
-if the problem is with your customisation or with Org mode itself.  You can
+if the problem is with your customization or with Org mode itself.  You can
 start a typical minimal session with a command like the example below.
 
 @example
@@ -1083,7 +1086,7 @@ attach it to your bug report.
 @node Conventions,  , Feedback, Introduction
 @section Typesetting conventions used in this manual
 
-Org uses three types of keywords: TODO keywords, tags, and property
+Org uses three types of keywords: TODO keywords, tags and property
 names.  In this manual we use the following conventions:
 
 @table @code
@@ -1101,7 +1104,14 @@ User-defined properties are capitalized; built-in properties with
 special meaning are written with all capitals.
 @end table
 
-The manual lists both the keys and the corresponding commands for accessing
+Moreover, Org uses @i{option keywords} (like @code{#+TITLE} to set the title)
+and @i{environment keywords} (like @code{#+BEGIN_HTML} to start a @code{HTML}
+environment).  They are written in uppercase in the manual to enhance its
+readability, but you can use lowercase in your Org files@footnote{Easy
+templates insert lowercase keywords and Babel dynamically inserts
+@code{#+results}.}
+
+The manual lists both the keys and the corresponding commands for accessing a
 functionality.  Org mode often uses the same key for different functions,
 depending on context.  The command that is bound to such keys has a generic
 name, like @code{org-metaright}.  In the manual we will, wherever possible,
@@ -1161,7 +1171,8 @@ Headlines define the structure of an outline tree.  The headlines in Org
 start with one or more stars, on the left margin@footnote{See the variables
 @code{org-special-ctrl-a/e}, @code{org-special-ctrl-k}, and
 @code{org-ctrl-k-protect-subtree} to configure special behavior of @kbd{C-a},
-@kbd{C-e}, and @kbd{C-k} in headlines.}.  For example:
+@kbd{C-e}, and @kbd{C-k} in headlines.} @footnote{Clocking only works with
+headings indented less then 30 stars.}.  For example:
 
 @example
 * Top level headline
@@ -1246,8 +1257,8 @@ Reveal context around point, showing the current entry, the following heading
 and the hierarchy above.  Useful for working near a location that has been
 exposed by a sparse tree command (@pxref{Sparse trees}) or an agenda command
 (@pxref{Agenda commands}).  With a prefix argument show, on each
-level, all sibling headings.  With double prefix arg, also show the entire
-subtree of the parent.
+level, all sibling headings.  With a double prefix argument, also show the
+entire subtree of the parent.
 @orgcmd{C-c C-k,show-branches}
 Expose all the headings of the subtree, CONTENT view for just one subtree.
 @orgcmd{C-c C-x b,org-tree-to-indirect-buffer}
@@ -1431,7 +1442,7 @@ more details, see the docstring of the command
 @code{org-clone-subtree-with-time-shift}.
 @orgcmd{C-c C-w,org-refile}
 Refile entry or region to a different location.  @xref{Refiling notes}.
-@orgcmd{C-c ^,org-sort-entries-or-items}
+@orgcmd{C-c ^,org-sort}
 Sort same-level entries.  When there is an active region, all entries in the
 region will be sorted.  Otherwise the children of the current headline are
 sorted.  The command prompts for the sorting method, which can be
@@ -1440,8 +1451,7 @@ creation time, scheduled time, deadline time), by priority, by TODO keyword
 (in the sequence the keywords have been defined in the setup) or by the value
 of a property.  Reverse sorting is possible as well.  You can also supply
 your own function to extract the sorting key.  With a @kbd{C-u} prefix,
-sorting will be case-sensitive.  With two @kbd{C-u C-u} prefixes, duplicate
-entries will also be removed.
+sorting will be case-sensitive.
 @orgcmd{C-x n s,org-narrow-to-subtree}
 Narrow buffer to current subtree.
 @orgcmd{C-x n b,org-narrow-to-block}
@@ -1592,16 +1602,11 @@ line.  In particular, if an ordered list reaches number @samp{10.}, then the
 list.  An item ends before the next line that is less or equally indented
 than its bullet/number.
 
-@vindex org-list-ending-method
-@vindex org-list-end-regexp
 @vindex org-empty-line-terminates-plain-lists
-Two methods@footnote{To disable either of them, configure
-@code{org-list-ending-method}.} are provided to terminate lists.  A list ends
-whenever every item has ended, which means before any line less or equally
-indented than items at top level.  It also ends before two blank
+A list ends whenever every item has ended, which means before any line less
+or equally indented than items at top level.  It also ends before two blank
 lines@footnote{See also @code{org-empty-line-terminates-plain-lists}.}.  In
-that case, all items are closed.  For finer control, you can end lists with
-any pattern set in @code{org-list-end-regexp}.  Here is an example:
+that case, all items are closed.  Here is an example:
 
 @example
 @group
@@ -1764,11 +1769,13 @@ numerically, alphabetically, by time, or by custom function.
 @cindex visibility cycling, drawers
 
 @vindex org-drawers
+@cindex org-insert-drawer
+@kindex C-c C-x d
 Sometimes you want to keep information associated with an entry, but you
 normally don't want to see it.  For this, Org mode has @emph{drawers}.
 Drawers need to be configured with the variable
-@code{org-drawers}@footnote{You can define drawers on a per-file basis
-with a line like @code{#+DRAWERS: HIDDEN PROPERTIES STATE}}.  Drawers
+@code{org-drawers}@footnote{You can define additional drawers on a
+per-file basis with a line like @code{#+DRAWERS: HIDDEN STATE}}.  Drawers
 look like this:
 
 @example
@@ -1779,6 +1786,13 @@ look like this:
    :END:
    After the drawer.
 @end example
+
+You can interactively insert drawers at point by calling
+@code{org-insert-drawer}, which is bound to @key{C-c C-x d}.  With an active
+region, this command will put the region inside the drawer.  With a prefix
+argument, this command calls @code{org-insert-property-drawer} and add a
+property drawer right below the current headline.  Completion over drawer
+keywords is also possible using @key{M-TAB}.
 
 Visibility cycling (@pxref{Visibility cycling}) on the headline will hide and
 show the entry, but keep the drawer collapsed to a single line.  In order to
@@ -1954,13 +1968,7 @@ item.
 
 Org comes with a fast and intuitive table editor.  Spreadsheet-like
 calculations are supported using the Emacs @file{calc} package
-@ifinfo
-(@pxref{Top,Calc,,Calc,Gnu Emacs Calculator Manual}).
-@end ifinfo
-@ifnotinfo
-(see the Emacs Calculator manual for more information about the Emacs
-calculator).
-@end ifnotinfo
+(@pxref{Top, Calc, , calc, Gnu Emacs Calculator Manual}).
 
 @menu
 * Built-in table editor::       Simple tables
@@ -2520,9 +2528,8 @@ A formula can be any algebraic expression understood by the Emacs
 non-standard convention that @samp{/} has lower precedence than
 @samp{*}, so that @samp{a/b*c} is interpreted as @samp{a/(b*c)}.}  Before
 evaluation by @code{calc-eval} (@pxref{Calling Calc from
-Your Programs,calc-eval,Calling Calc from Your Lisp Programs,Calc,GNU
+Your Programs, calc-eval, Calling Calc from Your Lisp Programs, calc, GNU
 Emacs Calc Manual}),
-@c FIXME:  The link to the Calc manual in HTML does not work.
 variable substitution takes place according to the rules described above.
 @cindex vectors, in table calculations
 The range vectors can be directly fed into the Calc vector functions
@@ -3241,6 +3248,8 @@ mailto:adent@@galaxy.net                   @r{Mail link}
 vm:folder                                 @r{VM folder link}
 vm:folder#id                              @r{VM message link}
 vm://myself@@some.where.org/folder#id      @r{VM on remote machine}
+vm-imap:account:folder                    @r{VM IMAP folder link}
+vm-imap:account:folder#id                 @r{VM IMAP message link}
 wl:folder                                 @r{WANDERLUST folder link}
 wl:folder#id                              @r{WANDERLUST message link}
 mhe:folder                                @r{MH-E folder link}
@@ -3948,7 +3957,7 @@ special faces for some of them.  This can be done using the variable
 @end lisp
 
 While using a list with face properties as shown for CANCELED @emph{should}
-work, this does not aways seem to be the case.  If necessary, define a
+work, this does not always seem to be the case.  If necessary, define a
 special face and use that.  A string is interpreted as a color.  The variable
 @code{org-faces-easy-properties} determines if that color is interpreted as a
 foreground or a background color.
@@ -4079,9 +4088,11 @@ time-stamped note for a change.  These records will be inserted after the
 headline as an itemized list, newest first@footnote{See the variable
 @code{org-log-states-order-reversed}}.  When taking a lot of notes, you might
 want to get the notes out of the way into a drawer (@pxref{Drawers}).
-Customize the variable @code{org-log-into-drawer} to get this
-behavior---the recommended drawer for this is called @code{LOGBOOK}.  You can
-also overrule the setting of this variable for a subtree by setting a
+Customize the variable @code{org-log-into-drawer} to get this behavior---the
+recommended drawer for this is called @code{LOGBOOK}@footnote{Note that the
+@code{LOGBOOK} drawer is unfolded when pressing @key{SPC} in the agenda to
+show an entry---use @key{C-u SPC} to keep it folded here}.  You can also
+overrule the setting of this variable for a subtree by setting a
 @code{LOG_INTO_DRAWER} property.
 
 Since it is normally too much to record a note for every state, Org mode
@@ -4432,9 +4443,11 @@ off a box while there are unchecked boxes above it.
 
 @table @kbd
 @orgcmd{C-c C-c,org-toggle-checkbox}
-Toggle checkbox status or (with prefix arg) checkbox presence at point.  With
-double prefix argument, set it to @samp{[-]}, which is considered to be an
-intermediate state.
+Toggle checkbox status or (with prefix arg) checkbox presence at point.
+With a single prefix argument, add an empty checkbox or remove the current
+one@footnote{`C-u C-c C-c' on the @emph{first} item of a list with no checkbox
+will add checkboxes to the rest of the list.}.  With a double prefix argument, set it to @samp{[-]}, which is
+considered to be an intermediate state.
 @orgcmd{C-c C-x C-b,org-toggle-checkbox}
 Toggle checkbox status or (with prefix arg) checkbox presence at point.  With
 double prefix argument, set it to @samp{[-]}, which is considered to be an
@@ -4884,8 +4897,8 @@ in the current file will be offered as possible completions.
 @orgcmd{C-c C-x p,org-set-property}
 Set a property.  This prompts for a property name and a value.  If
 necessary, the property drawer is created as well.
-@item M-x org-insert-property-drawer
-@findex org-insert-property-drawer
+@item C-u M-x org-insert-drawer
+@cindex org-insert-drawer
 Insert a property drawer into the current entry.  The drawer will be
 inserted early in the entry, but after the lines with planning
 information like deadlines.
@@ -5410,10 +5423,11 @@ the settings.  This has been the source of much confusion.  Org mode users
 can resort to special versions of these functions like @code{org-date} or
 @code{org-anniversary}.  These work just like the corresponding @code{diary-}
 functions, but with stable ISO order of arguments (year, month, day) wherever
-applicable, independent of the value of @code{calendar-date-style}.}.  For example
+applicable, independent of the value of @code{calendar-date-style}.}.  For
+example with optional time
 
 @example
-* The nerd meeting on every 2nd Thursday of the month
+* 22:00-23:00 The nerd meeting on every 2nd Thursday of the month
   <%%(org-float t 4 2)>
 @end example
 
@@ -5909,12 +5923,14 @@ created for this purpose, it is described in @ref{Structure editing}.
 @cindex time clocking
 
 Org mode allows you to clock the time you spend on specific tasks in a
-project.  When you start working on an item, you can start the clock.
-When you stop working on that task, or when you mark the task done, the
-clock is stopped and the corresponding time interval is recorded.  It
-also computes the total time spent on each subtree of a project.  And it
-remembers a history or tasks recently clocked, to that you can jump quickly
-between a number of tasks absorbing your time.
+project.  When you start working on an item, you can start the clock.  When
+you stop working on that task, or when you mark the task done, the clock is
+stopped and the corresponding time interval is recorded.  It also computes
+the total time spent on each subtree@footnote{Clocking only works if all
+headings are indented with less than 30 stars.  This is a hardcoded
+limitation of `lmax' in `org-clock-sum'.} of a project.  And it remembers a
+history or tasks recently clocked, to that you can jump quickly between a
+number of tasks absorbing your time.
 
 To save the clock history across Emacs sessions, use
 @lisp
@@ -6329,7 +6345,7 @@ not started at exactly the right moment.
 @kindex ;
 
 Calling @code{org-timer-set-timer} from an Org mode buffer runs a countdown
-timer.  Use @kbd{;} from agenda buffers, @key{C-c C-x ;} everwhere else.
+timer.  Use @kbd{;} from agenda buffers, @key{C-c C-x ;} everywhere else.
 
 @code{org-timer-set-timer} prompts the user for a duration and displays a
 countdown timer in the modeline.  @code{org-timer-default-timer} sets the
@@ -6693,21 +6709,21 @@ similar way.}:
 
 @vindex org-from-is-user-regexp
 @smallexample
-Link type               |  Available keywords
-------------------------+----------------------------------------------
-bbdb                    |  %:name %:company
-irc                     |  %:server %:port %:nick
-vm, wl, mh, mew, rmail  |  %:type %:subject %:message-id
-                        |  %:from %:fromname %:fromaddress
-                        |  %:to   %:toname   %:toaddress
-                        |  %:date @r{(message date header field)}
-                        |  %:date-timestamp @r{(date as active timestamp)}
-                        |  %:date-timestamp-inactive @r{(date as inactive timestamp)}
-                        |  %:fromto @r{(either "to NAME" or "from NAME")@footnote{This will always be the other, not the user.  See the variable @code{org-from-is-user-regexp}.}}
-gnus                    |  %:group, @r{for messages also all email fields}
-w3, w3m                 |  %:url
-info                    |  %:file %:node
-calendar                |  %:date
+Link type                        |  Available keywords
+---------------------------------+----------------------------------------------
+bbdb                             |  %:name %:company
+irc                              |  %:server %:port %:nick
+vm, vm-imap, wl, mh, mew, rmail  |  %:type %:subject %:message-id
+                                 |  %:from %:fromname %:fromaddress
+                                 |  %:to   %:toname   %:toaddress
+                                 |  %:date @r{(message date header field)}
+                                 |  %:date-timestamp @r{(date as active timestamp)}
+                                 |  %:date-timestamp-inactive @r{(date as inactive timestamp)}
+                                 |  %:fromto @r{(either "to NAME" or "from NAME")@footnote{This will always be the other, not the user.  See the variable @code{org-from-is-user-regexp}.}}
+gnus                             |  %:group, @r{for messages also all email fields}
+w3, w3m                          |  %:url
+info                             |  %:file %:node
+calendar                         |  %:date
 @end smallexample
 
 @noindent
@@ -7345,7 +7361,7 @@ If you are using the Big Brothers Database to store your contacts, you will
 very likely prefer to store anniversaries in BBDB rather than in a
 separate Org or diary file.  Org supports this and will show BBDB
 anniversaries as part of the agenda.  All you need to do is to add the
-following to one your your agenda files:
+following to one of your agenda files:
 
 @example
 * Anniversaries
@@ -8039,18 +8055,27 @@ Remove the restriction lock on the agenda, if it is currently restricted to a
 file or subtree (@pxref{Agenda files}).
 
 @tsubheading{Secondary filtering and query editing}
-@cindex filtering, by tag and effort, in agenda
+@cindex filtering, by tag category and effort, in agenda
 @cindex tag filtering, in agenda
+@cindex category filtering, in agenda
 @cindex effort filtering, in agenda
 @cindex query editing, in agenda
 
+@orgcmd{<,org-agenda-filter-by-category}
+@vindex org-agenda-category-filter-preset
+
+Filter the current agenda view with respect to the category of the item at
+point.  Pressing @code{<} another time will remove this filter.  You can add
+a filter preset through the option @code{org-agenda-category-filter-preset}
+(see below.)
+
 @orgcmd{/,org-agenda-filter-by-tag}
-@vindex org-agenda-filter-preset
+@vindex org-agenda-tag-filter-preset
 Filter the current agenda view with respect to a tag and/or effort estimates.
 The difference between this and a custom agenda command is that filtering is
 very fast, so that you can switch quickly between different filters without
 having to recreate the agenda.@footnote{Custom commands can preset a filter by
-binding the variable @code{org-agenda-filter-preset} as an option.  This
+binding the variable @code{org-agenda-tag-filter-preset} as an option.  This
 filter will then be applied to the view and persist as a basic filter through
 refreshes and more secondary filtering.  The filter is a global property of
 the entire agenda view---in a block agenda, you should only set this in the
@@ -9021,7 +9046,7 @@ the object with @code{\ref@{tab:basic-data@}}:
 
 @example
 #+CAPTION: This is the caption for the next table (or link)
-#+LABEL:   tbl:basic-data
+#+LABEL:   tab:basic-data
    | ... | ...|
    |-----|----|
 @end example
@@ -9542,8 +9567,8 @@ the web, while the XOXO format provides a solid base for exchange with a
 broad range of other applications.  @LaTeX{} export lets you use Org mode and
 its structured editing functions to easily create @LaTeX{} files.  DocBook
 export makes it possible to convert Org files to many other formats using
-DocBook tools.  OpenDocument Text(@acronym{ODT}) export allows seamless
-colloboration across organizational boundaries.  For project management you
+DocBook tools.  OpenDocument Text(ODT) export allows seamless
+collaboration across organizational boundaries.  For project management you
 can create gantt and resource charts by using TaskJuggler export.  To
 incorporate entries with associated times like deadlines or appointments into
 a desktop calendar program like iCal, Org mode can also produce extracts in
@@ -9635,14 +9660,15 @@ Insert template with export options, see example below.
 @cindex #+EXPORT_SELECT_TAGS
 @cindex #+EXPORT_EXCLUDE_TAGS
 @cindex #+XSLT
-@cindex #+LATEX_HEADER
+@cindex #+LaTeX_HEADER
 @vindex user-full-name
 @vindex user-mail-address
 @vindex org-export-default-language
+@vindex org-export-date-timestamp-format
 @example
 #+TITLE:       the title to be shown (default is the buffer name)
 #+AUTHOR:      the author (default taken from @code{user-full-name})
-#+DATE:        a date, fixed, or a format string for @code{format-time-string}
+#+DATE:        a date, an Org timestamp@footnote{@code{org-export-date-timestamp-format} defines how this timestamp will be exported.}, or a format string for @code{format-time-string}
 #+EMAIL:       his/her email address (default from @code{user-mail-address})
 #+DESCRIPTION: the page description, e.g.@: for the XHTML meta tag
 #+KEYWORDS:    the page keywords, e.g.@: for the XHTML meta tag
@@ -9654,15 +9680,15 @@ Insert template with export options, see example below.
                @r{You need to confirm using these, or configure @code{org-export-allow-BIND}}
 #+LINK_UP:     the ``up'' link of an exported page
 #+LINK_HOME:   the ``home'' link of an exported page
-#+LATEX_HEADER: extra line(s) for the @LaTeX{} header, like \usepackage@{xyz@}
+#+LaTeX_HEADER: extra line(s) for the @LaTeX{} header, like \usepackage@{xyz@}
 #+EXPORT_SELECT_TAGS:   Tags that select a tree for export
 #+EXPORT_EXCLUDE_TAGS:  Tags that exclude a tree from export
 #+XSLT:        the XSLT stylesheet used by DocBook exporter to generate FO file
 @end example
 
 @noindent
-The OPTIONS line is a compact@footnote{If you want to configure many options
-this way, you can use several OPTIONS lines.} form to specify export
+The @code{#+OPTIONS} line is a compact@footnote{If you want to configure many options
+this way, you can use several @code{#+OPTIONS} lines.} form to specify export
 settings.  Here you can:
 @cindex headline levels
 @cindex section-numbers
@@ -10326,11 +10352,11 @@ By default, the @LaTeX{} output uses the class @code{article}.
 @vindex org-export-latex-classes
 @vindex org-export-latex-default-packages-alist
 @vindex org-export-latex-packages-alist
-@cindex #+LATEX_HEADER
-@cindex #+LATEX_CLASS
-@cindex #+LATEX_CLASS_OPTIONS
-@cindex property, LATEX_CLASS
-@cindex property, LATEX_CLASS_OPTIONS
+@cindex #+LaTeX_HEADER
+@cindex #+LaTeX_CLASS
+@cindex #+LaTeX_CLASS_OPTIONS
+@cindex property, LaTeX_CLASS
+@cindex property, LaTeX_CLASS_OPTIONS
 You can change this globally by setting a different value for
 @code{org-export-latex-default-class} or locally by adding an option like
 @code{#+LaTeX_CLASS: myclass} in your file, or with a @code{:LaTeX_CLASS:}
@@ -10340,11 +10366,22 @@ defines a header template for each class@footnote{Into which the values of
 @code{org-export-latex-default-packages-alist} and
 @code{org-export-latex-packages-alist} are spliced.}, and allows you to
 define the sectioning structure for each class.  You can also define your own
-classes there.  @code{#+LaTeX_CLASS_OPTIONS} or a @code{LaTeX_CLASS_OPTIONS}
-property can specify the options for the @code{\documentclass} macro.  You
-can also use @code{#+LATEX_HEADER: \usepackage@{xyz@}} to add lines to the
-header.  See the docstring of @code{org-export-latex-classes} for more
-information.
+classes there.  @code{#+LaTeX_CLASS_OPTIONS} or a @code{:LaTeX_CLASS_OPTIONS:}
+property can specify the options for the @code{\documentclass} macro.  The
+options to documentclass have to be provided, as expected by @LaTeX{}, within
+square brackets.  You can also use @code{#+LaTeX_HEADER: \usepackage@{xyz@}}
+to add lines to the header.  See the docstring of
+@code{org-export-latex-classes} for more information.  An example is shown
+below.
+
+@example
+#+LaTeX_CLASS: article
+#+LaTeX_CLASS_OPTIONS: [a4paper]
+#+LaTeX_HEADER: \usepackage@{xyz@}
+
+* Headline 1
+  some text
+@end example
 
 @node Quoting @LaTeX{} code, Tables in @LaTeX{} export, Header and sectioning, @LaTeX{} and PDF export
 @subsection Quoting @LaTeX{} code
@@ -10428,9 +10465,7 @@ add something like @samp{placement=[h!]} to the attributes.  It is to be noted
 this option can be used with tables as well@footnote{One can also take
 advantage of this option to pass other, unrelated options into the figure or
 table environment.  For an example see the section ``Exporting org files'' in
-@url{http://orgmode.org/worg/org-hacks.html}}.  For example the
-@code{#+ATTR_LaTeX:} line below is exported as the @code{figure} environment
-below it.
+@url{http://orgmode.org/worg/org-hacks.html}}.
 
 If you would like to let text flow around the image, add the word @samp{wrap}
 to the @code{#+ATTR_LaTeX:} line, which will make the figure occupy the left
@@ -10517,7 +10552,7 @@ transitions.
 Frames will automatically receive a @code{fragile} option if they contain
 source code that uses the verbatim environment.  Special @file{beamer}
 specific code can be inserted using @code{#+BEAMER:} and
-@code{#+BEGIN_beamer...#+end_beamer} constructs, similar to other export
+@code{#+BEGIN_BEAMER...#+END_BEAMER} constructs, similar to other export
 backends, but with the difference that @code{#+LaTeX:} stuff will be included
 in the presentation as well.
 
@@ -10796,34 +10831,35 @@ special characters included in XHTML entities:
 @cindex org-modules
 
 Orgmode@footnote{Versions 7.8 or later} supports export to OpenDocument Text
-(@acronym{ODT}) format using the @file{org-odt.el} module.  Documents created
+(ODT) format using the @file{org-odt.el} module.  Documents created
 by this exporter use the @cite{OpenDocument-v1.2
 specification}@footnote{@url{http://docs.oasis-open.org/office/v1.2/OpenDocument-v1.2.html,
 Open Document Format for Office Applications (OpenDocument) Version 1.2}} and
 are compatible with LibreOffice 3.4.
 
 @menu
-* Pre-requisites for @acronym{ODT} export::  What packages @acronym{ODT} exporter relies on
-* @acronym{ODT} export commands::  How to invoke @acronym{ODT} export
+* Pre-requisites for ODT export::  What packages ODT exporter relies on
+* ODT export commands::  How to invoke ODT export
+* Extending ODT export:: How to produce @samp{doc}, @samp{pdf} files
 * Applying custom styles::      How to apply custom styles to the output
-* Links in @acronym{ODT} export::  How links will be interpreted and formatted
-* Tables in @acronym{ODT} export::  How Tables are exported
-* Images in @acronym{ODT} export::  How to insert images
-* Math formatting in @acronym{ODT} export::  How @LaTeX{} fragments are formatted
-* Literal examples in @acronym{ODT} export::  How source and example blocks are formatted
-* Advanced topics in @acronym{ODT} export::  Read this if you are a power user
+* Links in ODT export::  How links will be interpreted and formatted
+* Tables in ODT export::  How Tables are exported
+* Images in ODT export::  How to insert images
+* Math formatting in ODT export::  How @LaTeX{} fragments are formatted
+* Literal examples in ODT export::  How source and example blocks are formatted
+* Advanced topics in ODT export::  Read this if you are a power user
 @end menu
 
-@node Pre-requisites for @acronym{ODT} export, @acronym{ODT} export commands, OpenDocument Text export, OpenDocument Text export
-@subsection Pre-requisites for @acronym{ODT} export
+@node Pre-requisites for ODT export, ODT export commands, OpenDocument Text export, OpenDocument Text export
+@subsection Pre-requisites for ODT export
 @cindex zip
-The @acronym{ODT} exporter relies on the @file{zip} program to create the final
+The ODT exporter relies on the @file{zip} program to create the final
 output.  Check the availability of this program before proceeding further.
 
-@node @acronym{ODT} export commands, Applying custom styles, Pre-requisites for @acronym{ODT} export, OpenDocument Text export
-@subsection @acronym{ODT} export commands
+@node ODT export commands, Extending ODT export, Pre-requisites for ODT export, OpenDocument Text export
+@subsection ODT export commands
 
-@subsubheading Exporting to @acronym{ODT}
+@subsubheading Exporting to ODT
 @anchor{x-export-to-odt}
 
 @cindex region, active
@@ -10834,12 +10870,13 @@ output.  Check the availability of this program before proceeding further.
 @cindex property EXPORT_FILE_NAME
 
 Export as OpenDocument Text file.
+
 @vindex org-export-odt-preferred-output-format
 If @code{org-export-odt-preferred-output-format} is specified, automatically
-convert the exported file to that format.
-@xref{x-export-to-other-formats,,Automatically exporting to other formats}.
+convert the exported file to that format.  @xref{x-export-to-other-formats, ,
+Automatically exporting to other formats}.
 
-For an Org file @file{myfile.org}, the @acronym{ODT} file will be
+For an Org file @file{myfile.org}, the ODT file will be
 @file{myfile.odt}.  The file will be overwritten without warning.  If there
 is an active region,@footnote{This requires @code{transient-mark-mode} to be
 turned on} only the region will be exported.  If the selected region is a
@@ -10850,30 +10887,66 @@ export.
 
 @orgcmd{C-c C-e O,org-export-as-odt-and-open}
 Export as OpenDocument Text file and open the resulting file.
+
 @vindex org-export-odt-preferred-output-format
 If @code{org-export-odt-preferred-output-format} is specified, open the
-converted file instead.
-@xref{x-export-to-other-formats,,Automatically exporting to other formats}.
+converted file instead.  @xref{x-export-to-other-formats, , Automatically
+exporting to other formats}.
 @end table
 
-@subsubheading Automatically exporting to other formats
+@node Extending ODT export, Applying custom styles, ODT export commands, OpenDocument Text export
+@subsection Extending ODT export
+
+The ODT exporter can interface with a variety of document
+converters and supports popular converters out of the box.  As a result, you
+can use it to export to formats like @samp{doc} or convert a document from
+one format (say @samp{csv}) to another format (say @samp{ods} or @samp{xls}).
+
+@cindex @file{unoconv}
+@cindex LibreOffice
+If you have a working installation of LibreOffice, a document converter is
+pre-configured for you and you can use it right away.  If you would like to
+use @file{unoconv} as your preferred converter, customize the variable
+@code{org-export-odt-convert-process} to point to @code{unoconv}.  If you
+would like to use a converter of your own choosing or tweak the default
+settings of the default @file{LibreOffice} and @samp{unoconv} converters
+@xref{Configuring a document converter}.
+
+@subsubsection Automatically exporting to other formats
 @anchor{x-export-to-other-formats}
+
 @vindex org-export-odt-preferred-output-format
-Very often, you will find yourself exporting to @acronym{ODT} format, only to
-immediately save the exported document to a different format like @samp{pdf}.
-In such cases, you will find it convenient to configure a converter
-(@pxref{Exporting and converting to other formats}) and specify your
+Very often, you will find yourself exporting to ODT format, only to
+immediately save the exported document to other formats like @samp{doc},
+@samp{docx}, @samp{rtf}, @samp{pdf} etc.  In such cases, you can specify your
 preferred output format by customizing the variable
 @code{org-export-odt-preferred-output-format}.  This way, the export commands
-(@pxref{x-export-to-odt,,Exporting to ODT}) can be extended to also export to
-the preferred format.
+(@pxref{x-export-to-odt,,Exporting to ODT}) can be extended to export to a
+format that is of immediate interest to you.
 
-@node Applying custom styles, Links in @acronym{ODT} export, @acronym{ODT} export commands, OpenDocument Text export
+@subsubsection Converting between document formats
+@anchor{x-convert-to-other-formats}
+
+There are many document converters in the wild which support conversion to
+and from various file formats, including, but not limited to the
+ODT format.  LibreOffice converter, mentioned above, is one such
+converter.  Once a converter is configured, you can interact with it using
+the following command.
+
+@vindex org-export-odt-convert
+@table @kbd
+
+@item M-x org-export-odt-convert
+Convert an existing document from one format to another.  With a prefix
+argument, also open the newly produced file.
+@end table
+
+@node Applying custom styles, Links in ODT export, Extending ODT export, OpenDocument Text export
 @subsection Applying custom styles
 @cindex styles, custom
 @cindex template, custom
 
-The @acronym{ODT} exporter ships with a set of OpenDocument styles
+The ODT exporter ships with a set of OpenDocument styles
 (@pxref{Working with OpenDocument style files}) that ensure a well-formatted
 output.  These factory styles, however, may not cater to your specific
 tastes.  To customize the output, you can either modify the above styles
@@ -10886,7 +10959,7 @@ users alike, and is described here.
 @enumerate
 @item
 Create a sample @file{example.org} file with the below settings and export it
-to @acronym{ODT} format.
+to ODT format.
 
 @example
 #+OPTIONS: H:10 num:t
@@ -10929,15 +11002,15 @@ met, the output is going to be less than satisfactory.  So it is highly
 recommended that you only work with templates that are directly derived from
 the factory settings.
 
-@node Links in @acronym{ODT} export, Tables in @acronym{ODT} export, Applying custom styles, OpenDocument Text export
-@subsection Links in @acronym{ODT} export
+@node Links in ODT export, Tables in ODT export, Applying custom styles, OpenDocument Text export
+@subsection Links in ODT export
 @cindex tables, in DocBook export
 
-The @acronym{ODT} exporter creates cross-references (aka bookmarks) for
+The ODT exporter creates cross-references (aka bookmarks) for
 internal links.  It creates Internet-style links for all other links.
 
-@node Tables in @acronym{ODT} export, Images in @acronym{ODT} export, Links in @acronym{ODT} export, OpenDocument Text export
-@subsection Tables in @acronym{ODT} export
+@node Tables in ODT export, Images in ODT export, Links in ODT export, OpenDocument Text export
+@subsection Tables in ODT export
 @cindex tables, in DocBook export
 
 Export of native Org mode tables (@pxref{Tables}) and simple @file{table.el}
@@ -10945,21 +11018,47 @@ tables is supported.  However, export of complex @file{table.el} tables -
 tables that have column or row spans - is not supported.  Such tables are
 stripped from the exported document.
 
-By default, a table is exported with top and bottom frames and with
-rules separating row and column groups (@pxref{Column groups}).  If the table
-specifies alignment and relative width for its columns (@pxref{Column width
-and alignment}) then these are honored on export.@footnote{The column widths
-are interpreted as weighted ratios with the default weight being 1}
+By default, a table is exported with top and bottom frames and with rules
+separating row and column groups (@pxref{Column groups}).  Furthermore, all
+tables are typeset to occupy the same width.  If the table specifies
+alignment and relative width for its columns (@pxref{Column width and
+alignment}) then these are honored on export.@footnote{The column widths are
+interpreted as weighted ratios with the default weight being 1}
 
 @cindex #+ATTR_ODT
-If you are not satisfied with the default formatting of tables, you can
-create custom table styles and associate them with a table using
-the @code{#+ATTR_ODT} line.  @xref{Customizing tables in @acronym{ODT} export}.
+You can control the width of the table by specifying @code{:rel-width}
+property using an @code{#+ATTR_ODT} line.
 
-@node Images in @acronym{ODT} export, Math formatting in @acronym{ODT} export, Tables in @acronym{ODT} export, OpenDocument Text export
-@subsection Images in @acronym{ODT} export
-@cindex images, embedding in @acronym{ODT}
-@cindex embedding images in @acronym{ODT}
+For example, consider the following table which makes use of all the rules
+mentoned above.
+
+@example
+#+ATTR_ODT: :rel-width 50
+| Area/Month    |   Jan |   Feb |   Mar |   Sum |
+|---------------+-------+-------+-------+-------|
+| /             |     < |       |       |     < |
+| <l13>         |  <r5> |  <r5> |  <r5> |  <r6> |
+| North America |     1 |    21 |   926 |   948 |
+| Middle East   |     6 |    75 |   844 |   925 |
+| Asia Pacific  |     9 |    27 |   790 |   826 |
+|---------------+-------+-------+-------+-------|
+| Sum           |    16 |   123 |  2560 |  2699 |
+@end example
+
+On export, the table will occupy 50% of text area.  The columns will be sized
+(roughly) in the ratio of 13:5:5:5:6.  The first column will be left-aligned
+and rest of the columns will be right-aligned.  There will be vertical rules
+after separating the header and last columns from other columns.  There will
+be horizontal rules separating the header and last rows from other rows.
+
+If you are not satisfied with the above formatting options, you can create
+custom table styles and associate them with a table using the
+@code{#+ATTR_ODT} line.  @xref{Customizing tables in ODT export}.
+
+@node Images in ODT export, Math formatting in ODT export, Tables in ODT export, OpenDocument Text export
+@subsection Images in ODT export
+@cindex images, embedding in ODT
+@cindex embedding images in ODT
 
 @subsubheading Embedding images
 You can embed images within the exported document by providing a link to the
@@ -10986,14 +11085,21 @@ link to an image file.  For example, to embed a image
 
 @subsubheading Sizing and scaling of embedded images
 
+@cindex #+ATTR_ODT
 You can control the size and scale of the embedded images using the
 @code{#+ATTR_ODT} attribute.
 
+@cindex identify, ImageMagick
 @vindex org-export-odt-pixels-per-inch
-Note that the exporter specifies the desired size of the image in the final
-document in units of centimetres.  In order to scale the embedded images, the
-exporter needs to compute the size of the image.  This is done by retrieving
-the image size in pixels and converting the pixel units to centimetres using
+The exporter specifies the desired size of the image in the final document in
+units of centimeters.  In order to scale the embedded images, the exporter
+queries for pixel dimensions of the images using one of a) ImageMagick's
+@file{identify} program or b) Emacs `create-image' and `image-size'
+APIs.@footnote{Use of @file{ImageMagick} is only desirable.  However, if you
+routinely produce documents that have large images or you export your Org
+files that has images using a Emacs batch script, then the use of
+@file{ImageMagick} is mandatory.} The pixel dimensions are subsequently
+converted in to units of centimeters using
 @code{org-export-odt-pixels-per-inch}.  The default value of this variable is
 set to @code{display-pixels-per-inch}.  You can tweak this variable to
 achieve the best results.
@@ -11001,7 +11107,6 @@ achieve the best results.
 The examples below illustrate the various possibilities.
 
 @table @asis
-
 @item Explicitly size the image
 To embed @file{img.png} as a 10 cm x 10 cm image, do the following:
 
@@ -11037,17 +11142,31 @@ height:width ratio, do the following
 @end example
 @end table
 
-@node Math formatting in @acronym{ODT} export, Literal examples in @acronym{ODT} export, Images in @acronym{ODT} export, OpenDocument Text export
-@subsection Math formatting in @acronym{ODT} export
+@subsubheading Anchoring of images
 
-The @acronym{ODT} exporter has special support for handling math.
+@cindex #+ATTR_ODT
+You can control the manner in which an image is anchored by setting the
+@code{:anchor} property of it's @code{#+ATTR_ODT} line.  You can specify one
+of the the following three values for the @code{:anchor} property -
+@samp{"as-char"}, @samp{"paragraph"} and @samp{"page"}.
+
+To create an image that is anchored to a page, do the following:
+@example
+#+ATTR_ODT: :anchor "page"
+[[./img.png]]
+@end example
+
+@node Math formatting in ODT export, Literal examples in ODT export, Images in ODT export, OpenDocument Text export
+@subsection Math formatting in ODT export
+
+The ODT exporter has special support for handling math.
 
 @menu
 * Working with @LaTeX{} math snippets::  How to embed @LaTeX{} math fragments
 * Working with MathML or OpenDocument formula files::  How to embed equations in native format
 @end menu
 
-@node Working with @LaTeX{} math snippets, Working with MathML or OpenDocument formula files, Math formatting in @acronym{ODT} export, Math formatting in @acronym{ODT} export
+@node Working with @LaTeX{} math snippets, Working with MathML or OpenDocument formula files, Math formatting in ODT export, Math formatting in ODT export
 @subsubsection Working with @LaTeX{} math snippets
 
 @LaTeX{} math snippets (@pxref{@LaTeX{} fragments}) can be embedded in the ODT
@@ -11113,11 +11232,11 @@ resulting images are embedded in the exported document.  This method requires
 that the @file{dvipng} program be available on your system.
 @end enumerate
 
-@node Working with MathML or OpenDocument formula files,  , Working with @LaTeX{} math snippets, Math formatting in @acronym{ODT} export
+@node Working with MathML or OpenDocument formula files,  , Working with @LaTeX{} math snippets, Math formatting in ODT export
 @subsubsection Working with MathML or OpenDocument formula files
 
 For various reasons, you may find embedding @LaTeX{} math snippets in an
-@acronym{ODT} document less than reliable.  In that case, you can embed a
+ODT document less than reliable.  In that case, you can embed a
 math equation by linking to its MathML(@file{.mml}) source or its
 OpenDocument formula (@file{.odf}) file as shown below:
 
@@ -11131,14 +11250,14 @@ or
 [[./equation.odf]]
 @end example
 
-@node Literal examples in @acronym{ODT} export, Advanced topics in @acronym{ODT} export, Math formatting in @acronym{ODT} export, OpenDocument Text export
-@subsection Literal examples in @acronym{ODT} export
+@node Literal examples in ODT export, Advanced topics in ODT export, Math formatting in ODT export, OpenDocument Text export
+@subsection Literal examples in ODT export
 
 Export of literal examples (@pxref{Literal examples}) with full fontification
 is supported.  This feature is enabled by default and is activated
 automatically if an enhanced version of @file{htmlfontify.el} is available in
 the @code{load-path}.@footnote{The @file{htmlfontify.el} that ships with
-standard Emacs <= 24.1 has no support for @acronym{ODT} fontification.  A
+standard Emacs <= 24.1 has no support for ODT fontification.  A
 copy of the proposed version is available as an attachment to
 @url{http://debbugs.gnu.org/cgi/bugreport.cgi?msg=5;filename=htmlfontify.el;att=9;bug=9914,
 Emacs Bug #9914}.}
@@ -11160,73 +11279,31 @@ You can turn off fontification support for literal examples by customizing
 the variable @code{org-export-odt-fontify-srcblocks}.
 
 
-@node Advanced topics in @acronym{ODT} export,  , Literal examples in @acronym{ODT} export, OpenDocument Text export
-@subsection Advanced topics in @acronym{ODT} export
+@node Advanced topics in ODT export,  , Literal examples in ODT export, OpenDocument Text export
+@subsection Advanced topics in ODT export
 
-If you rely heavily on @acronym{ODT} export, you may want to exploit the full
+If you rely heavily on ODT export, you may want to exploit the full
 set of features that the exporter offers.  This section describes features
 that would be of interest to power users.
 
 @menu
-* Exporting and converting to other formats::  How to produce @samp{pdf} and other formats
+* Configuring a document converter::  How to register a document converter
 * Working with OpenDocument style files::  Explore the internals
 * Creating one-off styles::     How to produce custom highlighting etc
-* Customizing tables in @acronym{ODT} export::  How to define and use Table templates
+* Customizing tables in ODT export::  How to define and use Table templates
 * Validating OpenDocument XML::  How to debug corrupt OpenDocument files
 @end menu
 
-@node Exporting and converting to other formats, Working with OpenDocument style files, Advanced topics in @acronym{ODT} export, Advanced topics in @acronym{ODT} export
-@subsubsection Exporting and converting to other formats
+@node Configuring a document converter, Working with OpenDocument style files, Advanced topics in ODT export, Advanced topics in ODT export
+@subsubsection Configuring a document converter
 @cindex convert
-@cindex doc, docx
-
-The @acronym{ODT} exporter adds support for exporting Org outlines to formats
-that are not supported natively by Org.  It also adds support to convert
-document from one format to another.  To use these features, you need to
-configure a command-line converter.  Once a command-line converter is
-configured you can use it to extend the list of formats to which Org can
-export.  @xref{x-export-to-other-formats,,Automatically exporting to other
-formats}.  You can also use it to perform one-off document conversion as
-detailed below.
-
-@vindex org-export-odt-convert
-@table @kbd
-
-@item M-x org-export-odt-convert
-Convert an existing document from one format to another as determined by the
-variable @code{org-export-odt-convert-capabilities}
-(@pxref{x-odt-converter-capabilities,,Configure converter
-capabilities}).  @strong{Please note} that you can use this command to even
-convert documents that are produced outside of Org and in other formats than
-@acronym{ODT} format.
-@end table
-
-@subsubheading Pre-configured converters
-
+@cindex doc, docx, rtf
 @cindex converter
-The @acronym{ODT} exporter supports two converters out of the box:
 
-@enumerate
-
-@cindex @file{unoconv}
-@item @file{unoconv}
-
-This converter is available as an installable package in your favorite
-distribution.
-
-@cindex @file{BasicODConverter}
-@item @file{BasicODConverter}
-
-@vindex org-odt-data-dir
-This converter is distributed as a LibreOffice extension and can be found in
-your Org distribution.  See the subdirectory pointed to by the variable
-@code{org-odt-data-dir}.
-
-@end enumerate
-
-@subsubheading Installing a new converter
-If you prefer to use a converter other than the two mentioned above, then you
-may have to do additional configuration.  You can proceed as follows:
+The ODT exporter can work with popular converters with little or no
+extra configuration from your side. @xref{Extending ODT export}.
+If you are using a converter that is not supported by default or if you would
+like to tweak the default converter settings, proceed as below.
 
 @enumerate
 @item Register the converter
@@ -11255,12 +11332,12 @@ Select the newly added converter as the preferred one by customizing the
 variable @code{org-export-odt-convert-process}.
 @end enumerate
 
-@node Working with OpenDocument style files, Creating one-off styles, Exporting and converting to other formats, Advanced topics in @acronym{ODT} export
+@node Working with OpenDocument style files, Creating one-off styles, Configuring a document converter, Advanced topics in ODT export
 @subsubsection Working with OpenDocument style files
 @cindex styles, custom
 @cindex template, custom
 
-This section explores the internals of the @acronym{ODT} exporter and the
+This section explores the internals of the ODT exporter and the
 means by which it produces styled documents.  Read this section if you are
 interested in exploring the automatic and custom OpenDocument styles used by
 the exporter.
@@ -11268,7 +11345,7 @@ the exporter.
 @anchor{x-factory-styles}
 @subsubheading Factory styles
 
-The @acronym{ODT} exporter relies on two files for generating its output.
+The ODT exporter relies on two files for generating its output.
 These files are bundled with the distribution under the directory pointed to
 by the variable @code{org-odt-styles-dir}.  The two files are:
 
@@ -11314,7 +11391,7 @@ are numbered.
 
 @anchor{x-overriding-factory-styles}
 @subsubheading Overriding factory styles
-The following two variables control the location from which the @acronym{ODT}
+The following two variables control the location from which the ODT
 exporter picks up the custom styles and content template files.  You can
 customize these variables to override the factory styles used by the
 exporter.
@@ -11359,7 +11436,7 @@ Use this variable to specify the blank @file{content.xml} that will be used
 in the final output.
 @end itemize
 
-@node Creating one-off styles, Customizing tables in @acronym{ODT} export, Working with OpenDocument style files, Advanced topics in @acronym{ODT} export
+@node Creating one-off styles, Customizing tables in ODT export, Working with OpenDocument style files, Advanced topics in ODT export
 @subsubsection Creating one-off styles
 
 There are times when you would want one-off formatting in the exported
@@ -11426,14 +11503,14 @@ This paragraph is specially formatted and uses bold text.
 
 @end enumerate
 
-@node Customizing tables in @acronym{ODT} export, Validating OpenDocument XML, Creating one-off styles, Advanced topics in @acronym{ODT} export
-@subsubsection Customizing tables in @acronym{ODT} export
+@node Customizing tables in ODT export, Validating OpenDocument XML, Creating one-off styles, Advanced topics in ODT export
+@subsubsection Customizing tables in ODT export
 @cindex tables, in ODT export
 
 @cindex #+ATTR_ODT
 You can override the default formatting of the table by specifying a custom
 table style with the @code{#+ATTR_ODT} line.  For a discussion on default
-formatting of tables @pxref{Tables in @acronym{ODT} export}.
+formatting of tables @pxref{Tables in ODT export}.
 
 This feature closely mimics the way table templates are defined in the
 OpenDocument-v1.2
@@ -11593,11 +11670,11 @@ the @code{ATTR_ODT} line as shown below.
 @end example
 @end enumerate
 
-@node Validating OpenDocument XML,  , Customizing tables in @acronym{ODT} export, Advanced topics in @acronym{ODT} export
+@node Validating OpenDocument XML,  , Customizing tables in ODT export, Advanced topics in ODT export
 @subsubsection Validating OpenDocument XML
 
 Occasionally, you will discover that the document created by the
-@acronym{ODT} exporter cannot be opened by your favorite application.  One of
+ODT exporter cannot be opened by your favorite application.  One of
 the common reasons for this is that the @file{.odt} file is corrupt.  In such
 cases, you may want to validate the document against the OpenDocument RELAX
 NG Compact Syntax (RNC) schema.
@@ -11611,7 +11688,7 @@ general help with validation (and schema-sensitive editing) of XML files:
 If you have ready access to OpenDocument @file{.rnc} files and the needed
 schema-locating rules in a single folder, you can customize the variable
 @code{org-export-odt-schema-dir} to point to that directory.  The
-@acronym{ODT} exporter will take care of updating the
+ODT exporter will take care of updating the
 @code{rng-schema-locating-files} for you.
 
 @c end opendocument
@@ -12238,7 +12315,7 @@ publish it as @file{theindex.html}.
 @end multitable
 
 The file will be created when first publishing a project with the
-@code{:makeindex} set.  The file only contains a statement @code{#+include:
+@code{:makeindex} set.  The file only contains a statement @code{#+INCLUDE:
 "theindex.inc"}.  You can then build around this include statement by adding
 a title, style information, etc.
 
@@ -12615,17 +12692,24 @@ of tangled code files.
 @section Evaluating code blocks
 @cindex code block, evaluating
 @cindex source code, evaluating
+@cindex #+RESULTS
 
 Code blocks can be evaluated@footnote{Whenever code is evaluated there is a
 potential for that code to do harm.  Org mode provides safeguards to ensure
 that code is only evaluated after explicit confirmation from the user.  For
 information on these safeguards (and on how to disable them) see @ref{Code
 evaluation security}.} and the results of evaluation optionally placed in the
-Org mode buffer.  By default, the evaluation facility is only enabled for
-Lisp code blocks specified as @code{emacs-lisp}. However, souce code blocks
-in many languages can be evaluated within Org mode (see @ref{Languages} for a
-list of supported languages and @ref{Structure of code blocks} for
-information on the syntax used to define a code block).
+Org mode buffer.  The results of evaluation are placed following a line that
+begins by default with @code{#+RESULTS} and optionally a cache identifier
+and/or the name of the evaluated code block.  The default value of
+@code{#+RESULTS} can be changed with the customizable variable
+@code{org-babel-results-keyword}.
+
+By default, the evaluation facility is only enabled for Lisp code blocks
+specified as @code{emacs-lisp}.  However, source code blocks in many languages
+can be evaluated within Org mode (see @ref{Languages} for a list of supported
+languages and @ref{Structure of code blocks} for information on the syntax
+used to define a code block).
 
 @kindex C-c C-c
 There are a number of ways to evaluate code blocks.  The simplest is to press
@@ -12636,8 +12720,8 @@ evaluation from the @kbd{C-c C-c} key binding.}.  This will call the
 its results into the Org mode buffer.
 @cindex #+CALL
 
-It is also possible to evaluate named code blocks from anywhere in an
-Org mode buffer or an Org mode table. Live code blocks located in the current
+It is also possible to evaluate named code blocks from anywhere in an Org
+mode buffer or an Org mode table.  Live code blocks located in the current
 Org mode buffer or in the ``Library of Babel'' (see @ref{Library of Babel})
 can be executed.  Named code blocks can be executed with a separate
 @code{#+CALL:} line or inline within a block of text.
@@ -12931,7 +13015,7 @@ Multi-line header arguments on an un-named code block:
    (message "data1:%S, data2:%S" data1 data2)
  #+END_SRC
 
- #+results:
+ #+RESULTS:
  : data1:1, data2:2
 @end example
 
@@ -12943,7 +13027,7 @@ Multi-line header arguments on a named code block:
      (message "data:%S" data)
    #+END_SRC
 
-   #+results: named-block
+   #+RESULTS: named-block
    : data:2
 @end example
 
@@ -12993,6 +13077,7 @@ argument in lowercase letters.  The following header arguments are defined:
 * session::                     Preserve the state of code evaluation
 * noweb::                       Toggle expansion of noweb references
 * noweb-ref::                   Specify block's noweb reference resolution target
+* noweb-sep::                   String used to separate noweb references
 * cache::                       Avoid re-evaluating unchanged code blocks
 * sep::                         Delimiter for writing tabular results outside Org
 * hlines::                      Handle horizontal lines in tables
@@ -13000,6 +13085,7 @@ argument in lowercase letters.  The following header arguments are defined:
 * rownames::                    Handle row names in tables
 * shebang::                     Make tangled files executable
 * eval::                        Limit evaluation of specific code blocks
+* wrap::                        Mark source block evaluation results
 @end menu
 
 Additional header arguments are defined on a language-specific basis, see
@@ -13014,7 +13100,7 @@ syntax used to specify arguments is the same across all languages.  In every
 case, variables require a default value when they are declared.
 
 The values passed to arguments can either be literal values, references, or
-Emacs Lisp code (see @ref{var, Emacs Lisp evaluation of variables}). References
+Emacs Lisp code (see @ref{var, Emacs Lisp evaluation of variables}).  References
 include anything in the Org mode file that takes a @code{#+NAME:},
 @code{#+TBLNAME:}, or @code{#+RESULTS:} line.  This includes tables, lists,
 @code{#+BEGIN_EXAMPLE} blocks, other code blocks, and the results of other
@@ -13053,7 +13139,7 @@ an Org mode table named with either a @code{#+NAME:} or @code{#+TBLNAME:} line
 (length table)
 #+END_SRC
 
-#+results: table-length
+#+RESULTS: table-length
 : 4
 @end example
 
@@ -13072,7 +13158,7 @@ carried through to the source code block)
   (print x)
 #+END_SRC
 
-#+results:
+#+RESULTS:
 | simple | list |
 @end example
 
@@ -13085,7 +13171,7 @@ optionally followed by parentheses
 (* 2 length)
 #+END_SRC
 
-#+results:
+#+RESULTS:
 : 8
 @end example
 
@@ -13100,7 +13186,7 @@ code block name using standard function call syntax
 (* 2 input)
 #+END_SRC
 
-#+results: double
+#+RESULTS: double
 : 16
 
 #+NAME: squared
@@ -13108,7 +13194,7 @@ code block name using standard function call syntax
 (* input input)
 #+END_SRC
 
-#+results: squared
+#+RESULTS: squared
 : 4
 @end example
 
@@ -13127,7 +13213,7 @@ on two lines
   (concatenate 'string x " for you.")
 #+END_SRC
 
-#+results: read-literal-example
+#+RESULTS: read-literal-example
 : A literal example
 : on two lines for you.
 
@@ -13169,7 +13255,7 @@ following example assigns the last cell of the first row the table
   data
 #+END_SRC
 
-#+results:
+#+RESULTS:
 : a
 @end example
 
@@ -13190,7 +13276,7 @@ to @code{data}.
   data
 #+END_SRC
 
-#+results:
+#+RESULTS:
 | 2 | b |
 | 3 | c |
 | 4 | d |
@@ -13212,7 +13298,7 @@ column is referenced.
   data
 #+END_SRC
 
-#+results:
+#+RESULTS:
 | 1 | 2 | 3 | 4 |
 @end example
 
@@ -13232,7 +13318,7 @@ another by commas, as shown in the following example.
   data
 #+END_SRC
 
-#+results:
+#+RESULTS:
 | 11 | 14 | 17 |
 @end example
 
@@ -13265,7 +13351,7 @@ Emacs Lisp, as shown in the following example.
   $data
 #+END_SRC
 
-#+results:
+#+RESULTS:
 : (a b c)
 @end example
 
@@ -13331,10 +13417,10 @@ The results are interpreted as raw Org mode code and are inserted directly
 into the buffer.  If the results look like a table they will be aligned as
 such by Org mode.  E.g., @code{:results value raw}.
 @item @code{html}
-Results are assumed to be HTML and will be enclosed in a @code{begin_html}
+Results are assumed to be HTML and will be enclosed in a @code{BEGIN_HTML}
 block.  E.g., @code{:results value html}.
 @item @code{latex}
-Results assumed to be @LaTeX{} and are enclosed in a @code{begin_latex} block.
+Results assumed to be @LaTeX{} and are enclosed in a @code{BEGIN_LaTeX} block.
 E.g., @code{:results value latex}.
 @item @code{code}
 Result are assumed to be parsable code and are enclosed in a code block.
@@ -13344,9 +13430,9 @@ The result is converted to pretty-printed code and is enclosed in a code
 block.  This option currently supports Emacs Lisp, Python, and Ruby.  E.g.,
 @code{:results value pp}.
 @item @code{wrap}
-The result is wrapped in a @code{begin_result} block.  This can be useful for
+The result is wrapped in a RESULTS drawer.  This can be useful for
 inserting @code{raw} or @code{org} syntax results in such a way that their
-extend is known and they can be automatically removed or replaced.
+extent is known and they can be automatically removed or replaced.
 @end itemize
 
 @subsubheading Handling
@@ -13567,22 +13653,34 @@ interpreted language.
 @node noweb, noweb-ref, session, Specific header arguments
 @subsubsection @code{:noweb}
 
-The @code{:noweb} header argument controls expansion of ``noweb'' style (see
-@ref{Noweb reference syntax}) references in a code block.  This header
-argument can have one of three values: @code{yes}, @code{no}, or @code{tangle}.
+The @code{:noweb} header argument controls expansion of ``noweb'' syntax
+references (see @ref{Noweb reference syntax}) when the code block is
+evaluated, tangled, or exported.  The @code{:noweb} header argument can have
+one of the five values: @code{no}, @code{yes}, @code{tangle}, or
+@code{no-export} @code{strip-export}.
 
 @itemize @bullet
-@item @code{yes}
-All ``noweb'' syntax references in the body of the code block will be
-expanded before the block is evaluated, tangled or exported.
 @item @code{no}
-The default.  No ``noweb'' syntax specific action is taken on evaluating
-code blocks, However, noweb references will still be expanded during
-tangling.
+The default.  ``Noweb'' syntax references in the body of the code block will
+not be expanded before the code block is evaluated, tangled or exported.
+@item @code{yes}
+``Noweb'' syntax references in the body of the code block will be
+expanded before the code block is evaluated, tangled or exported.
 @item @code{tangle}
-All ``noweb'' syntax references in the body of the code block will be
-expanded before the block is tangled, however ``noweb'' references will not
-be expanded when the block is evaluated or exported.
+``Noweb'' syntax references in the body of the code block will be expanded
+before the code block is tangled.  However, ``noweb'' syntax references will
+not be expanded when the code block is evaluated or exported.
+@item @code{no-export}
+``Noweb'' syntax references in the body of the code block will be expanded
+before the block is evaluated or tangled.  However, ``noweb'' syntax
+references will not be expanded when the code block is exported.
+@item @code{strip-export}
+``Noweb'' syntax references in the body of the code block will be expanded
+before the block is evaluated or tangled.  However, ``noweb'' syntax
+references will not be removed when the code block is exported.
+@item @code{eval}
+``Noweb'' syntax references in the body of the code block will only be
+expanded before the block is evaluated.
 @end itemize
 
 @subsubheading Noweb prefix lines
@@ -13610,7 +13708,7 @@ Note that noweb replacement text that does not contain any newlines will not
 be affected by this change, so it is still possible to use inline noweb
 references.
 
-@node noweb-ref, cache, noweb, Specific header arguments
+@node noweb-ref, noweb-sep, noweb, Specific header arguments
 @subsubsection @code{:noweb-ref}
 When expanding ``noweb'' style references the bodies of all code block with
 @emph{either} a block name matching the reference name @emph{or} a
@@ -13620,7 +13718,9 @@ concatenated together to form the replacement text.
 By setting this header argument at the sub-tree or file level, simple code
 block concatenation may be achieved.  For example, when tangling the
 following Org mode file, the bodies of code blocks will be concatenated into
-the resulting pure code file.
+the resulting pure code file@footnote{(The example needs property inheritance
+to be turned on for the @code{noweb-ref} property, see @ref{Property
+inheritance}).}.
 
 @example
  #+BEGIN_SRC sh :tangle yes :noweb yes :shebang #!/bin/sh
@@ -13652,13 +13752,27 @@ the resulting pure code file.
  #+END_SRC
 @end example
 
-@node cache, sep, noweb-ref, Specific header arguments
+The @code{:noweb-sep} (see @ref{noweb-sep}) header argument holds the string
+used to separate accumulate noweb references like those above.  By default a
+newline is used.
+
+@node noweb-sep, cache, noweb-ref, Specific header arguments
+@subsubsection @code{:noweb-sep}
+
+The @code{:noweb-sep} header argument holds the string used to separate
+accumulate noweb references (see @ref{noweb-ref}).  By default a newline is
+used.
+
+@node cache, sep, noweb-sep, Specific header arguments
 @subsubsection @code{:cache}
 
 The @code{:cache} header argument controls the use of in-buffer caching of
 the results of evaluating code blocks.  It can be used to avoid re-evaluating
-unchanged code blocks.  This header argument can have one of two
-values: @code{yes} or @code{no}.
+unchanged code blocks.  Note that the @code{:cache} header argument will not
+attempt to cache results when the @code{:session} header argument is used,
+because the results of the code block execution may be stored in the session
+outside of the Org-mode buffer.  The @code{:cache} header argument can have
+one of two values: @code{yes} or @code{no}.
 
 @itemize @bullet
 @item @code{no}
@@ -13667,7 +13781,7 @@ every time it is called.
 @item @code{yes}
 Every time the code block is run a SHA1 hash of the code and arguments
 passed to the block will be generated.  This hash is packed into the
-@code{#+results:} line and will be checked on subsequent
+@code{#+RESULTS:} line and will be checked on subsequent
 executions of the code block.  If the code block has not
 changed since the last time it was evaluated, it will not be re-evaluated.
 @end itemize
@@ -13684,7 +13798,7 @@ changed since it was last run.
  runif(1)
  #+END_SRC
 
- #+results[a2a72cd647ad44515fab62e144796432793d68e1]: random
+ #+RESULTS[a2a72cd647ad44515fab62e144796432793d68e1]: random
  0.4659510825295
 
  #+NAME: caller
@@ -13692,7 +13806,7 @@ changed since it was last run.
  x
  #+END_SRC
 
- #+results[bec9c8724e397d5df3b696502df3ed7892fc4f5f]: caller
+ #+RESULTS[bec9c8724e397d5df3b696502df3ed7892fc4f5f]: caller
  0.254227238707244
 @end example
 
@@ -13736,7 +13850,7 @@ default value yields the following results.
   return tab
 #+END_SRC
 
-#+results: echo-table
+#+RESULTS: echo-table
 | a | b | c |
 | d | e | f |
 | g | h | i |
@@ -13758,7 +13872,7 @@ Leaves hlines in the table.  Setting @code{:hlines yes} has this effect.
   return tab
 #+END_SRC
 
-#+results: echo-table
+#+RESULTS: echo-table
 | a | b | c |
 |---+---+---|
 | d | e | f |
@@ -13796,7 +13910,7 @@ processing, then reapplied to the results.
   return [[val + '*' for val in row] for row in tab]
 #+END_SRC
 
-#+results: echo-table-again
+#+RESULTS: echo-table-again
 | a  |
 |----|
 | b* |
@@ -13839,7 +13953,7 @@ and is then reapplied to the results.
   return [[val + 10 for val in row] for row in tab]
 #+END_SRC
 
-#+results: echo-table-once-again
+#+RESULTS: echo-table-once-again
 | one | 11 | 12 | 13 | 14 | 15 |
 | two | 16 | 17 | 18 | 19 | 20 |
 @end example
@@ -13857,7 +13971,7 @@ Setting the @code{:shebang} header argument to a string value
 first line of any tangled file holding the code block, and the file
 permissions of the tangled file are set to make it executable.
 
-@node eval,  , shebang, Specific header arguments
+@node eval, wrap, shebang, Specific header arguments
 @subsubsection @code{:eval}
 The @code{:eval} header argument can be used to limit the evaluation of
 specific code blocks.  The @code{:eval} header argument can be useful for
@@ -13881,6 +13995,14 @@ Evaluation of the code block during export will require a query.
 If this header argument is not set then evaluation is determined by the value
 of the @code{org-confirm-babel-evaluate} variable see @ref{Code evaluation
 security}.
+
+@node wrap,  , eval, Specific header arguments
+@subsubsection @code{:wrap}
+The @code{:wrap} header argument is used to mark the results of source block
+evaluation.  The header argument can be passed a string that will be appended
+to @code{#+BEGIN_} and @code{#+END_}, which will then be used to wrap the
+results.  If not string is specified then the results will be wrapped in a
+@code{#+BEGIN/END_RESULTS} block.
 
 @node Results of evaluation, Noweb reference syntax, Header arguments, Working With Source Code
 @section Results of evaluation
@@ -13951,7 +14073,7 @@ process.  For example, compare the following two blocks:
  print "bye"
 #+END_SRC
 
-#+results:
+#+RESULTS:
 : hello
 : bye
 @end example
@@ -13964,7 +14086,7 @@ In non-session mode, the `2' is not printed and does not appear.
  print "bye"
 #+END_SRC
 
-#+results:
+#+RESULTS:
 : hello
 : 2
 : bye
@@ -13992,13 +14114,28 @@ When a code block is tangled or evaluated, whether or not ``noweb''
 references are expanded depends upon the value of the @code{:noweb} header
 argument.  If @code{:noweb yes}, then a Noweb reference is expanded before
 evaluation.  If @code{:noweb no}, the default, then the reference is not
-expanded before evaluation.
+expanded before evaluation.  See the @ref{noweb-ref} header argument for
+a more flexible way to resolve noweb references.
+
+It is possible to include the @emph{results} of a code block rather than the
+body.  This is done by appending parenthesis to the code block name which may
+optionally contain arguments to the code block as shown below.
+
+@example
+<<code-block-name(optional arguments)>>
+@end example
 
 Note: the default value, @code{:noweb no}, was chosen to ensure that
 correct code is not broken in a language, such as Ruby, where
 @code{<<arg>>} is a syntactically valid construct.  If @code{<<arg>>} is not
 syntactically valid in languages that you use, then please consider setting
 the default value.
+
+Note: if noweb tangling is slow in large Org-mode files consider setting the
+@code{*org-babel-use-quick-and-dirty-noweb-expansion*} variable to true.
+This will result in faster noweb reference resolution at the expense of not
+correctly resolving inherited values of the @code{:noweb-ref} header
+argument.
 
 @node Key bindings and useful functions, Batch execution, Noweb reference syntax, Working With Source Code
 @section Key bindings and useful functions
@@ -14024,34 +14161,72 @@ are active:
 In an Org mode buffer, the following key bindings are active:
 
 @multitable @columnfractions 0.45 0.55
-@kindex C-c C-v a
-@kindex C-c C-v C-a
-@item @kbd{C-c C-v a} @ @ @r{or} @ @ @kbd{C-c C-v C-a} @tab @code{org-babel-sha1-hash}
+@kindex C-c C-v p
+@kindex C-c C-v C-p
+@item @kbd{C-c C-v p} @ @ @r{or} @ @ @kbd{C-c C-v C-p} @tab @code{org-babel-previous-src-block}
+@kindex C-c C-v n
+@kindex C-c C-v C-n
+@item @kbd{C-c C-v n} @ @ @r{or} @ @ @kbd{C-c C-v C-n} @tab @code{org-babel-next-src-block}
+@kindex C-c C-v e
+@kindex C-c C-v C-e
+@item @kbd{C-c C-v e} @ @ @r{or} @ @ @kbd{C-c C-v C-e} @tab @code{org-babel-execute-maybe}
+@kindex C-c C-v o
+@kindex C-c C-v C-o
+@item @kbd{C-c C-v o} @ @ @r{or} @ @ @kbd{C-c C-v C-o} @tab @code{org-babel-open-src-block-result}
+@kindex C-c C-v v
+@kindex C-c C-v C-v
+@item @kbd{C-c C-v v} @ @ @r{or} @ @ @kbd{C-c C-v C-v} @tab @code{org-babel-expand-src-block}
+@kindex C-c C-v u
+@kindex C-c C-v C-u
+@item @kbd{C-c C-v u} @ @ @r{or} @ @ @kbd{C-c C-v C-u} @tab @code{org-babel-goto-src-block-head}
+@kindex C-c C-v g
+@kindex C-c C-v C-g
+@item @kbd{C-c C-v g} @ @ @r{or} @ @ @kbd{C-c C-v C-g} @tab @code{org-babel-goto-named-src-block}
+@kindex C-c C-v r
+@kindex C-c C-v C-r
+@item @kbd{C-c C-v r} @ @ @r{or} @ @ @kbd{C-c C-v C-r} @tab @code{org-babel-goto-named-result}
 @kindex C-c C-v b
 @kindex C-c C-v C-b
 @item @kbd{C-c C-v b} @ @ @r{or} @ @ @kbd{C-c C-v C-b} @tab @code{org-babel-execute-buffer}
-@kindex C-c C-v f
-@kindex C-c C-v C-f
-@item @kbd{C-c C-v f} @ @ @r{or} @ @ @kbd{C-c C-v C-f} @tab @code{org-babel-tangle-file}
-@kindex C-c C-v g
-@item @kbd{C-c C-v g} @tab @code{org-babel-goto-named-source-block}
-@kindex C-c C-v h
-@item @kbd{C-c C-v h} @tab @code{org-babel-describe-bindings}
-@kindex C-c C-v l
-@kindex C-c C-v C-l
-@item @kbd{C-c C-v l} @ @ @r{or} @ @ @kbd{C-c C-v C-l} @tab @code{org-babel-lob-ingest}
-@kindex C-c C-v p
-@kindex C-c C-v C-p
-@item @kbd{C-c C-v p} @ @ @r{or} @ @ @kbd{C-c C-v C-p} @tab @code{org-babel-expand-src-block}
 @kindex C-c C-v s
 @kindex C-c C-v C-s
 @item @kbd{C-c C-v s} @ @ @r{or} @ @ @kbd{C-c C-v C-s} @tab @code{org-babel-execute-subtree}
+@kindex C-c C-v d
+@kindex C-c C-v C-d
+@item @kbd{C-c C-v d} @ @ @r{or} @ @ @kbd{C-c C-v C-d} @tab @code{org-babel-demarcate-block}
 @kindex C-c C-v t
 @kindex C-c C-v C-t
 @item @kbd{C-c C-v t} @ @ @r{or} @ @ @kbd{C-c C-v C-t} @tab @code{org-babel-tangle}
+@kindex C-c C-v f
+@kindex C-c C-v C-f
+@item @kbd{C-c C-v f} @ @ @r{or} @ @ @kbd{C-c C-v C-f} @tab @code{org-babel-tangle-file}
+@kindex C-c C-v c
+@kindex C-c C-v C-c
+@item @kbd{C-c C-v c} @ @ @r{or} @ @ @kbd{C-c C-v C-c} @tab @code{org-babel-check-src-block}
+@kindex C-c C-v j
+@kindex C-c C-v C-j
+@item @kbd{C-c C-v j} @ @ @r{or} @ @ @kbd{C-c C-v C-j} @tab @code{org-babel-insert-header-arg}
+@kindex C-c C-v l
+@kindex C-c C-v C-l
+@item @kbd{C-c C-v l} @ @ @r{or} @ @ @kbd{C-c C-v C-l} @tab @code{org-babel-load-in-session}
+@kindex C-c C-v i
+@kindex C-c C-v C-i
+@item @kbd{C-c C-v i} @ @ @r{or} @ @ @kbd{C-c C-v C-i} @tab @code{org-babel-lob-ingest}
+@kindex C-c C-v I
+@kindex C-c C-v C-I
+@item @kbd{C-c C-v I} @ @ @r{or} @ @ @kbd{C-c C-v C-I} @tab @code{org-babel-view-src-block-info}
 @kindex C-c C-v z
 @kindex C-c C-v C-z
-@item @kbd{C-c C-v z} @ @ @r{or} @ @ @kbd{C-c C-v C-z} @tab @code{org-babel-switch-to-session}
+@item @kbd{C-c C-v z} @ @ @r{or} @ @ @kbd{C-c C-v C-z} @tab @code{org-babel-switch-to-session-with-code}
+@kindex C-c C-v a
+@kindex C-c C-v C-a
+@item @kbd{C-c C-v a} @ @ @r{or} @ @ @kbd{C-c C-v C-a} @tab @code{org-babel-sha1-hash}
+@kindex C-c C-v h
+@kindex C-c C-v C-h
+@item @kbd{C-c C-v h} @ @ @r{or} @ @ @kbd{C-c C-v C-h} @tab @code{org-babel-describe-bindings}
+@kindex C-c C-v x
+@kindex C-c C-v C-x
+@item @kbd{C-c C-v x} @ @ @r{or} @ @ @kbd{C-c C-v C-x} @tab @code{org-babel-do-key-sequence-in-edit-buffer}
 @end multitable
 
 @c When possible these keybindings were extended to work when the control key is
@@ -14241,19 +14416,19 @@ keystrokes are typed on a line by itself.
 The following template selectors are currently supported.
 
 @multitable @columnfractions 0.1 0.9
-@item @kbd{s} @tab @code{#+begin_src     ... #+end_src}
-@item @kbd{e} @tab @code{#+begin_example ... #+end_example}
-@item @kbd{q} @tab @code{#+begin_quote   ... #+end_quote}
-@item @kbd{v} @tab @code{#+begin_verse   ... #+end_verse}
-@item @kbd{c} @tab @code{#+begin_center  ... #+end_center}
-@item @kbd{l} @tab @code{#+begin_latex   ... #+end_latex}
-@item @kbd{L} @tab @code{#+latex:}
-@item @kbd{h} @tab @code{#+begin_html    ... #+end_html}
-@item @kbd{H} @tab @code{#+html:}
-@item @kbd{a} @tab @code{#+begin_ascii   ... #+end_ascii}
-@item @kbd{A} @tab @code{#+ascii:}
-@item @kbd{i} @tab @code{#+index:} line
-@item @kbd{I} @tab @code{#+include:} line
+@item @kbd{s} @tab @code{#+BEGIN_SRC     ... #+END_SRC}
+@item @kbd{e} @tab @code{#+BEGIN_EXAMPLE ... #+END_EXAMPLE}
+@item @kbd{q} @tab @code{#+BEGIN_QUOTE   ... #+END_QUOTE}
+@item @kbd{v} @tab @code{#+BEGIN_VERSE   ... #+END_VERSE}
+@item @kbd{c} @tab @code{#+BEGIN_CENTER  ... #+END_CENTER}
+@item @kbd{l} @tab @code{#+BEGIN_LaTeX   ... #+END_LaTeX}
+@item @kbd{L} @tab @code{#+LaTeX:}
+@item @kbd{h} @tab @code{#+BEGIN_HTML    ... #+END_HTML}
+@item @kbd{H} @tab @code{#+HTML:}
+@item @kbd{a} @tab @code{#+BEGIN_ASCII   ... #+END_ASCII}
+@item @kbd{A} @tab @code{#+ASCII:}
+@item @kbd{i} @tab @code{#+INDEX:} line
+@item @kbd{I} @tab @code{#+INCLUDE:} line
 @end multitable
 
 For example, on an empty line, typing "<e" and then pressing TAB, will expand
@@ -14347,7 +14522,7 @@ either by the @i{calc} interpreter, or by the @i{Emacs Lisp} interpreter.
 @cindex options, for customization
 @cindex variables, for customization
 
-There are more than 180 variables that can be used to customize
+There are more than 500 variables that can be used to customize
 Org.  For the sake of compactness of the manual, I am not
 describing the variables here.  A structured overview of customization
 variables is available with @kbd{M-x org-customize}.  Or select
@@ -14398,8 +14573,8 @@ Set tags that can be inherited by any entry in the file, including the
 top-level entries.
 @item #+DRAWERS: NAME1 .....
 @vindex org-drawers
-Set the file-local set of drawers.  The corresponding global variable is
-@code{org-drawers}.
+Set the file-local set of additional drawers.  The corresponding global
+variable is @code{org-drawers}.
 @item #+LINK:  linkword replace
 @vindex org-link-abbrev-alist
 These lines (several are allowed) specify link abbreviations.
@@ -14610,7 +14785,7 @@ This line contains the formulas for the table directly above the line.
 @item #+TITLE:, #+AUTHOR:, #+EMAIL:, #+LANGUAGE:, #+TEXT:, #+DATE:,
 @itemx #+OPTIONS:, #+BIND:, #+XSLT:,
 @itemx #+DESCRIPTION:, #+KEYWORDS:,
-@itemx #+LATEX_HEADER:, #+STYLE:, #+LINK_UP:, #+LINK_HOME:,
+@itemx #+LaTeX_HEADER:, #+STYLE:, #+LINK_UP:, #+LINK_HOME:,
 @itemx #+EXPORT_SELECT_TAGS:, #+EXPORT_EXCLUDE_TAGS:
 These lines provide settings for exporting files.  For more details see
 @ref{Export options}.
@@ -14862,7 +15037,7 @@ checks for the availability of Calc by looking for the function
 been installed properly.  As of Emacs 22, Calc is part of the Emacs
 distribution.  Another possibility for interaction between the two
 packages is using Calc for embedded calculations.  @xref{Embedded Mode,
-, Embedded Mode, Calc, GNU Emacs Calc Manual}.
+, Embedded Mode, calc, GNU Emacs Calc Manual}.
 @item @file{constants.el} by Carsten Dominik
 @cindex @file{constants.el}
 @cindex Dominik, Carsten
@@ -15238,7 +15413,7 @@ not accept any arguments, and return the full link with prefix.
 @vindex org-ctrl-c-ctrl-c-hook
 
 Org has several commands that act differently depending on context.  The most
-important example it the @kbd{C-c C-c} (@pxref{The very busy C-c C-c key}).
+important example is the @kbd{C-c C-c} (@pxref{The very busy C-c C-c key}).
 Also the @kbd{M-cursor} and @kbd{M-S-cursor} keys have this property.
 
 Add-ons can tap into this functionality by providing a function that detects
@@ -15886,6 +16061,7 @@ If WHICH is nil or `all', get all properties.  If WHICH is
 `special' or `standard', only get that subclass.
 @end defun
 @vindex org-use-property-inheritance
+@findex org-insert-property-drawer
 @defun org-entry-get pom property &optional inherit
 Get value of PROPERTY for entry at point-or-marker POM.  By default,
 this only looks at properties defined locally in the entry.  If INHERIT
@@ -15908,7 +16084,7 @@ Get all property keys in the current buffer.
 @end defun
 
 @defun org-insert-property-drawer
-Insert a property drawer at point.
+Insert a property drawer for the current entry.  Also
 @end defun
 
 @defun org-entry-put-multivalued-property pom property &rest values
@@ -16061,13 +16237,16 @@ The following example counts the number of entries with TODO keyword
 @cindex iPhone
 @cindex MobileOrg
 
-@uref{http://mobileorg.ncogni.to/, MobileOrg} is an application for the
-@i{iPhone/iPod Touch} series of devices, developed by Richard Moreland.
-@i{MobileOrg} offers offline viewing and capture support for an Org mode
-system rooted on a ``real'' computer.  It does also allow you to record
-changes to existing entries.  Android users should check out
+@i{MobileOrg} is the name of the mobile companion app for Org mode, currently
+available for iOS and for Android.  @i{MobileOrg} offers offline viewing and
+capture support for an Org mode system rooted on a ``real'' computer.  It
+does also allow you to record changes to existing entries.
+The @uref{http://mobileorg.ncogni.to/, iOS implementation} for the
+@i{iPhone/iPod Touch/iPad} series of devices, was developed by Richard
+Moreland.  Android users should check out
 @uref{http://wiki.github.com/matburt/mobileorg-android/, MobileOrg Android}
-by Matt Jones.
+by Matt Jones.  The two implementations are not identical but offer similar
+features.
 
 This appendix describes the support Org has for creating agenda views in a
 format that can be displayed by @i{MobileOrg}, and for integrating notes
@@ -16232,7 +16411,7 @@ Bastien has written a large number of extensions to Org (most of them
 integrated into the core by now), including the @LaTeX{} exporter and the plain
 list parser.  His support during the early days, when he basically acted as
 co-maintainer, was central to the success of this project.  Bastien also
-invented Worg, helped establishing the Web presence of Org, and sponsors
+invented Worg, helped establishing the Web presence of Org, and sponsored
 hosting costs for the orgmode.org website.
 @item Eric Schulte and Dan Davison
 Eric and Dan are jointly responsible for the Org-babel system, which turns
@@ -16454,10 +16633,10 @@ with links transformation to Org syntax.
 @i{David O'Toole} wrote @file{org-publish.el} and drafted the manual
 chapter about publishing.
 @item
-@i{Jambunathan K} contributed the @acronym{ODT} exporter.
+@i{Jambunathan K} contributed the ODT exporter.
 @item
 @i{Sebastien Vauban} reported many issues with @LaTeX{} and BEAMER export and
-enabled source code highlighling in Gnus.
+enabled source code highlighting in Gnus.
 @item
 @i{Stefan Vollmar} organized a video-recorded talk at the
 Max-Planck-Institute for Neurology.  He also inspired the creation of a

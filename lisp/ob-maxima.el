@@ -1,6 +1,6 @@
 ;;; ob-maxima.el --- org-babel functions for maxima evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric S Fraga
 ;;	   Eric Schulte
@@ -63,9 +63,9 @@
   "Execute a block of Maxima entries with org-babel.  This function is
 called by `org-babel-execute-src-block'."
   (message "executing Maxima source code block")
-  (let ((result
-	 (let* ((result-params (split-string (or (cdr (assoc :results params)) "")))
-		(cmdline (cdr (assoc :cmdline params)))
+  (let ((result-params (split-string (or (cdr (assoc :results params)) "")))
+	(result
+	 (let* ((cmdline (cdr (assoc :cmdline params)))
 		(in-file (org-babel-temp-file "maxima-" ".max"))
 		(cmd (format "maxima --very-quiet -r 'batchload(%S)$' %s"
 			     in-file cmdline)))

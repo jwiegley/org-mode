@@ -1,6 +1,6 @@
 ;;; org-capture.el --- Fast note taking in Org-mode
 
-;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -56,7 +56,7 @@
 		  (date &optional keep-restriction))
 (declare-function org-table-get-specials "org-table" ())
 (declare-function org-table-goto-line "org-table" (N))
-(declare-function org-pop-to-buffer-same-window "org-compat" 
+(declare-function org-pop-to-buffer-same-window "org-compat"
 		  (&optional buffer-or-name norecord label))
 
 (defvar org-remember-default-headline)
@@ -262,6 +262,7 @@ w3, w3m                 |  %:type %:url
 info                    |  %:type %:file %:node
 calendar                |  %:type %:date"
   :group 'org-capture
+  :version "24.1"
   :type
   '(repeat
     (choice :value ("" "" entry (file "~/org/notes.org") "")
@@ -336,12 +337,21 @@ calendar                |  %:type %:date"
 The capture buffer is still current when this hook runs and it is
 widened to the entire buffer."
   :group 'org-capture
+  :version "24.1"
   :type 'hook)
 
 (defcustom org-capture-after-finalize-hook nil
   "Hook that is run right after a capture process is finalized.
   Suitable for window cleanup"
   :group 'org-capture
+  :version "24.1"
+  :type 'hook)
+
+(defcustom org-capture-prepare-finalize-hook nil
+  "Hook that is run before the finalization starts.
+The capture buffer is current and still narrowed."
+  :group 'org-capture
+  :version "24.1"
   :type 'hook)
 
 ;;; The property list for keeping information about the capture process
@@ -374,7 +384,7 @@ to avoid conflicts with other active capture processes."
   (plist-get (if local org-capture-current-plist org-capture-plist) prop))
 
 (defun org-capture-member (prop &optional local)
-  "Is PROP a preperty in `org-capture-plist'.
+  "Is PROP a property in `org-capture-plist'.
 When LOCAL is set, use the local variable `org-capture-current-plist',
 this is necessary after initialization of the capture process,
 to avoid conflicts with other active capture processes."
@@ -526,6 +536,8 @@ captured item after finalizing."
   (unless (and org-capture-mode
 	       (buffer-base-buffer (current-buffer)))
     (error "This does not seem to be a capture buffer for Org-mode"))
+
+  (run-hooks 'org-capture-prepare-finalize-hook)
 
   ;; Did we start the clock in this capture buffer?
   (when (and org-capture-clock-was-started
@@ -911,30 +923,30 @@ it.  When it is a variable, retrieve the value.  Return whatever we get."
 	 (target-entry-p (org-capture-get :target-entry-p))
 	 (ind 0)
 	 beg end)
-    (cond
-     ((org-capture-get :exact-position)
-      (goto-char (org-capture-get :exact-position)))
-     ((not target-entry-p)
-      ;; Insert as top-level entry, either at beginning or at end of file
-      (setq beg (point-min) end (point-max)))
-     (t
-      (setq beg (1+ (point-at-eol))
-	    end (save-excursion (outline-next-heading) (point)))))
-    (if (org-capture-get :prepend)
-	(progn
-	  (goto-char beg)
-	  (if (org-list-search-forward (org-item-beginning-re) end t)
-	      (progn
-		(goto-char (match-beginning 0))
-		(setq ind (org-get-indentation)))
-	    (goto-char end)
-	    (setq ind 0)))
-      (goto-char end)
-      (if (org-list-search-backward (org-item-beginning-re) beg t)
+    (if (org-capture-get :exact-position)
+	(goto-char (org-capture-get :exact-position))
+      (cond
+       ((not target-entry-p)
+	;; Insert as top-level entry, either at beginning or at end of file
+	(setq beg (point-min) end (point-max)))
+       (t
+	(setq beg (1+ (point-at-eol))
+	      end (save-excursion (outline-next-heading) (point)))))
+      (if (org-capture-get :prepend)
 	  (progn
-	    (setq ind (org-get-indentation))
-	    (org-end-of-item))
-	(setq ind 0)))
+	    (goto-char beg)
+	    (if (org-list-search-forward (org-item-beginning-re) end t)
+		(progn
+		  (goto-char (match-beginning 0))
+		  (setq ind (org-get-indentation)))
+	      (goto-char end)
+	      (setq ind 0)))
+	(goto-char end)
+	(if (org-list-search-backward (org-item-beginning-re) beg t)
+	    (progn
+	      (setq ind (org-get-indentation))
+	      (org-end-of-item))
+	  (setq ind 0))))
     ;; Remove common indentation
     (setq txt (org-remove-indentation txt))
     ;; Make sure this is indeed an item
@@ -1417,7 +1429,7 @@ The template may still contain \"%?\" for cursor positioning."
 		(or (equal (char-before) ?:) (insert ":"))
 		(insert ins)
 		(or (equal (char-after) ?:) (insert ":"))
-		(and (org-on-heading-p) (org-set-tags nil 'align)))))
+		(and (org-at-heading-p) (org-set-tags nil 'align)))))
 	   ((equal char "C")
 	    (cond ((= (length clipboards) 1) (insert (car clipboards)))
 		  ((> (length clipboards) 1)
@@ -1455,7 +1467,7 @@ The template may still contain \"%?\" for cursor positioning."
       (goto-char (point-min))
       (while (looking-at "[ \t]*\n") (replace-match ""))
       (if (re-search-forward "[ \t\n]*\\'" nil t) (replace-match "\n"))
-      ;; Return the expanded tempate and kill the temporary buffer
+      ;; Return the expanded template and kill the temporary buffer
       (untabify (point-min) (point-max))
       (set-buffer-modified-p nil)
       (prog1 (buffer-string) (kill-buffer (current-buffer))))))

@@ -1,6 +1,6 @@
 ;;; org-contacts.el --- Contacts management
 
-;; Copyright (C) 2010-2011 Julien Danjou <julien@danjou.info>
+;; Copyright (C) 2010-2012 Julien Danjou <julien@danjou.info>
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: outlines, hypermedia, calendar
@@ -388,7 +388,7 @@ This function should be called from `gnus-article-prepare-hook'."
   (let ((mails (org-entry-get (point) org-contacts-email-property)))
     (unless (member mail (split-string mails))
       (when (yes-or-no-p
-             (format "Do you want to this address to %s?" (org-get-heading t)))
+             (format "Do you want to add this address to %s?" (org-get-heading t)))
         (org-set-property org-contacts-email-property (concat mails " " mail))))))
 
 (defun org-contacts-gnus-check-mail-address ()
