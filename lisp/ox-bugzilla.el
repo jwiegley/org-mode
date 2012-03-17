@@ -59,12 +59,12 @@
   :type '(alist :key-type string :value-type integer)
   :group 'org-x-bugzilla)
 
-(defcustom org-x-bugzilla-statuses '(("TODO"     . ("New"         . 1))
-				     ("STARTED"  . ("In Progress" . 2))
-				     ("DONE"     . ("Resolved"    . 3))
-				     ("WAITING"  . ("Feedback"    . 4))
-				     ("DONE"     . ("Closed"      . 5))
-				     ("CANCELED" . ("Rejected"    . 6)))
+(defcustom org-x-bugzilla-statuses
+  '(("TODO"     . ("CONFIRMED"   . 1))
+    ("STARTED"  . ("IN_PROGRESS" . 2))
+    ("WAITING"  . ("REVIEW"      . 4))
+    ("DONE"     . ("RESOLVED"      . 5))
+    ("CANCELED" . ("RESOLVED"    . "WONTFIX")))
   "An alist of all the statuses on the Bugzilla installation.
 These are keyed by the related Org mode state."
   :type '(alist :key-type string :value-type integer)
@@ -110,10 +110,10 @@ See `org-x-bugzilla-title-prefix-function'."
   (cons 'ox-bugzilla
 	(list (cons "Bugzilla_URL"
 		    (org-x-bugzilla-property entry-or-pos "URL"))
-	      (cons "Bugzilla_APIKey"
-		    (org-x-bugzilla-property entry-or-pos "APIKey"))
-	      (cons "Bugzilla_Project"
-		    (org-x-bugzilla-property entry-or-pos "Project")))))
+	      (cons "Bugzilla_Login"
+		    (org-x-bugzilla-property entry-or-pos "Login"))
+	      (cons "Bugzilla_Password"
+		    (org-x-bugzilla-property entry-or-pos "Password")))))
 
 (defun org-x-bugzilla-title-prefix (id)
   (format "[[bugzilla:%d][#%d]] " id id))
@@ -154,7 +154,7 @@ See `org-x-bugzilla-title-prefix-function'."
 
 (defvar org-x-bugzilla-debug t)
 
-(defun org-x-bugzilla-rest-api
+(defun org-x-bugzilla-xmlrpc-api
   (type root-url url api-key &optional input params)
   (with-temp-buffer
     (if input (insert input))
