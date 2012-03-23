@@ -2972,17 +2972,11 @@ Assume buffer is in Org mode."
 	    ;; belongs to a section.
 	    'section nil granularity visible-only nil))))
 
-(defun org-element-parse-secondary-string (string restriction &optional buffer)
+(defun org-element-parse-secondary-string (string restriction)
   "Recursively parse objects in STRING and return structure.
 
 RESTRICTION, when non-nil, is a symbol limiting the object types
-that will be looked after.
-
-Optional argument BUFFER indicates the buffer from where the
-secondary string was extracted.  It is used to determine where to
-get extraneous information for an object \(i.e. when resolving
-a link or looking for a footnote definition\).  It defaults to
-the current buffer."
+that will be looked after."
   (with-temp-buffer
     (insert string)
     (org-element-parse-objects (point-min) (point-max) nil restriction)))
@@ -3643,27 +3637,25 @@ in-between, if any, are siblings of the element at point."
 (defun org-element-swap-A-B (elem-A elem-B)
   "Swap elements ELEM-A and ELEM-B.
 
-Leave point at the end of ELEM-A.
-
-Assume ELEM-A is before ELEM-B and that they are not nested."
+Leave point at the end of ELEM-A."
   (goto-char (org-element-property :begin elem-A))
-  (let* ((beg-B (org-element-property :begin elem-B))
-	 (end-B-no-blank (save-excursion
-			     (goto-char (org-element-property :end elem-B))
-			     (skip-chars-backward " \r\t\n")
-			     (forward-line)
-			     (point)))
-	 (beg-A (org-element-property :begin elem-A))
-	 (end-A-no-blank (save-excursion
-			   (goto-char (org-element-property :end elem-A))
-			   (skip-chars-backward " \r\t\n")
-			   (forward-line)
-			   (point)))
-	 (body-A (buffer-substring beg-A end-A-no-blank))
-	 (body-B (buffer-substring beg-B end-B-no-blank))
-	 (between-A-B (buffer-substring end-A-no-blank beg-B)))
-    (delete-region beg-A end-B-no-blank)
-    (insert body-B between-A-B body-A)
+  (let* ((beg-A (org-element-property :begin elem-A))
+	 (end-A (save-excursion
+		  (goto-char (org-element-property :end elem-A))
+		  (skip-chars-backward " \r\t\n")
+		  (point-at-eol)))
+	 (beg-B (org-element-property :begin elem-B))
+	 (end-B (save-excursion
+		  (goto-char (org-element-property :end elem-B))
+		  (skip-chars-backward " \r\t\n")
+		  (point-at-eol)))
+	 (body-A (buffer-substring beg-A end-A))
+	 (body-B (delete-and-extract-region beg-B end-B)))
+    (goto-char beg-B)
+    (insert body-A)
+    (goto-char beg-A)
+    (delete-region beg-A end-A)
+    (insert body-B)
     (goto-char (org-element-property :end elem-B))))
 
 (defun org-element-backward ()
@@ -3712,8 +3704,8 @@ Move to the previous element at the same level, when possible."
     (org-element-backward)
     (let ((prev-elem (org-element-at-point)))
       (when (or (org-element-nested-p elem prev-elem)
-		(and (eq (car elem) 'headline)
-		     (not (eq (car prev-elem) 'headline))))
+		(and (eq (org-element-type elem) 'headline)
+		     (not (eq (org-element-type prev-elem) 'headline))))
 	(goto-char pos)
 	(error "Cannot drag element backward"))
       ;; Compute new position of point: it's shifted by PREV-ELEM
@@ -3733,8 +3725,8 @@ Move to the previous element at the same level, when possible."
     (goto-char (org-element-property :end elem))
     (let ((next-elem (org-element-at-point)))
       (when (or (org-element-nested-p elem next-elem)
-		(and (eq (car next-elem) 'headline)
-		     (not (eq (car elem) 'headline))))
+		(and (eq (org-element-type next-elem) 'headline)
+		     (not (eq (org-element-type elem) 'headline))))
 	(goto-char pos)
 	(error "Cannot drag element forward"))
       ;; Compute new position of point: it's shifted by NEXT-ELEM
@@ -3919,6 +3911,8 @@ modified."
      ((eq (org-element-type element) 'plain-list)
       (forward-char))
      ((memq (org-element-type element) org-element-greater-elements)
+      ;; If contents are hidden, first disclose them.
+      (when (org-element-property :hiddenp element) (org-cycle))
       (goto-char (org-element-property :contents-begin element)))
      (t (error "No inner element")))))
 

@@ -653,6 +653,14 @@ postamble DIV."
 	  (string :tag "  Div for the content:")
 	  (string :tag "Div for the postamble:")))
 
+(defcustom org-export-html-date-format-string "%Y-%m-%dT%R%z"
+  "Format string to format the date and time.
+
+The default is an extended format of the ISO 8601 specification."
+  :group 'org-export-html
+  :version "24.1"
+  :type 'string)
+
 ;;; Hooks
 
 (defvar org-export-html-after-blockquotes-hook nil
@@ -1285,7 +1293,7 @@ PUB-DIR is set, use this as the publishing directory."
      ((and date (string-match "%" date))
       (setq date (format-time-string date)))
      (date)
-     (t (setq date (format-time-string "%Y-%m-%d %T %Z"))))
+     (t (setq date (format-time-string org-export-html-date-format-string))))
 
     ;; Get the language-dependent settings
     (setq lang-words (or (assoc language org-export-language-setup)

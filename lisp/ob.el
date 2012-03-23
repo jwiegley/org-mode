@@ -59,6 +59,7 @@
 (declare-function org-cycle "org" (&optional arg))
 (declare-function org-uniquify "org" (list))
 (declare-function org-current-level "org" ())
+(declare-function org-strip-protective-commas "org" (beg end))
 (declare-function org-table-import "org-table" (file arg))
 (declare-function org-add-hook "org-compat"
 		  (hook function &optional append local))
@@ -81,6 +82,7 @@
 (declare-function org-list-struct "org-list" ())
 (declare-function org-list-prevs-alist "org-list" (struct))
 (declare-function org-list-get-list-end "org-list" (item struct prevs))
+(declare-function org-strip-protective-commas "org" (beg end))
 
 (defgroup org-babel nil
   "Code block evaluation and management in `org-mode' documents."
@@ -2115,7 +2117,8 @@ parameters when merging lists."
 	       (setq tangle (or (list (cdr pair)) tangle)))
 	      (:noweb
 	       (setq noweb (e-merge
-			    '(("yes" "no" "tangle" "no-export" "strip-export"))
+			    '(("yes" "no" "tangle" "no-export"
+			       "strip-export" "eval"))
 			    noweb
 			    (split-string (or (cdr pair) "")))))
 	      (:cache
@@ -2159,7 +2162,7 @@ CONTEXT may be one of :tangle, :export or :eval."
 			   (intersect (cdr as) bs)))))
     (intersect (case context
                     (:tangle '("yes" "tangle" "no-export" "strip-export"))
-                    (:eval   '("yes" "no-export" "strip-export"))
+                    (:eval   '("yes" "no-export" "strip-export" "eval"))
                     (:export '("yes")))
                   (split-string (or (cdr (assoc :noweb params)) "")))))
 
@@ -2242,7 +2245,7 @@ block but are passed literally to the \"example-block\"."
 		    (when (org-babel-ref-goto-headline-id source-name)
 		      (org-babel-ref-headline-body)))
 		  ;; find the expansion of reference in this buffer
-		  (let ((rx (concat rx-prefix source-name))
+		  (let ((rx (concat rx-prefix source-name "[ \t\n]"))
 			expansion)
 		    (save-excursion
 		      (goto-char (point-min))
