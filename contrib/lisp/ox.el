@@ -597,8 +597,8 @@ the majority of dispatch API functions.")
   value)
 
 (defun org-x-remove-property (entry name &optional propagate)
-  (let* ((properties (assq 'properties entry))
-	 (cell (assoc name (cdr properties))))
+  (let* ((properties (assoc 'properties entry))
+         (cell (assoc name (cdr properties))))
     (if cell
 	(setcdr properties (delq cell (cdr properties)))))
   (if propagate
