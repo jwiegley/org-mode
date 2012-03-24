@@ -452,7 +452,7 @@ the majority of dispatch API functions.")
 
 (defun org-x-set-parent-property (entry name value)
   (let* ((properties (org-x-parent-properties entry))
-         (cell (assq name properties)))
+         (cell (assoc name properties)))
     (if cell
         (setcdr cell value)
       (if properties
@@ -463,7 +463,7 @@ the majority of dispatch API functions.")
 
 (defun org-x-set-property (entry name value &optional no-overwrite propagate)
   (let* ((properties (org-x-properties entry))
-         (cell (assq name properties)))
+         (cell (assoc name properties)))
     (unless (and (cdr cell) no-overwrite)
       (if cell
           (setcdr cell value)
@@ -475,9 +475,9 @@ the majority of dispatch API functions.")
       (org-x-propagate entry 'set-property (cons name value)))
   value)
 
-(defun org-x-remove-property (entry name value &optional propagate)
-  (let* ((properties (assq 'properties entry))
-         (cell (assq name (cdr properties))))
+(defun org-x-remove-property (entry name &optional propagate)
+  (let* ((properties (assoc 'properties entry))
+         (cell (assoc name (cdr properties))))
     (if cell
         (setcdr properties (delq cell (cdr properties)))))
   (if propagate
