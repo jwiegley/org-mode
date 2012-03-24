@@ -71,7 +71,7 @@
 
 (defun org-x-org-group-identifiers ()
   (save-excursion
-    (outline-up-heading 1)
+    (org-up-heading-safe)
     (outline-next-heading)
     (let* ((depth (org-x--heading-depth))
 	   (current-depth depth)
@@ -291,10 +291,10 @@
 	    (save-excursion
 	      (widen)
 	      (outline-back-to-heading)
-	      (let (level (prev-level (outline-level)))
-		(while (progn (outline-up-heading 1)
+	      (let (level (prev-level (org-outline-level)))
+		(while (progn (org-up-heading-safe)
 			      (and (outline-on-heading-p)
-				   (< (setq level (outline-level)) prev-level)))
+				   (< (setq level (org-outline-level)) prev-level)))
 		    (mapc (lambda (prop)
 			    (org-x-set-parent-property entry (car prop)
 						     (cdr prop)))
