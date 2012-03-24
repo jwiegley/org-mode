@@ -290,13 +290,15 @@
 	  (save-restriction
 	    (save-excursion
 	      (widen)
-	      (ignore-errors
-		(dotimes (i 20)
-		  (outline-up-heading 1)
-		  (mapc (lambda (prop)
-			  (org-x-set-parent-property entry (car prop)
+	      (outline-back-to-heading)
+	      (let (level (prev-level (outline-level)))
+		(while (progn (outline-up-heading 1)
+			      (and (outline-on-heading-p)
+				   (< (setq level (outline-level)) prev-level)))
+		    (mapc (lambda (prop)
+			    (org-x-set-parent-property entry (car prop)
 						     (cdr prop)))
-			(org-entry-properties)))))))))
+			  (org-entry-properties)))))))))
     entry))
 
 ;;; Org writer:
@@ -400,7 +402,7 @@
 			(let ((depth (if org-adapt-indentation depth -1)))
 			  (insert (make-string (+ 3 depth) ? ) line ?\n))))
 		  (insert ?\n)))))))
-       
+
        ((eq element-type 'body)
 	(let ((body (org-x-body entry)))
 	  (if body
