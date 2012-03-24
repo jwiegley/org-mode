@@ -452,8 +452,7 @@
 		(insert (make-string (1+ depth) ? )))
 	    (insert ":END:\n"))))))
 
-    (outline-back-to-heading)
-    (org-set-tags t)))
+    (outline-back-to-heading)))
 
 ;;; Org utility functions:
 
