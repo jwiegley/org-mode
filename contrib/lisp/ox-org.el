@@ -71,7 +71,7 @@
 
 (defun org-x-org-group-identifiers ()
   (save-excursion
-    (outline-up-heading 1)
+    (org-up-heading-safe)
     (outline-next-heading)
     (let* ((depth (org-x--heading-depth))
 	   (current-depth depth)
@@ -396,13 +396,16 @@ point beyond the end of the while timestamp."
 	  (save-restriction
 	    (save-excursion
 	      (widen)
-	      (ignore-errors
-		(dotimes (i 20)
-		  (outline-up-heading 1)
-		  (mapc (lambda (prop)
-			  (org-x-set-parent-property entry (car prop)
+	      (outline-back-to-heading)
+	      (let (level (prev-level (org-outline-level)))
+		(while (progn (org-up-heading-safe)
+			      (and (outline-on-heading-p)
+				   (< (setq level (org-outline-level)) prev-level)))
+		  (setq prev-level level)
+		    (mapc (lambda (prop)
+			    (org-x-set-parent-property entry (car prop)
 						     (cdr prop)))
-			(org-entry-properties)))))))))
+			  (org-entry-properties)))))))))
     entry))
 
 ;;; Org writer:
