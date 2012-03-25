@@ -295,6 +295,7 @@
 		(while (progn (org-up-heading-safe)
 			      (and (outline-on-heading-p)
 				   (< (setq level (org-outline-level)) prev-level)))
+		  (setq prev-level level)
 		    (mapc (lambda (prop)
 			    (org-x-set-parent-property entry (car prop)
 						     (cdr prop)))
