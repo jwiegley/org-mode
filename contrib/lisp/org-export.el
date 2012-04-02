@@ -1027,7 +1027,7 @@ Assume buffer is in Org mode.  Narrowing, if any, is ignored."
        (while (re-search-forward special-re nil t)
 	 (let ((element (org-element-at-point)))
 	   (when (eq (org-element-type element) 'keyword)
-	     (let* ((key (upcase (org-element-property :key element)))
+	     (let* ((key (org-element-property :key element))
 		    (val (org-element-property :value element))
 		    (prop
 		     (cond
@@ -1104,7 +1104,7 @@ Assume buffer is in Org mode.  Narrowing, if any, is ignored."
        (while (re-search-forward opt-re nil t)
 	 (let ((element (org-element-at-point)))
 	   (when (eq (org-element-type element) 'keyword)
-	     (let* ((key (upcase (org-element-property :key element)))
+	     (let* ((key (org-element-property :key element))
 		    (val (org-element-property :value element))
 		    (prop (cdr (assoc key alist)))
 		    (behaviour (nth 4 (assq prop all))))
@@ -1293,8 +1293,7 @@ Following tree properties are set:
        data '(keyword target)
        (lambda (blob)
 	 (when (or (eq (org-element-type blob) 'target)
-		   (string= (upcase (org-element-property :key blob))
-                            "TARGET"))
+		   (string= (org-element-property :key blob) "TARGET"))
 	   blob)) info)
      :headline-numbering ,(org-export-collect-headline-numbering data info)
      :back-end ,backend)
@@ -2091,7 +2090,11 @@ Return code as a string."
       ;; resulting from that process.  Eventually call
       ;; `org-export-filter-parse-tree-functions'.
       (goto-char (point-min))
-      (let ((info (org-export-get-environment backend subtreep ext-plist)))
+      (let ((info (org-export-get-environment backend subtreep ext-plist))
+	    ;; Save original file name or buffer in order to properly
+	    ;; resolve babel block expansion when body is outside
+	    ;; scope.
+	    (buf (or (buffer-file-name (buffer-base-buffer)) (current-buffer))))
 	;; Remove subtree's headline from contents if subtree mode is
 	;; activated.
 	(when subtreep (forward-line) (narrow-to-region (point) (point-max)))
@@ -2105,28 +2108,28 @@ Return code as a string."
 		(if noexpand (org-element-parse-buffer nil visible-only)
 		  (org-export-with-current-buffer-copy
 		   (org-export-expand-include-keyword)
-		   (let ((org-current-export-file (current-buffer)))
+		   (let ((org-current-export-file buf))
 		     (org-export-blocks-preprocess))
 		   (org-element-parse-buffer nil visible-only)))
 		backend info)))
-	;; Complete communication channel with tree properties.
-	(setq info
-	      (org-combine-plists
-	       info
-	       (org-export-collect-tree-properties raw-data info backend)))
-	;; Transcode RAW-DATA.  Also call
-	;; `org-export-filter-final-output-functions'.
-	(let* ((body (org-element-normalize-string
-		      (org-export-data raw-data backend info)))
-	       (template (intern (format "org-%s-template" backend)))
-	       (output (org-export-filter-apply-functions
-			(plist-get info :filter-final-output)
-			(if (or (not (fboundp template)) body-only) body
-			  (funcall template body info))
-			backend info)))
-	  ;; Maybe add final OUTPUT to kill ring before returning it.
-	  (when org-export-copy-to-kill-ring (org-kill-new output))
-	  output))))))
+	  ;; Complete communication channel with tree properties.
+	  (setq info
+		(org-combine-plists
+		 info
+		 (org-export-collect-tree-properties raw-data info backend)))
+	  ;; Transcode RAW-DATA.  Also call
+	  ;; `org-export-filter-final-output-functions'.
+	  (let* ((body (org-element-normalize-string
+			(org-export-data raw-data backend info)))
+		 (template (intern (format "org-%s-template" backend)))
+		 (output (org-export-filter-apply-functions
+			  (plist-get info :filter-final-output)
+			  (if (or (not (fboundp template)) body-only) body
+			    (funcall template body info))
+			  backend info)))
+	    ;; Maybe add final OUTPUT to kill ring, then return it.
+	    (when org-export-copy-to-kill-ring (org-kill-new output))
+	    output))))))
 
 (defun org-export-to-buffer
   (backend buffer &optional subtreep visible-only body-only ext-plist noexpand)
@@ -2716,10 +2719,10 @@ INFO is a plist holding contextual information.
 Return value can be an object, an element, or nil:
 
 - If LINK path matches a target object (i.e. <<path>>) or
-  element (i.e. \"#+target: path\"), return it.
+  element (i.e. \"#+TARGET: path\"), return it.
 
 - If LINK path exactly matches the name affiliated keyword
-  \(i.e. #+name: path) of an element, return that element.
+  \(i.e. #+NAME: path) of an element, return that element.
 
 - If LINK path exactly matches any headline name, return that
   element.  If more than one headline share that name, priority
@@ -2738,7 +2741,7 @@ Assume LINK type is \"fuzzy\"."
 	   (loop for target in (plist-get info :target-list)
 		 when (string= (org-element-property :value target) path)
 		 return target)))
-     ;; Then try to find an element with a matching "#+name: path"
+     ;; Then try to find an element with a matching "#+NAME: path"
      ;; affiliated keyword.
      ((and (not (eq (substring path 0 1) ?*))
 	   (org-element-map

@@ -4,8 +4,8 @@
 @setfilename ../../info/org
 @settitle The Org Manual
 
-@set VERSION 7.8.03
-@set DATE January 2012
+@set VERSION 7.8.08
+@set DATE April 2012
 
 @c Use proper quote and backtick for code sections in PDF output
 @c Cf. Texinfo manual 14.2
@@ -614,13 +614,14 @@ DocBook export
 OpenDocument Text export
 
 * Pre-requisites for ODT export::  What packages ODT exporter relies on
-* ODT export commands::  How to invoke ODT export
-* Extending ODT export:: How to produce @samp{doc}, @samp{pdf} files
+* ODT export commands::         How to invoke ODT export
+* Extending ODT export::        How to produce @samp{doc}, @samp{pdf} files
 * Applying custom styles::      How to apply custom styles to the output
-* Links in ODT export::  How links will be interpreted and formatted
-* Tables in ODT export::  How Tables are exported
-* Images in ODT export::  How to insert images
+* Links in ODT export::         How links will be interpreted and formatted
+* Tables in ODT export::        How Tables are exported
+* Images in ODT export::        How to insert images
 * Math formatting in ODT export::  How @LaTeX{} fragments are formatted
+* Labels and captions in ODT export::  How captions are rendered
 * Literal examples in ODT export::  How source and example blocks are formatted
 * Advanced topics in ODT export::  Read this if you are a power user
 
@@ -695,6 +696,7 @@ Specific header arguments
 * results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
+* file-desc::                   Specify a description for file results
 * dir::                         Specify the default (possibly remote)
                                 directory for code block execution
 * exports::                     Export code and/or results
@@ -1012,7 +1014,7 @@ from within Emacs, please copy and paste the content into your Email program.
 
 Sometimes you might face a problem due to an error in your Emacs or Org mode
 setup.  Before reporting a bug, it is very helpful to start Emacs with minimal
-customisations and reproduce the problem.  Doing so often helps you determine
+customizations and reproduce the problem.  Doing so often helps you determine
 if the problem is with your customization or with Org mode itself.  You can
 start a typical minimal session with a command like the example below.
 
@@ -2266,7 +2268,8 @@ of columns, much like horizontal lines can do for groups of rows.  In
 order to specify column groups, you can use a special row where the
 first field contains only @samp{/}.  The further fields can either
 contain @samp{<} to indicate that this column should start a group,
-@samp{>} to indicate the end of a column, or @samp{<>} to make a column
+@samp{>} to indicate the end of a column, or @samp{<>} (no space between @samp{<}
+and @samp{>}) to make a column
 a group of its own.  Boundaries between column groups will upon export be
 marked with vertical lines.  Here is an example:
 
@@ -4958,7 +4961,7 @@ TIMESTAMP_IA @r{The first inactive timestamp in the entry.}
 CLOCKSUM     @r{The sum of CLOCK intervals in the subtree.  @code{org-clock-sum}}
              @r{must be run first to compute the values in the current buffer.}
 BLOCKED      @r{"t" if task is currently blocked by children or siblings}
-ITEM         @r{The content of the entry.}
+ITEM         @r{The headline of the entry.}
 FILE         @r{The filename the entry is located in.}
 @end example
 
@@ -6924,10 +6927,7 @@ Use the refile interface to jump to a heading.
 Jump to the location where @code{org-refile} last moved a tree to.
 @item C-2 C-c C-w
 Refile as the child of the item currently being clocked.
-@item C-0 C-c C-w @ @r{or} @ C-u C-u C-u C-c C-w
-
 @orgcmdtkc{C-0 C-c C-w @ @r{or} @ C-u C-u C-u C-c C-w,C-0 C-c C-w,org-refile-cache-clear}
-
 Clear the target cache.  Caching of refile targets can be turned on by
 setting @code{org-refile-use-cache}.  To make the command see new possible
 targets, you have to clear the cache with this command.
@@ -7541,6 +7541,9 @@ So a search @samp{+LEVEL=3+boss-TODO="DONE"} lists all level three headlines
 that have the tag @samp{boss} and are @emph{not} marked with the TODO keyword
 DONE.  In buffers with @code{org-odd-levels-only} set, @samp{LEVEL} does not
 count the number of stars, but @samp{LEVEL=2} will correspond to 3 stars etc.
+The ITEM special property cannot currently be used in tags/property
+searches@footnote{But @pxref{x-agenda-skip-entry-regexp,
+,skipping entries based on regexp}.}.
 
 Here are more examples:
 @table @samp
@@ -9832,13 +9835,13 @@ at a different level, specify it with a prefix argument.  For example,
 @end example
 
 @noindent
-creates only top level headlines and does the rest as items.  When
+creates only top level headlines and exports the rest as items.  When
 headlines are converted to items, the indentation of the text following
 the headline is changed to fit nicely under the item.  This is done with
 the assumption that the first body line indicates the base indentation of
 the body text.  Any indentation larger than this is adjusted to preserve
 the layout relative to the first line.  Should there be lines with less
-indentation than the first, these are left alone.
+indentation than the first one, these are left alone.
 
 @vindex org-export-ascii-links-to-notes
 Links will be exported in a footnote-like style, with the descriptive part in
@@ -10229,7 +10232,7 @@ viewing options:
 path:    @r{The path to the script.  The default is to grab the script from}
          @r{@url{http://orgmode.org/org-info.js}, but you might want to have}
          @r{a local copy and use a path like @samp{../scripts/org-info.js}.}
-view:    @r{Initial view when website is first shown.  Possible values are:}
+view:    @r{Initial view when the website is first shown.  Possible values are:}
          info      @r{Info-like interface with one section per page.}
          overview  @r{Folding interface, initially showing only top-level.}
          content   @r{Folding interface, starting with all headlines visible.}
@@ -10839,13 +10842,14 @@ are compatible with LibreOffice 3.4.
 
 @menu
 * Pre-requisites for ODT export::  What packages ODT exporter relies on
-* ODT export commands::  How to invoke ODT export
-* Extending ODT export:: How to produce @samp{doc}, @samp{pdf} files
+* ODT export commands::         How to invoke ODT export
+* Extending ODT export::        How to produce @samp{doc}, @samp{pdf} files
 * Applying custom styles::      How to apply custom styles to the output
-* Links in ODT export::  How links will be interpreted and formatted
-* Tables in ODT export::  How Tables are exported
-* Images in ODT export::  How to insert images
+* Links in ODT export::         How links will be interpreted and formatted
+* Tables in ODT export::        How Tables are exported
+* Images in ODT export::        How to insert images
 * Math formatting in ODT export::  How @LaTeX{} fragments are formatted
+* Labels and captions in ODT export::  How captions are rendered
 * Literal examples in ODT export::  How source and example blocks are formatted
 * Advanced topics in ODT export::  Read this if you are a power user
 @end menu
@@ -11006,8 +11010,15 @@ the factory settings.
 @subsection Links in ODT export
 @cindex tables, in DocBook export
 
-The ODT exporter creates cross-references (aka bookmarks) for
-internal links.  It creates Internet-style links for all other links.
+ODT exporter creates native cross-references for internal links.  It creates
+Internet-style links for all other links.
+
+A link with no description and destined to a regular (un-itemized) outline
+heading is replaced with a cross-reference and section number of the heading.
+
+A @samp{\ref@{label@}}-style reference to an image, table etc. is replaced
+with a cross-reference and sequence number of the labeled entity.
+@xref{Labels and captions in ODT export}.
 
 @node Tables in ODT export, Images in ODT export, Links in ODT export, OpenDocument Text export
 @subsection Tables in ODT export
@@ -11030,7 +11041,7 @@ You can control the width of the table by specifying @code{:rel-width}
 property using an @code{#+ATTR_ODT} line.
 
 For example, consider the following table which makes use of all the rules
-mentoned above.
+mentioned above.
 
 @example
 #+ATTR_ODT: :rel-width 50
@@ -11156,7 +11167,7 @@ To create an image that is anchored to a page, do the following:
 [[./img.png]]
 @end example
 
-@node Math formatting in ODT export, Literal examples in ODT export, Images in ODT export, OpenDocument Text export
+@node Math formatting in ODT export, Labels and captions in ODT export, Images in ODT export, OpenDocument Text export
 @subsection Math formatting in ODT export
 
 The ODT exporter has special support for handling math.
@@ -11250,34 +11261,69 @@ or
 [[./equation.odf]]
 @end example
 
-@node Literal examples in ODT export, Advanced topics in ODT export, Math formatting in ODT export, OpenDocument Text export
+@node Labels and captions in ODT export, Literal examples in ODT export, Math formatting in ODT export, OpenDocument Text export
+@subsection Labels and captions in ODT export
+
+You can label and caption various category of objects - an inline image, a
+table, a @LaTeX{} fragment or a Math formula - using @code{#+LABEL} and
+@code{#+CAPTION} lines.  @xref{Images and tables}.  ODT exporter enumerates
+each labeled or captioned object of a given category separately.  As a
+result, each such object is assigned a sequence number based on order of it's
+appearance in the Org file.
+
+In the exported document, a user-provided caption is augmented with the
+category and sequence number.  Consider the following inline image in an Org
+file.
+
+@example
+#+CAPTION: Bell curve
+#+LABEL:   fig:SED-HR4049
+[[./img/a.png]]
+@end example
+
+It could be rendered as shown below in the exported document.
+
+@example
+Figure 2: Bell curve
+@end example
+
+@vindex org-export-odt-category-strings
+You can modify the category component of the caption by customizing the
+variable @code{org-export-odt-category-strings}.  For example, to tag all
+embedded images with the string @samp{Illustration} (instead of the default
+@samp{Figure}) use the following setting.
+
+@lisp
+(setq org-export-odt-category-strings
+      '(("en" "Table" "Illustration" "Equation" "Equation")))
+@end lisp
+
+With this, previous image will be captioned as below in the exported
+document.
+
+@example
+Illustration 2: Bell curve
+@end example
+
+@node Literal examples in ODT export, Advanced topics in ODT export, Labels and captions in ODT export, OpenDocument Text export
 @subsection Literal examples in ODT export
 
 Export of literal examples (@pxref{Literal examples}) with full fontification
-is supported.  This feature is enabled by default and is activated
-automatically if an enhanced version of @file{htmlfontify.el} is available in
-the @code{load-path}.@footnote{The @file{htmlfontify.el} that ships with
-standard Emacs <= 24.1 has no support for ODT fontification.  A
-copy of the proposed version is available as an attachment to
-@url{http://debbugs.gnu.org/cgi/bugreport.cgi?msg=5;filename=htmlfontify.el;att=9;bug=9914,
-Emacs Bug #9914}.}
+is supported.  Internally, the exporter relies on @file{htmlfontify.el} to
+generate all style definitions needed for a fancy listing.@footnote{Your
+@file{htmlfontify.el} library must atleast be at Emacs 24.1 levels for
+fontification to be turned on.}  The auto-generated styles have @samp{OrgSrc}
+as prefix and inherit their color from the faces used by Emacs
+@code{font-lock} library for the source language.
 
 @vindex org-export-odt-fontify-srcblocks
-
-The character styles used for fontification of the literal blocks are
-auto-generated by the exporter in conjunction with @file{htmlfontify.el}
-library and need not be included in the default @file{styles.xml} file.
-These auto-generated styles have the @samp{OrgSrc} prefix and inherit their color
-based on the face used by Emacs @code{font-lock} library.
-
-@vindex org-export-odt-create-custom-styles-for-srcblocks
-If you prefer to use your own custom styles for fontification and disable
-their auto-generation altogether, you can do so by customizing the variable
+If you prefer to use your own custom styles for fontification, you can do so
+by customizing the variable
 @code{org-export-odt-create-custom-styles-for-srcblocks}.
 
-You can turn off fontification support for literal examples by customizing
-the variable @code{org-export-odt-fontify-srcblocks}.
-
+@vindex org-export-odt-create-custom-styles-for-srcblocks
+You can turn off fontification of literal examples by customizing the
+variable @code{org-export-odt-fontify-srcblocks}.
 
 @node Advanced topics in ODT export,  , Literal examples in ODT export, OpenDocument Text export
 @subsection Advanced topics in ODT export
@@ -11536,7 +11582,7 @@ the table that follows.
 @end lisp
 
 @example
-#+ATTR_ODT: TableWithHeaderRowAndColumn
+#+ATTR_ODT: :style "TableWithHeaderRowAndColumn"
 | Name  | Phone | Age |
 | Peter |  1234 |  17 |
 | Anna  |  4321 |  25 |
@@ -11641,9 +11687,9 @@ To define a table style, create an entry for the style in the variable
 @end itemize
 
 For example, the entry below defines two different table styles
-@samp{TableWithHeaderRowsAndColumns} and @samp{TableWithHeaderColumns} based
-on the same template @samp{Custom}.  The styles achieve their intended effect
-by selectively activating the individual cell styles in that template.
+@samp{TableWithHeaderRowAndColumn} and @samp{TableWithFirstRowandLastRow}
+based on the same template @samp{Custom}.  The styles achieve their intended
+effect by selectively activating the individual cell styles in that template.
 
 @lisp
 (setq org-export-odt-table-styles
@@ -11663,7 +11709,7 @@ To do this, specify the table style created in step (2) as part of
 the @code{ATTR_ODT} line as shown below.
 
 @example
-#+ATTR_ODT: TableWithHeaderRowAndColumn
+#+ATTR_ODT: :style "TableWithHeaderRowAndColumn"
 | Name  | Phone | Age |
 | Peter |  1234 |  17 |
 | Anna  |  4321 |  25 |
@@ -13062,6 +13108,7 @@ argument in lowercase letters.  The following header arguments are defined:
 * results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
+* file-desc::                   Specify a description for file results
 * dir::                         Specify the default (possibly remote)
                                 directory for code block execution
 * exports::                     Export code and/or results
@@ -13457,7 +13504,7 @@ be prepended to the existing results.  Otherwise the new results will be
 inserted as with @code{replace}.
 @end itemize
 
-@node file, dir, results, Specific header arguments
+@node file, file-desc, results, Specific header arguments
 @subsubsection @code{:file}
 
 The header argument @code{:file} is used to specify an external file in which
@@ -13473,7 +13520,16 @@ The argument to @code{:file} should be either a string specifying the path to
 a file, or a list of two strings in which case the first element of the list
 should be the path to a file and the second a description for the link.
 
-@node dir, exports, file, Specific header arguments
+@node file-desc, dir, file, Specific header arguments
+@subsubsection @code{:file-desc}
+
+The value of the @code{:file-desc} header argument is used to provide a
+description for file code block results which are inserted as Org-mode links
+(see @ref{Link format}).  If the @code{:file-desc} header argument is given
+with no value the link path will be placed in both the ``link'' and the
+``description'' portion of the Org-mode link.
+
+@node dir, exports, file-desc, Specific header arguments
 @subsubsection @code{:dir} and remote execution
 
 While the @code{:file} header argument can be used to specify the path to the
@@ -15920,9 +15976,10 @@ Skip current entry if the TODO keyword is TODO or WAITING.
 Skip current entry if the TODO keyword marks a DONE state.
 @item (org-agenda-skip-entry-if 'timestamp)
 Skip current entry if it has any timestamp, may also be deadline or scheduled.
-@item (org-agenda-skip-entry 'regexp "regular expression")
+@anchor{x-agenda-skip-entry-regexp}
+@item (org-agenda-skip-entry-if 'regexp "regular expression")
 Skip current entry if the regular expression matches in the entry.
-@item (org-agenda-skip-entry 'notregexp "regular expression")
+@item (org-agenda-skip-entry-if 'notregexp "regular expression")
 Skip current entry unless the regular expression matches.
 @item (org-agenda-skip-subtree-if 'regexp "regular expression")
 Same as above, but check and skip the entire subtree.

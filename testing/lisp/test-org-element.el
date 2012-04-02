@@ -204,6 +204,91 @@
 
 
 
+;;; Granularity
+
+(ert-deftest test-org-element/granularity ()
+  "Test granularity impact on buffer parsing."
+  (org-test-with-temp-text "
+* Head 1
+** Head 2
+#+BEGIN_CENTER
+Centered paragraph.
+#+END_CENTER
+Paragraph \\alpha."
+    ;; 1.1. Granularity set to `headline' should parse every headline
+    ;;      in buffer, and only them.
+    (let ((tree (org-element-parse-buffer 'headline)))
+      (should (= 2 (length (org-element-map tree 'headline 'identity))))
+      (should-not (org-element-map tree 'paragraph 'identity)))
+    ;; 1.2. Granularity set to `greater-element' should not enter
+    ;;      greater elements excepted headlines and sections.
+    (let ((tree (org-element-parse-buffer 'greater-element)))
+      (should (= 1 (length (org-element-map tree 'center-block 'identity))))
+      (should (= 1 (length (org-element-map tree 'paragraph 'identity))))
+      (should-not (org-element-map tree 'entity 'identity)))
+    ;; 1.3. Granularity set to `element' should enter every
+    ;;      greater-element.
+    (let ((tree (org-element-parse-buffer 'element)))
+      (should (= 2 (length (org-element-map tree 'paragraph 'identity))))
+      (should-not (org-element-map tree 'entity 'identity)))
+    ;; 1.4. Granularity set to `object' can see everything.
+    (let ((tree (org-element-parse-buffer 'object)))
+      (should (= 1 (length (org-element-map tree 'entity 'identity)))))))
+
+(ert-deftest test-org-element/secondary-string-parsing ()
+  "Test if granularity correctly toggles secondary strings parsing."
+  ;; 1. With a granularity bigger than `object', no secondary string
+  ;;    should be parsed.
+  ;;
+  ;; 1.1. Test with `headline' type.
+  (org-test-with-temp-text "* Headline"
+    (let ((headline
+	   (org-element-map (org-element-parse-buffer 'headline) 'headline
+			    'identity
+			    nil
+			    'first-match)))
+      (should (stringp (org-element-property :title headline)))))
+  ;; 1.2. Test with `item' type.
+  (org-test-with-temp-text "* Headline\n- tag :: item"
+    (let ((item (org-element-map (org-element-parse-buffer 'element)
+				 'item
+				 'identity
+				 nil
+				 'first-match)))
+      (should (stringp (org-element-property :tag item)))))
+  ;; 1.3. Test with `verse-block' type.
+  (org-test-with-temp-text "#+BEGIN_VERSE\nTest\n#+END_VERSE"
+    (let ((verse-block (org-element-map (org-element-parse-buffer 'element)
+					'verse-block
+					'identity
+					nil
+					'first-match)))
+      (should (stringp (org-element-property :value verse-block)))))
+  ;; 1.4. Test with `inlinetask' type, if avalaible.
+  (when (featurep 'org-inlinetask)
+    (let ((org-inlinetask-min-level 15))
+      (org-test-with-temp-text "*************** Inlinetask"
+	(let ((inlinetask (org-element-map (org-element-parse-buffer 'element)
+					   'inlinetask
+					   'identity
+					   nil
+					   'first-match)))
+	  (should (stringp (org-element-property :title inlinetask)))))))
+  ;; 2. With a default granularity, secondary strings should be
+  ;;    parsed.
+  (org-test-with-temp-text "* Headline"
+    (let ((headline
+	   (org-element-map (org-element-parse-buffer) 'headline
+			    'identity
+			    nil
+			    'first-match)))
+      (should (listp (org-element-property :title headline)))))
+  ;; 3. `org-element-at-point' should never parse a secondary string.
+  (org-test-with-temp-text "* Headline"
+    (should (stringp (org-element-property :title (org-element-at-point))))))
+
+
+
 ;;; Navigation tools.
 
 (ert-deftest test-org-element/forward-element ()
@@ -430,6 +515,50 @@ Outside."
   (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph.\n#+END_CENTER"
     (org-element-down)
     (should (looking-at "Paragraph"))))
+
+(ert-deftest test-org-element/drag-backward ()
+  "Test `org-element-drag-backward' specifications."
+  ;; 1. Error when trying to move first element of buffer.
+  (org-test-with-temp-text "Paragraph 1.\n\nParagraph 2."
+    (should-error (org-element-drag-backward)))
+  ;; 2. Error when trying to swap nested elements.
+  (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
+    (forward-line)
+    (should-error (org-element-drag-backward)))
+  ;; 3. Error when trying to swap an headline element and
+  ;;    a non-headline element.
+  (org-test-with-temp-text "Test.\n* Head 1"
+    (forward-line)
+    (should-error (org-element-drag-backward)))
+  ;; 4. Otherwise, swap elements, preserving column and blank lines
+  ;;    between elements.
+  (org-test-with-temp-text "Para1\n\n\nParagraph 2\n\nPara3"
+    (search-forward "graph")
+    (org-element-drag-backward)
+    (should (equal (buffer-string) "Paragraph 2\n\n\nPara1\n\nPara3"))
+    (should (looking-at " 2"))))
+
+(ert-deftest test-org-element/drag-forward ()
+  "Test `org-element-drag-forward' specifications."
+  ;; 1. Error when trying to move first element of buffer.
+  (org-test-with-temp-text "Paragraph 1.\n\nParagraph 2."
+    (goto-line 3)
+    (should-error (org-element-drag-forward)))
+  ;; 2. Error when trying to swap nested elements.
+  (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
+    (forward-line)
+    (should-error (org-element-drag-forward)))
+  ;; 3. Error when trying to swap a non-headline element and an
+  ;;    headline.
+  (org-test-with-temp-text "Test.\n* Head 1"
+    (should-error (org-element-drag-forward)))
+  ;; 4. Otherwise, swap elements, preserving column and blank lines
+  ;;    between elements.
+  (org-test-with-temp-text "Paragraph 1\n\n\nPara2\n\nPara3"
+    (search-forward "graph")
+    (org-element-drag-forward)
+    (should (equal (buffer-string) "Para2\n\n\nParagraph 1\n\nPara3"))
+    (should (looking-at " 1"))))
 
 
 (provide 'test-org-element)

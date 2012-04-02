@@ -2368,7 +2368,7 @@ of the new mark."
 		       (looking-at org-table-auto-recalculate-regexp))
        (org-table-recalculate) t))
 
-(defvar modes)
+(defvar org-table-modes)
 (defsubst org-set-calc-mode (var &optional value)
   (if (stringp var)
       (setq var (assoc var '(("D" calc-angle-mode deg)
@@ -2376,10 +2376,10 @@ of the new mark."
 			     ("F" calc-prefer-frac t)
 			     ("S" calc-symbolic-mode t)))
 	    value (nth 2 var) var (nth 1 var)))
-  (if (memq var modes)
-      (setcar (cdr (memq var modes)) value)
-    (cons var (cons value modes)))
-  modes)
+  (if (memq var org-table-modes)
+      (setcar (cdr (memq var org-table-modes)) value)
+    (cons var (cons value org-table-modes)))
+  org-table-modes)
 
 (defun org-table-eval-formula (&optional arg equation
 					 suppress-align suppress-const
@@ -2935,7 +2935,7 @@ known that the table will be realigned a little later anyway."
 
 (defun org-table-iterate (&optional arg)
   "Recalculate the table until it does not change anymore.
-The maximun number of iterations is 10, but you can choose a different value
+The maximum number of iterations is 10, but you can choose a different value
 with the prefix ARG."
   (interactive "P")
   (let ((imax (if arg (prefix-numeric-value arg) 10))
@@ -4158,7 +4158,7 @@ overwritten, and the table is not marked as requiring realignment."
 	   (looking-at "[^|\n]*  +|"))
       (let (org-table-may-need-update)
 	(goto-char (1- (match-end 0)))
-	(delete-char -1)
+	(backward-delete-char 1)
 	(goto-char (match-beginning 0))
 	(self-insert-command N))
     (setq org-table-may-need-update t)

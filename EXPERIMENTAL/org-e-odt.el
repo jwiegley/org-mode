@@ -3770,12 +3770,12 @@ contextual information."
 (defun org-e-odt-keyword (keyword contents info)
   "Transcode a KEYWORD element from Org to HTML.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (let ((key (downcase (org-element-property :key keyword)))
+  (let ((key (org-element-property :key keyword))
 	(value (org-element-property :value keyword)))
     (cond
-     ((string= key "latex") value)
-     ((string= key "index") (format "\\index{%s}" value))
-     ((string= key "target") nil	; FIXME
+     ((string= key "LATEX") value)
+     ((string= key "INDEX") (format "\\index{%s}" value))
+     ((string= key "TARGET") nil	; FIXME
       ;; (format "\\label{%s}" (org-export-solidify-link-text value))
       )
      ((string= key "toc")
@@ -4154,7 +4154,7 @@ TEXT is the text of the target.  INFO is a plist holding
 contextual information."
   (org-e-odt-format-anchor
    text (org-export-solidify-link-text
-	 (org-element-property :raw-value radio-target))))
+	 (org-element-property :value radio-target))))
 
 
 ;;;; Special Block

@@ -1,6 +1,6 @@
 ;;; org-clock.el --- The time clocking code for Org-mode
 
-;; Copyright (C) 2004-2012 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012  Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -323,6 +323,12 @@ play with them."
   :version "24.1"
   :type 'boolean)
 
+(defcustom org-clock-total-time-cell-format "*%s*"
+  "Format string for the total time cells."
+  :group 'org-clock
+  :version "24.1"
+  :type 'boolean)
+
 (defvar org-clock-in-prepare-hook nil
   "Hook run when preparing the clock.
 This hook is run before anything happens to the task that
@@ -631,8 +637,7 @@ use libnotify if available, or fall back on a message."
 	((stringp org-show-notification-handler)
 	 (start-process "emacs-timer-notification" nil
 			org-show-notification-handler notification))
-	((featurep 'notifications)
-	 (require 'notifications)
+	((fboundp 'notifications-notify)
 	 (notifications-notify
 	  :title "Org-mode message"
 	  :body notification
@@ -1698,7 +1703,7 @@ from the `before-change-functions' in the current buffer."
       (remove-hook 'before-change-functions
 		   'org-clock-remove-overlays 'local))))
 
-(defvar state) ;; dynamically scoped into this function
+(defvar org-state) ;; dynamically scoped into this function
 (defun org-clock-out-if-current ()
   "Clock out if the current entry contains the running clock.
 This is used to stop the clock after a TODO entry is marked DONE,
@@ -1707,9 +1712,9 @@ and is only done if the variable `org-clock-out-when-done' is not nil."
 	     org-clock-out-when-done
 	     (marker-buffer org-clock-marker)
 	     (or (and (eq t org-clock-out-when-done)
-		      (member state org-done-keywords))
+		      (member org-state org-done-keywords))
 		 (and (listp org-clock-out-when-done)
-		      (member state org-clock-out-when-done)))
+		      (member org-state org-clock-out-when-done)))
 	     (equal (or (buffer-base-buffer (org-clocking-buffer))
 			(org-clocking-buffer))
 		    (or (buffer-base-buffer (current-buffer))
@@ -2231,11 +2236,11 @@ from the dynamic block definition."
 				         ; file column, maybe
        (if level-p   "|"      "")        ; level column, maybe
        (if timestamp "|"      "")        ; timestamp column, maybe
-       (if properties (make-string (length properties) ?|) "")  ;properties columns, maybe
-       (concat "*" (nth 7 lwords) "*| ") ; instead of a headline
-       "*"
-       (org-minutes-to-hh:mm-string (or total-time 0)) ; the time
-       "*|\n")                          ; close line
+       (if properties (make-string (length properties) ?|) "")  ; properties columns, maybe
+       (concat (format org-clock-total-time-cell-format (nth 7 lwords))  "| ") ; instead of a headline
+       (format org-clock-total-time-cell-format
+	       (org-minutes-to-hh:mm-string (or total-time 0))) ; the time
+       "|\n")                          ; close line
 
       ;; Now iterate over the tables and insert the data
       ;; but only if any time has been collected
@@ -2441,6 +2446,7 @@ TIME:      The sum of all time spend in this tree, in minutes.  This time
 	 (tags (plist-get params :tags))
 	 (properties (plist-get params :properties))
 	 (inherit-property-p (plist-get params :inherit-props))
+	 todo-only
 	 (matcher (if tags (cdr (org-make-tags-matcher tags))))
 	 cc range-text st p time level hdl props tsp tbl)
 

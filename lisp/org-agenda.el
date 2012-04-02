@@ -306,11 +306,13 @@ you can \"misuse\" it to also add other text to the header.  However,
 		    (string :tag "+tag or -tag"))))
 	    (list :tag "Set daily/weekly entry types"
 		  (const org-agenda-entry-types)
-		  (set :greedy t :value (:deadline :scheduled :timestamp :sexp)
-		       (const :deadline)
-		       (const :scheduled)
-		       (const :timestamp)
-		       (const :sexp)))
+		  (list
+		   (const :format "" quote)
+		   (set :greedy t :value (:deadline :scheduled :timestamp :sexp)
+			(const :deadline)
+			(const :scheduled)
+			(const :timestamp)
+			(const :sexp))))
 	    (list :tag "Standard skipping condition"
 		  :value (org-agenda-skip-function '(org-agenda-skip-entry-if))
 		  (const org-agenda-skip-function)
@@ -3094,7 +3096,6 @@ the global options and expect it to be applied to the entire view.")
 
 (defun org-prepare-agenda (&optional name)
   (setq org-todo-keywords-for-agenda nil)
-  (setq org-done-keywords-for-agenda nil)
   (setq org-drawers-for-agenda nil)
   (unless org-agenda-persistent-filter
     (setq org-agenda-tag-filter nil
@@ -3113,6 +3114,7 @@ the global options and expect it to be applied to the entire view.")
 		    (make-string (window-width) org-agenda-block-separator))
 		  "\n"))
 	(narrow-to-region (point) (point-max)))
+    (setq org-done-keywords-for-agenda nil)
     (org-agenda-reset-markers)
     (setq org-agenda-contributing-files nil)
     (setq org-agenda-columns-active nil)
@@ -6211,9 +6213,9 @@ When this is the global TODO list, a prefix argument will be interpreted."
     (recenter window-line)))
 
 (defvar org-global-tags-completion-table nil)
-(defvar org-agenda-filtered-by-category nil)
 (defvar org-agenda-filter-form nil)
 (defvar org-agenda-filtered-by-category nil)
+
 (defun org-agenda-filter-by-category (strip)
   "Keep only those lines in the agenda buffer that have a specific category.
 The category is that of the current line."

@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
-;; Author: Eric Schulte
+;; Authors: Eric Schulte
 ;;	Dan Davison
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
@@ -82,6 +82,7 @@
 (declare-function org-list-struct "org-list" ())
 (declare-function org-list-prevs-alist "org-list" (struct))
 (declare-function org-list-get-list-end "org-list" (item struct prevs))
+(declare-function org-strip-protective-commas "org" (beg end))
 
 (defgroup org-babel nil
   "Code block evaluation and management in `org-mode' documents."
@@ -399,6 +400,7 @@ then run `org-babel-pop-to-session'."
     (eval	. ((never query)))
     (exports	. ((code results both none)))
     (file	. :any)
+    (file-desc  . :any)
     (hlines	. ((no yes)))
     (mkdirp	. ((yes no)))
     (no-expand)
@@ -1179,7 +1181,7 @@ may be specified in the properties of the current outline entry."
           ;; get block body less properties, protective commas, and indentation
           (with-temp-buffer
             (save-match-data
-              (insert (org-babel-strip-protective-commas body))
+              (insert (org-babel-strip-protective-commas body lang))
 	      (unless preserve-indentation (org-do-remove-indentation))
               (buffer-string)))
 	  (org-babel-merge-params
@@ -1197,7 +1199,7 @@ may be specified in the properties of the current outline entry."
          (lang-headers (intern (concat "org-babel-default-header-args:" lang))))
     (list lang
           (org-babel-strip-protective-commas
-           (org-babel-clean-text-properties (match-string 5)))
+           (org-babel-clean-text-properties (match-string 5)) lang)
           (org-babel-merge-params
            org-babel-default-inline-header-args
            (org-babel-params-from-properties lang)
@@ -1651,7 +1653,7 @@ following the source block."
 	   (inlinep (when (org-babel-get-inline-src-block-matches)
 			(match-end 0)))
 	   (name (if on-lob-line
-		     (nth 0 (org-babel-lob-get-info))
+		     (mapconcat #'identity (butlast (org-babel-lob-get-info)) "")
 		   (nth 4 (or info (org-babel-get-src-block-info 'light)))))
 	   (head (unless on-lob-line (org-babel-where-is-src-block-head)))
 	   found beg end)
@@ -1832,7 +1834,10 @@ code ---- the results are extracted in the syntax of the source
       (progn
         (setq result (org-babel-clean-text-properties result))
         (when (member "file" result-params)
-          (setq result (org-babel-result-to-file result))))
+	  (setq result (org-babel-result-to-file
+			result (when (assoc :file-desc (nth 2 info))
+				 (or (cdr (assoc :file-desc (nth 2 info)))
+				     result))))))
     (unless (listp result) (setq result (format "%S" result))))
   (if (and result-params (member "silent" result-params))
       (progn
@@ -1877,7 +1882,8 @@ code ---- the results are extracted in the syntax of the source
 	(flet ((wrap (start finish)
 		     (goto-char end) (insert (concat finish "\n"))
 		     (goto-char beg) (insert (concat start "\n"))
-		     (goto-char end) (setq end (point-marker)))
+		     (goto-char end) (goto-char (point-at-eol))
+		     (setq end (point-marker)))
 	       (proper-list-p (it) (and (listp it) (null (cdr (last it))))))
 	  ;; insert results based on type
 	  (cond
@@ -1977,23 +1983,20 @@ code ---- the results are extracted in the syntax of the source
 	    (forward-line 1))))
       (point)))))
 
-(defun org-babel-result-to-file (result)
-  "Convert RESULT into an `org-mode' link.
+(defun org-babel-result-to-file (result &optional description)
+  "Convert RESULT into an `org-mode' link with optional DESCRIPTION.
 If the `default-directory' is different from the containing
 file's directory then expand relative links."
-  (flet ((cond-exp (file)
-	  (if (and default-directory
-		   buffer-file-name
-		   (not (string= (expand-file-name default-directory)
-				 (expand-file-name
-				  (file-name-directory buffer-file-name)))))
-	      (expand-file-name file default-directory)
-	    file)))
-    (if (stringp result)
-	(format "[[file:%s]]" (cond-exp result))
-      (when (and (listp result) (= 2 (length result))
-		 (stringp (car result)) (stringp (cadr result)))
-	(format "[[file:%s][%s]]" (car result) (cadr result))))))
+  (when (stringp result)
+    (format "[[file:%s]%s]"
+	    (if (and default-directory
+		     buffer-file-name
+		     (not (string= (expand-file-name default-directory)
+				   (expand-file-name
+				    (file-name-directory buffer-file-name)))))
+		(expand-file-name result default-directory)
+	      result)
+	    (if description (concat "[" description "]") ""))))
 
 (defun org-babel-examplize-region (beg end &optional results-switches)
   "Comment out region using the inline '==' or ': ' org example quote."
@@ -2244,7 +2247,7 @@ block but are passed literally to the \"example-block\"."
 		    (when (org-babel-ref-goto-headline-id source-name)
 		      (org-babel-ref-headline-body)))
 		  ;; find the expansion of reference in this buffer
-		  (let ((rx (concat rx-prefix source-name))
+		  (let ((rx (concat rx-prefix source-name "[ \t\n]"))
 			expansion)
 		    (save-excursion
 		      (goto-char (point-min))
@@ -2297,11 +2300,15 @@ block but are passed literally to the \"example-block\"."
   (when text
     (set-text-properties 0 (length text) nil text) text))
 
-(defun org-babel-strip-protective-commas (body)
+(defun org-babel-strip-protective-commas (body &optional lang)
   "Strip protective commas from bodies of source blocks."
   (with-temp-buffer
     (insert body)
-    (org-strip-protective-commas (point-min) (point-max))
+    (if (and lang (string= lang "org"))
+	(progn (goto-char (point-min))
+	       (while (re-search-forward "^[ \t]*\\(,\\)" nil t)
+		 (replace-match "" nil nil nil 1)))
+      (org-strip-protective-commas (point-min) (point-max)))
     (buffer-string)))
 
 (defun org-babel-script-escape (str &optional force)

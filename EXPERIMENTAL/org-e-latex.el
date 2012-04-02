@@ -1288,14 +1288,14 @@ contextual information."
 (defun org-e-latex-keyword (keyword contents info)
   "Transcode a KEYWORD element from Org to LaTeX.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (let ((key (downcase (org-element-property :key keyword)))
+  (let ((key (org-element-property :key keyword))
 	(value (org-element-property :value keyword)))
     (cond
-     ((string= key "latex") value)
-     ((string= key "index") (format "\\index{%s}" value))
+     ((string= key "LATEX") value)
+     ((string= key "INDEX") (format "\\index{%s}" value))
      ;; Invisible targets.
-     ((string= key "target") nil)
-     ((string= key "toc")
+     ((string= key "TARGET") nil)
+     ((string= key "TOC")
       (let ((value (downcase value)))
 	(cond
 	 ((string-match "\\<headlines\\>" value)
@@ -1655,7 +1655,7 @@ TEXT is the text of the target.  INFO is a plist holding
 contextual information."
   (format "\\label{%s}%s"
 	  (org-export-solidify-link-text
-	   (org-element-property :raw-value radio-target))
+	   (org-element-property :value radio-target))
 	  text))
 
 
@@ -1839,9 +1839,12 @@ table."
 		     ((string-match "\\<tabular.?\\>" attr)
 		      (org-match-string-no-properties 0 attr))
 		     (t org-e-latex-default-table-environment)))
-	 ;; If table is a float, determine environment: table or table*.
+	 ;; If table is a float, determine environment: table, table*
+	 ;; or sidewaystable.
 	 (float-env (cond
 		     ((string= "longtable" table-env) nil)
+		     ((and attr (string-match "\\<sidewaystable\\>" attr))
+		      "sidewaystables")
 		     ((and attr
 			   (or (string-match (regexp-quote "table*") attr)
 			       (string-match "\\<multicolumn\\>" attr)))
