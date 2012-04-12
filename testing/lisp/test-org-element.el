@@ -204,7 +204,64 @@
 
 
 
-;;; Granularity
+;;;; Footnotes references and definitions
+
+(ert-deftest test-org-element/footnote-reference ()
+  "Test footnote-reference parsing."
+  ;; 1. Parse a standard reference.
+  (org-test-with-temp-text "[fn:label]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "fn:label" :type standard :inline-definition nil
+			     :begin 1 :end 11 :post-blank 0)))))
+  ;; 2. Parse a normalized reference.
+  (org-test-with-temp-text "[1]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "1" :type standard :inline-definition nil
+			     :begin 1 :end 4 :post-blank 0)))))
+  ;; 3. Parse an inline reference.
+  (org-test-with-temp-text "[fn:test:def]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "fn:test" :type inline :inline-definition ("def")
+			     :begin 1 :end 14 :post-blank 0)))))
+  ;; 4. Parse an anonymous reference.
+  (org-test-with-temp-text "[fn::def]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label nil :type inline :inline-definition ("def")
+			     :begin 1 :end 10 :post-blank 0)))))
+  ;; 5. Parse nested footnotes.
+  (org-test-with-temp-text "[fn::def [fn:label]]"
+    (should
+     (equal
+      (org-element-footnote-reference-parser)
+      '(footnote-reference
+	(:label nil :type inline
+		:inline-definition
+		("def "
+		 (footnote-reference
+		  (:label "fn:label" :type standard :inline-definition nil
+			  :begin 5 :end 15 :post-blank 0)))
+		:begin 1 :end 21 :post-blank 0)))))
+  ;; 6. Parse adjacent footnotes.
+  (org-test-with-temp-text "[fn:label1][fn:label2]"
+    (should
+     (equal
+      (org-element-footnote-reference-parser)
+      '(footnote-reference
+	(:label "fn:label1" :type standard :inline-definition nil :begin 1
+		:end 12 :post-blank 0)))))
+  ;; 7. Only properly closed footnotes are recognized as such.
+  (org-test-with-temp-text "Text [fn:label"
+    (should-not
+     (org-element-map
+      (org-element-parse-buffer) 'footnote-reference 'identity))))
+
+
+
+;;;; Granularity
 
 (ert-deftest test-org-element/granularity ()
   "Test granularity impact on buffer parsing."
@@ -289,7 +346,38 @@ Paragraph \\alpha."
 
 
 
-;;; Navigation tools.
+;;;; Interpretation.
+
+(ert-deftest test-org-element/interpret-affiliated-keywords ()
+  "Test if affiliated keywords are correctly interpreted."
+  ;; Interpret simple keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:name "para") "Paragraph")))
+    "#+NAME: para\nParagraph\n"))
+  ;; Interpret multiple keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:attr_ascii ("line1" "line2")) "Paragraph")))
+    "#+ATTR_ASCII: line1\n#+ATTR_ASCII: line2\nParagraph\n"))
+  ;; Interpret parsed keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:caption ("caption")) "Paragraph")))
+    "#+CAPTION: caption\nParagraph\n"))
+  ;; Interpret dual keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:caption (("long") "short")) "Paragraph")))
+    "#+CAPTION[short]: long\nParagraph\n")))
+
+
+
+;;;; Navigation tools.
 
 (ert-deftest test-org-element/forward-element ()
   "Test `org-element-forward' specifications."

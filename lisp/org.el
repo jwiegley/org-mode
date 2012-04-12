@@ -7,7 +7,7 @@
 ;; Maintainer: Bastien Guerry <bzg at gnu dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: http://orgmode.org
-;; Version: 7.8.08
+;; Version: 7.8.09
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -209,7 +209,7 @@ identifier."
 
 ;;; Version
 
-(defconst org-version "7.8.08"
+(defconst org-version "7.8.09"
   "The version number of the file org.el.")
 
 ;;;###autoload
@@ -2232,7 +2232,7 @@ property and include the word \"recursive\" into the value."
 (defcustom org-after-todo-state-change-hook nil
   "Hook which is run after the state of a TODO item was changed.
 The new state (a string with a TODO keyword, or nil) is available in the
-Lisp variable `state'."
+Lisp variable `org-state'."
   :group 'org-todo
   :type 'hook)
 
@@ -2842,9 +2842,9 @@ be the favorite working time of John Wiegley :-)"
 For example, if `org-extend-today-until' is 8, and it's 4am, then the
 \"effective time\" of any timestamps between midnight and 8am will be
 23:59 of the previous day."
-  :group 'boolean
+  :group 'org-time
   :version "24.1"
-  :type 'integer)
+  :type 'boolean)
 
 (defcustom org-edit-timestamp-down-means-later nil
   "Non-nil means S-down will increase the time in a time stamp.
@@ -3946,7 +3946,9 @@ If TABLE-TYPE is non-nil, also check for table.el-type tables."
 	(unless quietly
 	  (message "Mapping tables: %d%%" (/ (* 100.0 (point)) (buffer-size))))
 	(beginning-of-line 1)
-	(when (looking-at org-table-line-regexp)
+	(when (and (looking-at org-table-line-regexp)
+		   ;; Exclude tables in src/example/verbatim/clocktable blocks
+		   (not (org-in-block-p '("src" "example"))))
 	  (save-excursion (funcall function))
 	  (or (looking-at org-table-line-regexp)
 	      (forward-char 1)))
@@ -5437,7 +5439,8 @@ will be prompted for."
 	    (when (re-search-forward
 		   (concat "^[ \t]*#\\+end" (match-string 4) "\\>.*")
 		   nil t)  ;; on purpose, we look further than LIMIT
-	      (setq end (match-end 0) end1 (1- (match-beginning 0)))
+	      (setq end (min (point-max) (match-end 0))
+		    end1 (min (point-max) (1- (match-beginning 0))))
 	      (setq block-end (match-beginning 0))
 	      (when quoting
 		(remove-text-properties beg end
@@ -5465,11 +5468,12 @@ will be prompted for."
 				     '(face org-block))) ; end of source block
 	       ((not org-fontify-quote-and-verse-blocks))
 	       ((string= block-type "quote")
-		(add-text-properties beg1 (1+ end1) '(face org-quote)))
+		(add-text-properties beg1 (min (point-max) (1+ end1)) '(face org-quote)))
 	       ((string= block-type "verse")
-		(add-text-properties beg1 (1+ end1) '(face org-verse))))
+		(add-text-properties beg1 (min (point-max) (1+ end1)) '(face org-verse))))
       	      (add-text-properties beg beg1 '(face org-block-begin-line))
-      	      (add-text-properties (1+ end) (1+ end1) '(face org-block-end-line))
+      	      (add-text-properties (min (point-max) (1+ end)) (min (point-max) (1+ end1))
+				   '(face org-block-end-line))
 	      t))
 	   ((member dc1 '("title:" "author:" "email:" "date:"))
 	    (add-text-properties
@@ -5485,7 +5489,7 @@ will be prompted for."
 	   ((not (member (char-after beg) '(?\  ?\t)))
 	    ;; just any other in-buffer setting, but not indented
 	    (add-text-properties
-	     beg (1+ (match-end 0))
+	     beg (match-end 0)
 	     '(font-lock-fontified t face org-meta-line))
 	    t)
 	   ((or (member dc1 '("begin:" "end:" "caption:" "label:"
@@ -11438,7 +11442,7 @@ For calling through lisp, arg is also interpreted in the following way:
 		;; It is now done, and it was not done before
 		(org-add-planning-info 'closed (org-current-effective-time))
 		(if (and (not dolog) (eq 'note org-log-done))
-		    (org-add-log-setup 'done state this 'findpos 'note)))
+		    (org-add-log-setup 'done org-state this 'findpos 'note)))
 	      (when (and org-state dolog)
 		;; This is a non-nil state, and we need to log it
 		(org-add-log-setup 'state org-state this 'findpos dolog)))
@@ -13450,8 +13454,7 @@ With prefix ARG, realign all tags in headings in the current buffer."
 	;; Get a new set of tags from the user
 	(save-excursion
 	  (setq table (append org-tag-persistent-alist
-			      org-tag-alist
-			      (org-get-buffer-tags)
+			      (or org-tag-alist (org-get-buffer-tags))
 			      (and
 			       org-complete-tags-always-offer-all-agenda-tags
 			       (org-global-tags-completion-table
@@ -13753,11 +13756,9 @@ Returns the new tags string, or nil to not change the current settings."
 		  (condition-case nil
 		      (setq tg (org-icompleting-read
 				"Tag: "
-				(delete-dups
-				 (append (or buffer-tags
-					     (with-current-buffer buf
-					       (mapcar 'car (org-get-buffer-tags))))
-					 (mapcar 'car table)))))
+				(or buffer-tags
+				    (with-current-buffer buf
+				      (org-get-buffer-tags)))))
 		    (quit (setq tg "")))
 		  (when (string-match "\\S-" tg)
 		    (add-to-list 'buffer-tags (list tg))
@@ -20519,6 +20520,14 @@ the functionality can be provided as a fall-back.")
 				 (save-excursion (forward-paragraph 1)
 						 (point)))
 	       (fill-paragraph justify) t)))
+	  ;; Don't fill schedule/deadline line before a paragraph
+	  ((save-excursion (forward-paragraph -1)
+			   (or (looking-at (concat "^[^\n]*" org-scheduled-regexp ".*$"))
+			       (looking-at (concat "^[^\n]*" org-deadline-regexp ".*$"))))
+	   (save-restriction
+	     (narrow-to-region (1+ (match-end 0))
+			       (save-excursion (forward-paragraph 1) (point)))
+	     (fill-paragraph justify) t))
 	  ;; Else simply call `fill-paragraph'.
 	  (t nil))))
 
@@ -20791,7 +20800,7 @@ depending on context."
 		(not (y-or-n-p "Kill hidden subtree along with headline? ")))
 	    (error "C-k aborted - would kill hidden subtree")))
     (call-interactively
-     (if visual-line-mode 'kill-visual-line 'kill-line)))
+     (if (and (boundp 'visual-line-mode) visual-line-mode) 'kill-visual-line 'kill-line)))
    ((looking-at (org-re ".*?\\S-\\([ \t]+\\(:[[:alnum:]_@#%:]+:\\)\\)[ \t]*$"))
     (kill-region (point) (match-beginning 1))
     (org-set-tags nil t))
@@ -20962,11 +20971,12 @@ This version does not only check the character property, but also
 If the heading only contains a TODO keyword, it is still still considered
 empty."
   (and (looking-at "[ \t]*$")
-       (save-excursion
-         (beginning-of-line 1)
-	 (let ((case-fold-search nil))
-	   (looking-at org-todo-line-regexp)))
-       (string= (match-string 3) "")))
+       (when org-todo-line-regexp
+	 (save-excursion
+	   (beginning-of-line 1)
+	   (let ((case-fold-search nil))
+	     (looking-at org-todo-line-regexp)
+	     (string= (match-string 3) ""))))))
 
 (defun org-at-heading-or-item-p ()
   (or (org-at-heading-p) (org-at-item-p)))

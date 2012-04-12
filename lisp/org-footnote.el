@@ -278,9 +278,7 @@ otherwise."
 			      (concat org-outline-regexp-bol "\\|"
 				      org-footnote-definition-re "\\|"
 				      "^[ \t]*$") bound 'move))
-			   (progn (goto-char (match-beginning 0))
-				  (org-skip-whitespace)
-				  (point-at-bol))
+			   (match-beginning 0)
 			 (point)))))
 	    (list label beg end
 		  (org-trim (buffer-substring-no-properties beg-def end)))))))))
@@ -705,7 +703,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
 				     (org-combine-plists
 				      export-props
 				      '(:todo-keywords t :tags t :priority t))))
-				(org-export-preprocess-string def parameters))
+				(apply #'org-export-preprocess-string def parameters))
 			    def)
 			  ;; Reference beginning position is a marker
 			  ;; to preserve it during further buffer
@@ -866,7 +864,11 @@ Return the number of footnotes removed."
       (while (re-search-forward def-re nil t)
 	(let ((full-def (org-footnote-at-definition-p)))
 	  (when full-def
-	    (delete-region (nth 1 full-def) (nth 2 full-def))
+	    ;; Remove the footnote, and all blank lines before it.
+	    (goto-char (nth 1 full-def))
+	    (skip-chars-backward " \r\t\n")
+	    (unless (bolp) (forward-line))
+	    (delete-region (point) (nth 2 full-def))
 	    (incf ndef))))
       ndef)))
 
