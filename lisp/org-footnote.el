@@ -278,9 +278,7 @@ otherwise."
 			      (concat org-outline-regexp-bol "\\|"
 				      org-footnote-definition-re "\\|"
 				      "^[ \t]*$") bound 'move))
-			   (progn (goto-char (match-beginning 0))
-				  (org-skip-whitespace)
-				  (point-at-bol))
+			   (match-beginning 0)
 			 (point)))))
 	    (list label beg end
 		  (org-trim (buffer-substring-no-properties beg-def end)))))))))
@@ -363,7 +361,7 @@ Return a non-nil value when a definition has been found."
       (looking-at (format "\\[%s\\]\\|\\[%s:" label label))
       (goto-char (match-end 0))
       (org-show-context 'link-search)
-      (when (org-mode-p)
+      (when (derived-mode-p 'org-mode)
 	(message "Edit definition and go back with `C-c &' or, if unique, with `C-c C-c'."))
       t)))
 
@@ -490,7 +488,7 @@ or new, let the user edit the definition of the footnote."
   (let ((label (org-footnote-normalize-label label)))
     (cond
      ;; In an Org file.
-     ((eq major-mode 'org-mode)
+     ((derived-mode-p 'org-mode)
       ;; If `org-footnote-section' is defined, find it, or create it
       ;; at the end of the buffer.
       (when org-footnote-section
@@ -554,7 +552,7 @@ or new, let the user edit the definition of the footnote."
     (backward-char)
     ;; Only notify user about next possible action when in an Org
     ;; buffer, as the bindings may have different meanings otherwise.
-    (when (eq major-mode 'org-mode)
+    (when (derived-mode-p 'org-mode)
       (message
        "Edit definition and go back with `C-c &' or, if unique, with `C-c C-c'."))))
 
@@ -715,11 +713,11 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
       ;; 2. Find and remove the footnote section, if any.  Also
       ;;    determine where footnotes shall be inserted (INS-POINT).
       (cond
-       ((and org-footnote-section (eq major-mode 'org-mode))
+       ((and org-footnote-section (derived-mode-p 'org-mode))
 	(goto-char (point-min))
 	(if (re-search-forward
-	      (concat "^\\*[ \t]+" (regexp-quote org-footnote-section)
-		      "[ \t]*$") nil t)
+	     (concat "^\\*[ \t]+" (regexp-quote org-footnote-section)
+		     "[ \t]*$") nil t)
 	    (delete-region (match-beginning 0) (org-end-of-subtree t t)))
 	;; A new footnote section is inserted by default at the end of
 	;; the buffer.
@@ -729,7 +727,14 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
 	(unless (bolp) (newline)))
        ;; No footnote section set: Footnotes will be added at the end
        ;; of the section containing their first reference.
-       ((eq major-mode 'org-mode))
+       ;; Nevertheless, in an export situation, set insertion point to
+       ;; `point-max' by default.
+       ((derived-mode-p 'org-mode)
+	(when export-props
+	  (goto-char (point-max))
+	  (skip-chars-backward " \r\t\n")
+	  (forward-line)
+	  (delete-region (point) (point-max))))
        (t
 	;; Remove any left-over tag in the buffer, if one is set up.
 	(when org-footnote-tag-for-non-org-mode-files
@@ -785,7 +790,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
        ;; No footnote: exit.
        ((not ref-table))
        ;; Cases when footnotes should be inserted in one place.
-       ((or (not (eq major-mode 'org-mode))
+       ((or (not (derived-mode-p 'org-mode))
 	    org-footnote-section
 	    export-props)
 	;; Insert again the section title, if any.  Ensure that title,
@@ -794,7 +799,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
 	;; separate section with a blank line, unless explicitly
 	;; stated in `org-blank-before-new-entry'.
 	(cond
-	 ((not (eq major-mode 'org-mode))
+	 ((not (derived-mode-p 'org-mode))
 	  (skip-chars-backward " \t\n\r")
 	  (delete-region (point) ins-point)
 	  (unless (bolp) (newline))
@@ -840,7 +845,7 @@ Additional note on `org-footnote-insert-pos-for-preprocessor':
   (beginning-of-line 0)
   (while (and (not (bobp)) (= (char-after) ?#))
     (beginning-of-line 0))
-  (if (looking-at "[ \t]*#\\+TBLFM:") (beginning-of-line 2))
+  (if (let ((case-fold-search t)) (looking-at "[ \t]*#\\+tblfm:")) (beginning-of-line 2))
   (end-of-line 1)
   (skip-chars-backward "\n\r\t ")
   (forward-line))
@@ -866,8 +871,13 @@ Return the number of footnotes removed."
 	  (ndef 0))
       (while (re-search-forward def-re nil t)
 	(let ((full-def (org-footnote-at-definition-p)))
-	  (delete-region (nth 1 full-def) (nth 2 full-def)))
-	(incf ndef))
+	  (when full-def
+	    ;; Remove the footnote, and all blank lines before it.
+	    (goto-char (nth 1 full-def))
+	    (skip-chars-backward " \r\t\n")
+	    (unless (bolp) (forward-line))
+	    (delete-region (point) (nth 2 full-def))
+	    (incf ndef))))
       ndef)))
 
 (defun org-footnote-delete (&optional label)

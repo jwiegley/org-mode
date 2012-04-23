@@ -1,6 +1,6 @@
 ;;; org-docbook.el --- DocBook exporter for org-mode
 ;;
-;; Copyright (C) 2007-2012 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2012  Free Software Foundation, Inc.
 ;;
 ;; Emacs Lisp Archive Entry
 ;; Filename: org-docbook.el
@@ -295,7 +295,7 @@ then use this command to convert it."
   (interactive "r")
   (let (reg docbook buf)
     (save-window-excursion
-      (if (eq major-mode 'org-mode)
+      (if (derived-mode-p 'org-mode)
 	  (setq docbook (org-export-region-as-docbook
 			 beg end t 'string))
 	(setq reg (buffer-substring beg end)

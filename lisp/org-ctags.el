@@ -188,7 +188,7 @@ See the ctags documentation for more information.")
 Created as a local variable in each buffer.")
 
 (defcustom org-ctags-new-topic-template
-  "* <<%t>>\n\n\n\n\n\n"
+  "<<%t>>\n\n\n\n\n\n"
   "Text to insert when creating a new org file via opening a hyperlink.
 The following patterns are replaced in the string:
     `%t' - replaced with the capitalized title of the hyperlink"
@@ -309,7 +309,7 @@ The new topic will be titled NAME (or TITLE if supplied)."
 			    activate compile)
   "Before trying to find a tag, save our current position on org mark ring."
   (save-excursion
-    (if (and (eq major-mode 'org-mode) org-ctags-enabled-p)
+    (if (and (derived-mode-p 'org-mode) org-ctags-enabled-p)
         (org-mark-ring-push))))
 
 

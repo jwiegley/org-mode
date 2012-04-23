@@ -4,8 +4,7 @@
 @setfilename ../../info/org
 @settitle The Org Manual
 
-@set VERSION 7.8.06
-@set DATE mars 2012
+@include org-version.inc
 
 @c Use proper quote and backtick for code sections in PDF output
 @c Cf. Texinfo manual 14.2
@@ -696,6 +695,7 @@ Specific header arguments
 * results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
+* file-desc::                   Specify a description for file results
 * dir::                         Specify the default (possibly remote)
                                 directory for code block execution
 * exports::                     Export code and/or results
@@ -1013,7 +1013,7 @@ from within Emacs, please copy and paste the content into your Email program.
 
 Sometimes you might face a problem due to an error in your Emacs or Org mode
 setup.  Before reporting a bug, it is very helpful to start Emacs with minimal
-customisations and reproduce the problem.  Doing so often helps you determine
+customizations and reproduce the problem.  Doing so often helps you determine
 if the problem is with your customization or with Org mode itself.  You can
 start a typical minimal session with a command like the example below.
 
@@ -5397,8 +5397,10 @@ timeline and agenda displays, the headline of an entry associated with a
 plain timestamp will be shown exactly on that date.
 
 @example
-* Meet Peter at the movies <2006-11-01 Wed 19:15>
-* Discussion on climate change <2006-11-02 Thu 20:00-22:00>
+* Meet Peter at the movies
+  <2006-11-01 Wed 19:15>
+* Discussion on climate change
+  <2006-11-02 Thu 20:00-22:00>
 @end example
 
 @item Timestamp with repeater interval
@@ -5409,7 +5411,8 @@ interval of N days (d), weeks (w), months (m), or years (y).  The
 following will show up in the agenda every Wednesday:
 
 @example
-* Pick up Sam at school <2007-05-16 Wed 12:30 +1w>
+* Pick up Sam at school
+  <2007-05-16 Wed 12:30 +1w>
 @end example
 
 @item Diary-style sexp entries
@@ -5453,7 +5456,8 @@ angular ones.  These timestamps are inactive in the sense that they do
 @emph{not} trigger an entry to show up in the agenda.
 
 @example
-* Gillian comes late for the fifth time [2006-11-01 Wed]
+* Gillian comes late for the fifth time
+  [2006-11-01 Wed]
 @end example
 
 @end table
@@ -5725,8 +5729,8 @@ until the entry is marked DONE.  An example:
 
 @example
 *** TODO write article about the Earth for the Guide
-    The editor in charge is [[bbdb:Ford Prefect]]
     DEADLINE: <2004-02-29 Sun>
+    The editor in charge is [[bbdb:Ford Prefect]]
 @end example
 
 You can specify a different lead time for warnings for a specific
@@ -5852,9 +5856,10 @@ or plain timestamp.  In the following example
 @noindent
 the @code{+1m} is a repeater; the intended interpretation is that the task
 has a deadline on <2005-10-01> and repeats itself every (one) month starting
-from that time.  If you need both a repeater and a special warning period in
-a deadline entry, the repeater should come first and the warning period last:
-@code{DEADLINE: <2005-10-01 Sat +1m -3d>}.
+from that time.  You can use yearly, monthly, weekly, daily and hourly repeat
+cookies by using the @code{y/w/m/d/h} letters.  If you need both a repeater
+and a special warning period in a deadline entry, the repeater should come
+first and the warning period last: @code{DEADLINE: <2005-10-01 Sat +1m -3d>}.
 
 @vindex org-todo-repeat-to-state
 Deadlines and scheduled items produce entries in the agenda when they are
@@ -6670,28 +6675,28 @@ these sequences literally, escape the @kbd{%} with a backslash.}  allow
 dynamic insertion of content.  The templates are expanded in the order given here:
 
 @smallexample
-%[@var{file}]     @r{insert the contents of the file given by @var{file}.}
-%(@var{sexp})     @r{evaluate Elisp @var{sexp} and replace with the result.}
-%<...>      @r{the result of format-time-string on the ... format specification.}
-%t          @r{timestamp, date only.}
-%T          @r{timestamp with date and time.}
-%u, %U      @r{like the above, but inactive timestamps.}
-%a          @r{annotation, normally the link created with @code{org-store-link}.}
-%i          @r{initial content, the region when capture is called while the}
+%[@var{file}]     @r{Insert the contents of the file given by @var{file}.}
+%(@var{sexp})     @r{Evaluate Elisp @var{sexp} and replace with the result.}
+%<...>      @r{The result of format-time-string on the ... format specification.}
+%t          @r{Timestamp, date only.}
+%T          @r{Timestamp, with date and time.}
+%u, %U      @r{Like the above, but inactive timestamps.}
+%a          @r{Annotation, normally the link created with @code{org-store-link}.}
+%i          @r{Initial content, the region when capture is called while the}
             @r{region is active.}
             @r{The entire text will be indented like @code{%i} itself.}
-%A          @r{like @code{%a}, but prompt for the description part.}
+%A          @r{Like @code{%a}, but prompt for the description part.}
 %c          @r{Current kill ring head.}
 %x          @r{Content of the X clipboard.}
-%k          @r{title of the currently clocked task.}
-%K          @r{link to the currently clocked task.}
-%n          @r{user name (taken from @code{user-full-name}).}
-%f          @r{file visited by current buffer when org-capture was called.}
-%F          @r{full path of the file or directory visited by current buffer.}
-%:keyword   @r{specific information for certain link types, see below.}
-%^g         @r{prompt for tags, with completion on tags in target file.}
-%^G         @r{prompt for tags, with completion all tags in all agenda files.}
-%^t         @r{like @code{%t}, but prompt for date.  Similarly @code{%^T}, @code{%^u}, @code{%^U}.}
+%k          @r{Title of the currently clocked task.}
+%K          @r{Link to the currently clocked task.}
+%n          @r{User name (taken from @code{user-full-name}).}
+%f          @r{File visited by current buffer when org-capture was called.}
+%F          @r{Full path of the file or directory visited by current buffer.}
+%:keyword   @r{Specific information for certain link types, see below.}
+%^g         @r{Prompt for tags, with completion on tags in target file.}
+%^G         @r{Prompt for tags, with completion all tags in all agenda files.}
+%^t         @r{Like @code{%t}, but prompt for date.  Similarly @code{%^T}, @code{%^u}, @code{%^U}.}
             @r{You may define a prompt like @code{%^@{Birthday@}t}.}
 %^C         @r{Interactive selection of which kill or clip to use.}
 %^L         @r{Like @code{%^C}, but insert as link.}
@@ -6700,6 +6705,9 @@ dynamic insertion of content.  The templates are expanded in the order given her
             @r{You may specify a default value and a completion table with}
             @r{%^@{prompt|default|completion2|completion3...@}.}
             @r{The arrow keys access a prompt-specific history.}
+%<n>        @r{Insert the text entered at the nth %^@{@var{prompt}@}, where <n> is}
+            @r{a number, starting from 1.}
+%?          @r{After completing the template, position cursor here.}
 @end smallexample
 
 @noindent
@@ -6976,16 +6984,20 @@ is invoked, the level 1 trees will be checked.
 @cindex archive locations
 The default archive location is a file in the same directory as the
 current file, with the name derived by appending @file{_archive} to the
-current file name.  For information and examples on how to change this,
+current file name.  You can also choose what heading to file archived
+items under, with the possibility to add them to a datetree in a file.
+For information and examples on how to specify the file and the heading,
 see the documentation string of the variable
-@code{org-archive-location}.  There is also an in-buffer option for
-setting this variable, for example@footnote{For backward compatibility,
-the following also works: If there are several such lines in a file,
-each specifies the archive location for the text below it.  The first
-such line also applies to any text before its definition.  However,
-using this method is @emph{strongly} deprecated as it is incompatible
-with the outline structure of the document.  The correct method for
-setting multiple archive locations in a buffer is using properties.}:
+@code{org-archive-location}.
+
+There is also an in-buffer option for setting this variable, for
+example@footnote{For backward compatibility, the following also works:
+If there are several such lines in a file, each specifies the archive
+location for the text below it.  The first such line also applies to any
+text before its definition.  However, using this method is
+@emph{strongly} deprecated as it is incompatible with the outline
+structure of the document.  The correct method for setting multiple
+archive locations in a buffer is using properties.}:
 
 @cindex #+ARCHIVE
 @example
@@ -7249,6 +7261,16 @@ the region.  Otherwise, restrict it to the current subtree@footnote{For
 backward compatibility, you can also press @kbd{0} to restrict to the
 current region/subtree.}.  After pressing @kbd{< <}, you still need to press the
 character selecting the command.
+
+@item *
+@vindex org-agenda-sticky
+Toggle sticky agenda views.  By default, Org maintains only a single agenda
+buffer and rebuilds it each time you change the view, to make sure everything
+is always up to date.  If you switch between views often and the build time
+bothers you, you can turn on sticky agenda buffers (make this the default by
+customizing the variable @code{org-agenda-sticky}).  With sticky agendas, the
+dispatcher only switches to the selected view, you need to update it by hand
+with @kbd{r} or @kbd{g}.
 @end table
 
 You can also define custom commands that will be accessible through the
@@ -7884,9 +7906,9 @@ the other commands, the cursor needs to be in the desired line.
 @tsubheading{Motion}
 @cindex motion commands in agenda
 @orgcmd{n,org-agenda-next-line}
-Next line (same as @key{up} and @kbd{C-p}).
+Next line (same as @key{down} and @kbd{C-n}).
 @orgcmd{p,org-agenda-previous-line}
-Previous line (same as @key{down} and @kbd{C-n}).
+Previous line (same as @key{up} and @kbd{C-p}).
 @tsubheading{View/Go to Org file}
 @orgcmdkkc{@key{SPC},mouse-3,org-agenda-show-and-scroll-up}
 Display the original location of the item in another window.
@@ -7932,9 +7954,9 @@ Interactively select another agenda view and append it to the current view.
 Delete other windows.
 @c
 @orgcmdkskc{v d,d,org-agenda-day-view}
-@xorgcmdkskc{v w,w,org-agenda-day-view}
+@xorgcmdkskc{v w,w,org-agenda-week-view}
 @xorgcmd{v m,org-agenda-month-view}
-@xorgcmd{v y,org-agenda-month-year}
+@xorgcmd{v y,org-agenda-year-view}
 @xorgcmd{v SPC,org-agenda-reset-view}
 @vindex org-agenda-span
 Switch to day/week/month/year view.  When switching to day or week view, this
@@ -9414,10 +9436,11 @@ this regularly or on pages with significant page views, you should install
 server in order to limit the load of our server.}.  Finally, it can also
 process the mathematical expressions into images@footnote{For this to work
 you need to be on a system with a working @LaTeX{} installation.  You also
-need the @file{dvipng} program, available at
-@url{http://sourceforge.net/projects/dvipng/}.  The @LaTeX{} header that will
-be used when processing a fragment can be configured with the variable
-@code{org-format-latex-header}.}  that can be displayed in a browser or in
+need the @file{dvipng} program or the @file{convert}, respectively available
+at @url{http://sourceforge.net/projects/dvipng/} and from the
+@file{imagemagick} suite.  The @LaTeX{} header that will be used when
+processing a fragment can be configured with the variable
+@code{org-format-latex-header}.} that can be displayed in a browser or in
 DocBook documents.
 
 @LaTeX{} fragments don't need any special marking at all.  The following
@@ -9569,12 +9592,12 @@ the web, while the XOXO format provides a solid base for exchange with a
 broad range of other applications.  @LaTeX{} export lets you use Org mode and
 its structured editing functions to easily create @LaTeX{} files.  DocBook
 export makes it possible to convert Org files to many other formats using
-DocBook tools.  OpenDocument Text(ODT) export allows seamless
+DocBook tools.  OpenDocument Text (ODT) export allows seamless
 collaboration across organizational boundaries.  For project management you
 can create gantt and resource charts by using TaskJuggler export.  To
 incorporate entries with associated times like deadlines or appointments into
 a desktop calendar program like iCal, Org mode can also produce extracts in
-the iCalendar format.  Currently Org mode only supports export, not import of
+the iCalendar format.  Currently, Org mode only supports export, not import of
 these different formats.
 
 Org supports export of selected regions when @code{transient-mark-mode} is
@@ -9739,7 +9762,7 @@ author:    @r{turn on/off inclusion of author name/email into exported file}
 email:     @r{turn on/off inclusion of author email into exported file}
 creator:   @r{turn on/off inclusion of creator info into exported file}
 timestamp: @r{turn on/off inclusion creation time into exported file}
-d:         @r{turn on/off inclusion of drawers}
+d:         @r{turn on/off inclusion of drawers, or list drawers to include}
 @end example
 @noindent
 These options take effect in both the HTML and @LaTeX{} export, except for
@@ -9933,11 +9956,11 @@ creates two levels of headings and does the rest as items.
 The HTML exporter lets you define a preamble and a postamble.
 
 The default value for @code{org-export-html-preamble} is @code{t}, which
-means that the preamble is inserted depending on the relevant formatting
-string in @code{org-export-html-preamble-format}.
+means that the preamble is inserted depending on the relevant format string
+in @code{org-export-html-preamble-format}.
 
 Setting @code{org-export-html-preamble} to a string will override the default
-formatting string.  Setting it to a function, will insert the output of the
+format string.  Setting it to a function, will insert the output of the
 function, which must be a string; such a function takes no argument but you
 can check against the value of @code{opt-plist}, which contains the list of
 publishing properties for the current file.  Setting to @code{nil} will not
@@ -9949,7 +9972,7 @@ means that the HTML exporter will look for the value of
 @code{org-export-creator-info} and @code{org-export-time-stamp-file},
 @code{org-export-html-validation-link} and build the postamble from these
 values.  Setting @code{org-export-html-postamble} to @code{t} will insert the
-postamble from the relevant formatting string found in
+postamble from the relevant format string found in
 @code{org-export-html-postamble-format}.  Setting it to @code{nil} will not
 insert any postamble.
 
@@ -10910,10 +10933,10 @@ one format (say @samp{csv}) to another format (say @samp{ods} or @samp{xls}).
 If you have a working installation of LibreOffice, a document converter is
 pre-configured for you and you can use it right away.  If you would like to
 use @file{unoconv} as your preferred converter, customize the variable
-@code{org-export-odt-convert-process} to point to @code{unoconv}.  If you
-would like to use a converter of your own choosing or tweak the default
-settings of the default @file{LibreOffice} and @samp{unoconv} converters
-@xref{Configuring a document converter}.
+@code{org-export-odt-convert-process} to point to @code{unoconv}.  You can
+also use your own favorite converter or tweak the default settings of the
+@file{LibreOffice} and @samp{unoconv} converters.  @xref{Configuring a
+document converter}.
 
 @subsubsection Automatically exporting to other formats
 @anchor{x-export-to-other-formats}
@@ -11016,7 +11039,7 @@ A link with no description and destined to a regular (un-itemized) outline
 heading is replaced with a cross-reference and section number of the heading.
 
 A @samp{\ref@{label@}}-style reference to an image, table etc. is replaced
-with a cross-reference and sequence number of the labelled entity.
+with a cross-reference and sequence number of the labeled entity.
 @xref{Labels and captions in ODT export}.
 
 @node Tables in ODT export, Images in ODT export, Links in ODT export, OpenDocument Text export
@@ -11040,7 +11063,7 @@ You can control the width of the table by specifying @code{:rel-width}
 property using an @code{#+ATTR_ODT} line.
 
 For example, consider the following table which makes use of all the rules
-mentoned above.
+mentioned above.
 
 @example
 #+ATTR_ODT: :rel-width 50
@@ -11247,7 +11270,7 @@ that the @file{dvipng} program be available on your system.
 
 For various reasons, you may find embedding @LaTeX{} math snippets in an
 ODT document less than reliable.  In that case, you can embed a
-math equation by linking to its MathML(@file{.mml}) source or its
+math equation by linking to its MathML (@file{.mml}) source or its
 OpenDocument formula (@file{.odf}) file as shown below:
 
 @example
@@ -11266,7 +11289,7 @@ or
 You can label and caption various category of objects - an inline image, a
 table, a @LaTeX{} fragment or a Math formula - using @code{#+LABEL} and
 @code{#+CAPTION} lines.  @xref{Images and tables}.  ODT exporter enumerates
-each labelled or captioned object of a given category separately.  As a
+each labeled or captioned object of a given category separately.  As a
 result, each such object is assigned a sequence number based on order of it's
 appearance in the Org file.
 
@@ -11310,7 +11333,7 @@ Illustration 2: Bell curve
 Export of literal examples (@pxref{Literal examples}) with full fontification
 is supported.  Internally, the exporter relies on @file{htmlfontify.el} to
 generate all style definitions needed for a fancy listing.@footnote{Your
-@file{htmlfontify.el} library must atleast be at Emacs 24.1 levels for
+@file{htmlfontify.el} library must at least be at Emacs 24.1 levels for
 fontification to be turned on.}  The auto-generated styles have @samp{OrgSrc}
 as prefix and inherit their color from the faces used by Emacs
 @code{font-lock} library for the source language.
@@ -11359,10 +11382,9 @@ the variable @code{org-export-odt-convert-processes}.  Also specify how the
 converter can be invoked via command-line to effect the conversion.
 
 @item Configure its capabilities
+
 @vindex org-export-odt-convert-capabilities
-
 @anchor{x-odt-converter-capabilities}
-
 Specify the set of formats the converter can handle by customizing the
 variable @code{org-export-odt-convert-capabilities}.  Use the default value
 for this variable as a guide for configuring your converter.  As suggested by
@@ -11501,7 +11523,7 @@ regular text.
 @end example
 
 @strong{Hint:} To see the above example in action, edit your
-@file{styles.xml}(@pxref{x-orgodtstyles-xml,,Factory styles}) and add a
+@file{styles.xml} (@pxref{x-orgodtstyles-xml,,Factory styles}) and add a
 custom @samp{Highlight} style as shown below.
 
 @example
@@ -11520,7 +11542,7 @@ directive.  For example, to force a page break do the following:
 @end example
 
 @strong{Hint:} To see the above example in action, edit your
-@file{styles.xml}(@pxref{x-orgodtstyles-xml,,Factory styles}) and add a
+@file{styles.xml} (@pxref{x-orgodtstyles-xml,,Factory styles}) and add a
 custom @samp{PageBreak} style as shown below.
 
 @example
@@ -13107,6 +13129,7 @@ argument in lowercase letters.  The following header arguments are defined:
 * results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
+* file-desc::                   Specify a description for file results
 * dir::                         Specify the default (possibly remote)
                                 directory for code block execution
 * exports::                     Export code and/or results
@@ -13502,7 +13525,7 @@ be prepended to the existing results.  Otherwise the new results will be
 inserted as with @code{replace}.
 @end itemize
 
-@node file, dir, results, Specific header arguments
+@node file, file-desc, results, Specific header arguments
 @subsubsection @code{:file}
 
 The header argument @code{:file} is used to specify an external file in which
@@ -13518,7 +13541,16 @@ The argument to @code{:file} should be either a string specifying the path to
 a file, or a list of two strings in which case the first element of the list
 should be the path to a file and the second a description for the link.
 
-@node dir, exports, file, Specific header arguments
+@node file-desc, dir, file, Specific header arguments
+@subsubsection @code{:file-desc}
+
+The value of the @code{:file-desc} header argument is used to provide a
+description for file code block results which are inserted as Org-mode links
+(see @ref{Link format}).  If the @code{:file-desc} header argument is given
+with no value the link path will be placed in both the ``link'' and the
+``description'' portion of the Org-mode link.
+
+@node dir, exports, file-desc, Specific header arguments
 @subsubsection @code{:dir} and remote execution
 
 While the @code{:file} header argument can be used to specify the path to the
@@ -15566,6 +15598,10 @@ calculation marks, that column is automatically discarded as well.
 Please note that the translator function sees the table @emph{after} the
 removal of these columns, the function never knows that there have been
 additional columns.
+
+@item :no-escape t
+When non-nil, do not escape special characters @code{&%#_^} when exporting
+the table.  The default value is nil.
 @end table
 
 @noindent

@@ -204,7 +204,180 @@
 
 
 
-;;; Navigation tools.
+;;;; Footnotes references and definitions
+
+(ert-deftest test-org-element/footnote-reference ()
+  "Test footnote-reference parsing."
+  ;; 1. Parse a standard reference.
+  (org-test-with-temp-text "[fn:label]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "fn:label" :type standard :inline-definition nil
+			     :begin 1 :end 11 :post-blank 0)))))
+  ;; 2. Parse a normalized reference.
+  (org-test-with-temp-text "[1]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "1" :type standard :inline-definition nil
+			     :begin 1 :end 4 :post-blank 0)))))
+  ;; 3. Parse an inline reference.
+  (org-test-with-temp-text "[fn:test:def]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label "fn:test" :type inline :inline-definition ("def")
+			     :begin 1 :end 14 :post-blank 0)))))
+  ;; 4. Parse an anonymous reference.
+  (org-test-with-temp-text "[fn::def]"
+    (should (equal (org-element-footnote-reference-parser)
+		   '(footnote-reference
+		     (:label nil :type inline :inline-definition ("def")
+			     :begin 1 :end 10 :post-blank 0)))))
+  ;; 5. Parse nested footnotes.
+  (org-test-with-temp-text "[fn::def [fn:label]]"
+    (should
+     (equal
+      (org-element-footnote-reference-parser)
+      '(footnote-reference
+	(:label nil :type inline
+		:inline-definition
+		("def "
+		 (footnote-reference
+		  (:label "fn:label" :type standard :inline-definition nil
+			  :begin 5 :end 15 :post-blank 0)))
+		:begin 1 :end 21 :post-blank 0)))))
+  ;; 6. Parse adjacent footnotes.
+  (org-test-with-temp-text "[fn:label1][fn:label2]"
+    (should
+     (equal
+      (org-element-footnote-reference-parser)
+      '(footnote-reference
+	(:label "fn:label1" :type standard :inline-definition nil :begin 1
+		:end 12 :post-blank 0)))))
+  ;; 7. Only properly closed footnotes are recognized as such.
+  (org-test-with-temp-text "Text [fn:label"
+    (should-not
+     (org-element-map
+      (org-element-parse-buffer) 'footnote-reference 'identity))))
+
+
+
+;;;; Granularity
+
+(ert-deftest test-org-element/granularity ()
+  "Test granularity impact on buffer parsing."
+  (org-test-with-temp-text "
+* Head 1
+** Head 2
+#+BEGIN_CENTER
+Centered paragraph.
+#+END_CENTER
+Paragraph \\alpha."
+    ;; 1.1. Granularity set to `headline' should parse every headline
+    ;;      in buffer, and only them.
+    (let ((tree (org-element-parse-buffer 'headline)))
+      (should (= 2 (length (org-element-map tree 'headline 'identity))))
+      (should-not (org-element-map tree 'paragraph 'identity)))
+    ;; 1.2. Granularity set to `greater-element' should not enter
+    ;;      greater elements excepted headlines and sections.
+    (let ((tree (org-element-parse-buffer 'greater-element)))
+      (should (= 1 (length (org-element-map tree 'center-block 'identity))))
+      (should (= 1 (length (org-element-map tree 'paragraph 'identity))))
+      (should-not (org-element-map tree 'entity 'identity)))
+    ;; 1.3. Granularity set to `element' should enter every
+    ;;      greater-element.
+    (let ((tree (org-element-parse-buffer 'element)))
+      (should (= 2 (length (org-element-map tree 'paragraph 'identity))))
+      (should-not (org-element-map tree 'entity 'identity)))
+    ;; 1.4. Granularity set to `object' can see everything.
+    (let ((tree (org-element-parse-buffer 'object)))
+      (should (= 1 (length (org-element-map tree 'entity 'identity)))))))
+
+(ert-deftest test-org-element/secondary-string-parsing ()
+  "Test if granularity correctly toggles secondary strings parsing."
+  ;; 1. With a granularity bigger than `object', no secondary string
+  ;;    should be parsed.
+  ;;
+  ;; 1.1. Test with `headline' type.
+  (org-test-with-temp-text "* Headline"
+    (let ((headline
+	   (org-element-map (org-element-parse-buffer 'headline) 'headline
+			    'identity
+			    nil
+			    'first-match)))
+      (should (stringp (org-element-property :title headline)))))
+  ;; 1.2. Test with `item' type.
+  (org-test-with-temp-text "* Headline\n- tag :: item"
+    (let ((item (org-element-map (org-element-parse-buffer 'element)
+				 'item
+				 'identity
+				 nil
+				 'first-match)))
+      (should (stringp (org-element-property :tag item)))))
+  ;; 1.3. Test with `verse-block' type.
+  (org-test-with-temp-text "#+BEGIN_VERSE\nTest\n#+END_VERSE"
+    (let ((verse-block (org-element-map (org-element-parse-buffer 'element)
+					'verse-block
+					'identity
+					nil
+					'first-match)))
+      (should (stringp (org-element-property :value verse-block)))))
+  ;; 1.4. Test with `inlinetask' type, if avalaible.
+  (when (featurep 'org-inlinetask)
+    (let ((org-inlinetask-min-level 15))
+      (org-test-with-temp-text "*************** Inlinetask"
+	(let ((inlinetask (org-element-map (org-element-parse-buffer 'element)
+					   'inlinetask
+					   'identity
+					   nil
+					   'first-match)))
+	  (should (stringp (org-element-property :title inlinetask)))))))
+  ;; 2. With a default granularity, secondary strings should be
+  ;;    parsed.
+  (org-test-with-temp-text "* Headline"
+    (let ((headline
+	   (org-element-map (org-element-parse-buffer) 'headline
+			    'identity
+			    nil
+			    'first-match)))
+      (should (listp (org-element-property :title headline)))))
+  ;; 3. `org-element-at-point' should never parse a secondary string.
+  (org-test-with-temp-text "* Headline"
+    (should (stringp (org-element-property :title (org-element-at-point))))))
+
+
+
+;;;; Interpretation.
+
+(ert-deftest test-org-element/interpret-affiliated-keywords ()
+  "Test if affiliated keywords are correctly interpreted."
+  ;; Interpret simple keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:name "para") "Paragraph")))
+    "#+NAME: para\nParagraph\n"))
+  ;; Interpret multiple keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:attr_ascii ("line1" "line2")) "Paragraph")))
+    "#+ATTR_ASCII: line1\n#+ATTR_ASCII: line2\nParagraph\n"))
+  ;; Interpret parsed keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:caption ("caption")) "Paragraph")))
+    "#+CAPTION: caption\nParagraph\n"))
+  ;; Interpret dual keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph (:caption (("long") "short")) "Paragraph")))
+    "#+CAPTION[short]: long\nParagraph\n")))
+
+
+
+;;;; Navigation tools.
 
 (ert-deftest test-org-element/forward-element ()
   "Test `org-element-forward' specifications."
@@ -426,7 +599,14 @@ Outside."
     (goto-line 2)
     (org-element-down)
     (should (looking-at " - Item 1.1")))
-  ;; 3. Otherwise, move inside the greater element.
+  (org-test-with-temp-text "#+NAME: list\n- Item 1"
+    (org-element-down)
+    (should (looking-at " Item 1")))
+  ;; 3. When at a table, move to first row
+  (org-test-with-temp-text "#+NAME: table\n| a | b |"
+    (org-element-down)
+    (should (looking-at " a | b |")))
+  ;; 4. Otherwise, move inside the greater element.
   (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph.\n#+END_CENTER"
     (org-element-down)
     (should (looking-at "Paragraph"))))
