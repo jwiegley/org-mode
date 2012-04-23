@@ -1,6 +1,6 @@
 ;;; org-registry.el --- a registry for Org links
 ;;
-;; Copyright 2007-2011 Bastien Guerry
+;; Copyright 2007-2012 Bastien Guerry
 ;;
 ;; Emacs Lisp Archive Entry
 ;; Filename: org-registry.el
@@ -145,15 +145,15 @@ buffer."
 
 (defun org-registry-assoc-all (link &optional registry)
   "Return all associated entries of LINK in the registry."
-  (org-registry-find-all 
+  (org-registry-find-all
    (lambda (entry) (string= link (car entry)))
    registry))
 
 (defun org-registry-find-all (test &optional registry)
   "Return all entries satisfying `test' in the registry."
-  (delq nil 
-        (mapcar 
-         (lambda (x) (and (funcall test x) x)) 
+  (delq nil
+        (mapcar
+         (lambda (x) (and (funcall test x) x))
          (or registry org-registry-alist))))
 
 ;;;###autoload

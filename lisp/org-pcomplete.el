@@ -1,6 +1,6 @@
 ;;; org-pcomplete.el --- In-buffer completion code
 
-;; Copyright (C) 2004-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012  Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;;         John Wiegley <johnw at gnu dot org>
@@ -50,6 +50,9 @@
   :tag "Org"
   :group 'org)
 
+(defvar org-drawer-regexp)
+(defvar org-property-re)
+
 (defun org-thing-at-point ()
   "Examine the thing at point and let the caller know what it is.
 The return value is a string naming the thing at point."
@@ -69,7 +72,7 @@ The return value is a string naming the thing at point."
 	(re-search-backward "^[ \t]*#\\+\\([A-Z_]+\\):.*"
 			    (line-beginning-position) t))
       (cons "file-option" (match-string-no-properties 1)))
-     ((string-match "\\`[ \t]*#\\+[a-zA-Z]*\\'" line-to-here)
+     ((string-match "\\`[ \t]*#\\+[a-zA-Z_]*\\'" line-to-here)
       (cons "file-option" nil))
      ((equal (char-before beg) ?\[)
       (cons "link" nil))
@@ -84,8 +87,16 @@ The return value is a string naming the thing at point."
 	   (equal (char-after (point-at-bol)) ?*))
       (cons "tag" nil))
      ((and (equal (char-before beg1) ?:)
-	   (not (equal (char-after (point-at-bol)) ?*)))
+	   (not (equal (char-after (point-at-bol)) ?*))
+	   (save-excursion
+	     (move-beginning-of-line 1)
+	     (skip-chars-backward "[ \t\n]")
+	     (or (looking-back org-drawer-regexp)
+		 (looking-back org-property-re))))
       (cons "prop" nil))
+     ((and (equal (char-before beg1) ?:)
+	   (not (equal (char-after (point-at-bol)) ?*)))
+      (cons "drawer" nil))
      (t nil))))
 
 (defun org-command-at-point ()
@@ -144,9 +155,9 @@ When completing for #+STARTUP, for example, this function returns
 			      (if (string-match "^#\\+\\([A-Z_]+:?\\)" x)
 				  (match-string 1 x)))
 			    (org-split-string (org-get-current-options) "\n"))
-		    org-additional-option-like-keywords)))))
+		    (copy-sequence org-additional-option-like-keywords))))))
    (substring pcomplete-stub 2)))
-  
+
 (defvar org-startup-options)
 (defun pcomplete/org-mode/file-option/startup ()
   "Complete arguments for the #+STARTUP file option."
@@ -238,6 +249,25 @@ This needs more work, to handle headings with lots of spaces in them."
 	       (setq lst (delete (car prop) lst)))
 	     lst))
    (substring pcomplete-stub 1)))
+
+(defvar org-drawers)
+
+(defun pcomplete/org-mode/drawer ()
+  "Complete a drawer name."
+  (let ((spc (save-excursion
+	       (move-beginning-of-line 1)
+	       (looking-at "^\\([ \t]*\\):")
+	       (match-string 1)))
+	(cpllist (mapcar (lambda (x) (concat x ": ")) org-drawers)))
+    (pcomplete-here cpllist
+     (substring pcomplete-stub 1)
+     (unless (or (not (delete
+		       nil
+		       (mapcar (lambda(x)
+				 (string-match (substring pcomplete-stub 1) x))
+			       cpllist)))
+		 (looking-at "[ \t]*\n.*:END:"))
+       (save-excursion (insert "\n" spc ":END:"))))))
 
 (defun pcomplete/org-mode/block-option/src ()
   "Complete the arguments of a begin_src block.

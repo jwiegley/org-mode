@@ -1,6 +1,6 @@
 ;;; ob-R.el --- org-babel functions for R code evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;;	Dan Davison
@@ -40,10 +40,31 @@
 (declare-function ess-eval-buffer "ext:ess-inf" (vis))
 (declare-function org-number-sequence "org-compat" (from &optional to inc))
 
-(defconst org-babel-header-arg-names:R
-  '(width height bg units pointsize antialias quality compression
-	  res type family title fonts version paper encoding
-	  pagecentre colormodel useDingbats horizontal)
+(defconst org-babel-header-args:R
+  '((width		 . :any)
+    (height		 . :any)
+    (bg			 . :any)
+    (units		 . :any)
+    (pointsize		 . :any)
+    (antialias		 . :any)
+    (quality		 . :any)
+    (compression	 . :any)
+    (res		 . :any)
+    (type		 . :any)
+    (family		 . :any)
+    (title		 . :any)
+    (fonts		 . :any)
+    (version		 . :any)
+    (paper		 . :any)
+    (encoding		 . :any)
+    (pagecentre		 . :any)
+    (colormodel		 . :any)
+    (useDingbats	 . :any)
+    (horizontal		 . :any)
+    (results             . ((file list vector table scalar verbatim)
+			    (raw org html latex code pp wrap)
+			    (replace silent append prepend)
+			    (output value graphics))))
   "R-specific header arguments.")
 
 (defvar org-babel-default-header-args:R '())
@@ -279,7 +300,8 @@ last statement in BODY, as elisp."
      (with-temp-buffer
        (insert (org-babel-chomp body))
        (let ((ess-local-process-name
-	      (process-name (get-buffer-process session))))
+	      (process-name (get-buffer-process session)))
+	     (ess-eval-visibly-p nil))
 	 (ess-eval-buffer nil)))
      (let ((tmp-file (org-babel-temp-file "R-")))
        (org-babel-comint-eval-invisibly-and-wait-for-file

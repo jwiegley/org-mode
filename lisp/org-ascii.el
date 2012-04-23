@@ -1,6 +1,6 @@
 ;;; org-ascii.el --- ASCII export for Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012  Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -36,7 +36,7 @@
   :tag "Org Export ASCII"
   :group 'org-export)
 
-(defcustom org-export-ascii-underline '(?\- ?\= ?\~ ?^ ?\# ?\$)
+(defcustom org-export-ascii-underline '(?\= ?\- ?\~ ?\^ ?\. ?\# ?\$)
   "Characters for underlining headings in ASCII export.
 In the given sequence, these characters will be used for level 1, 2, ..."
   :group 'org-export-ascii
@@ -108,7 +108,7 @@ utf8      Use all UTF-8 characters")
 (defun org-export-as-utf8 (&rest args)
   "Like `org-export-as-ascii', use encoding for special symbols."
   (interactive)
-  (org-export-as-encoding 'org-export-as-ascii 
+  (org-export-as-encoding 'org-export-as-ascii
 			  (org-called-interactively-p 'any)
 			  'utf8 args))
 
@@ -144,7 +144,7 @@ command to convert it."
   (interactive "r")
   (let (reg ascii buf pop-up-frames)
     (save-window-excursion
-      (if (eq major-mode 'org-mode)
+      (if (derived-mode-p 'org-mode)
 	  (setq ascii (org-export-region-as-ascii
 		      beg end t 'string))
 	(setq reg (buffer-substring beg end)
@@ -438,7 +438,9 @@ publishing directory."
 	      link (concat (match-string 1 line) path)
 	      type (match-string 2 line)
 	      desc0 (match-string 5 line)
-	      desc (or desc0 link))
+	      desc0 (replace-regexp-in-string "\\\\_" "_" desc0)
+	      desc (or desc0 link)
+	      desc (replace-regexp-in-string "\\\\_" "_" desc))
 	(if (and (> (length link) 8)
 		 (equal (substring link 0 8) "coderef:"))
 	    (setq line (replace-match

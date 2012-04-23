@@ -1,6 +1,6 @@
 ;;; org-crypt.el --- Public key encryption for org-mode entries
 
-;; Copyright (C) 2007, 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2007, 2009-2012  Free Software Foundation, Inc.
 
 ;; Emacs Lisp Archive Entry
 ;; Filename: org-crypt.el
@@ -76,21 +76,21 @@
 
 (defgroup org-crypt nil
   "Org Crypt"
-  :tag "Org Crypt" 
+  :tag "Org Crypt"
   :group 'org)
 
 (defcustom org-crypt-tag-matcher "crypt"
   "The tag matcher used to find headings whose contents should be encrypted.
 
 See the \"Match syntax\" section of the org manual for more details."
-  :type 'string 
+  :type 'string
   :group 'org-crypt)
 
 (defcustom org-crypt-key ""
   "The default key to use when encrypting the contents of a heading.
 
 This setting can also be overridden in the CRYPTKEY property."
-  :type 'string 
+  :type 'string
   :group 'org-crypt)
 
 (defcustom org-crypt-disable-auto-save 'ask
@@ -111,6 +111,7 @@ nil      : Leave auto-save-mode enabled.
            NOTE: This only works for entries which have a tag
            that matches `org-crypt-tag-matcher'."
   :group 'org-crypt
+  :version "24.1"
   :type '(choice (const :tag "Always"  t)
                  (const :tag "Never"   nil)
                  (const :tag "Ask"     ask)
@@ -236,16 +237,20 @@ See `org-crypt-disable-auto-save'."
 (defun org-encrypt-entries ()
   "Encrypt all top-level entries in the current buffer."
   (interactive)
-  (org-scan-tags
-   'org-encrypt-entry
-   (cdr (org-make-tags-matcher org-crypt-tag-matcher))))
+  (let (todo-only)
+    (org-scan-tags
+     'org-encrypt-entry
+     (cdr (org-make-tags-matcher org-crypt-tag-matcher))
+     todo-only)))
 
 (defun org-decrypt-entries ()
   "Decrypt all entries in the current buffer."
   (interactive)
-  (org-scan-tags
-   'org-decrypt-entry
-   (cdr (org-make-tags-matcher org-crypt-tag-matcher))))
+  (let (todo-only)
+    (org-scan-tags
+     'org-decrypt-entry
+     (cdr (org-make-tags-matcher org-crypt-tag-matcher))
+     todo-only)))
 
 (defun org-crypt-use-before-save-magic ()
   "Add a hook to automatically encrypt entries before a file is saved to disk."

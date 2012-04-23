@@ -1,9 +1,9 @@
 ;;; ob-perl.el --- org-babel functions for perl evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation
+;; Copyright (C) 2009-2012  Free Software Foundation, Inc.
 
-;; Author: Dan Davison
-;;	Eric Schulte
+;; Authors: Dan Davison
+;;	 Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
 

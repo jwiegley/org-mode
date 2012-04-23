@@ -1,6 +1,6 @@
 ;;; org-icalendar.el --- iCalendar export for Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -54,6 +54,7 @@ for timed events.  If non-zero, alarms are created.
 - The alarm will go off N minutes before the event
 - only a DISPLAY action is defined."
   :group 'org-export-icalendar
+  :version "24.1"
   :type 'integer)
 
 (defcustom org-icalendar-combined-name "OrgMode"
@@ -64,6 +65,7 @@ for timed events.  If non-zero, alarms are created.
 (defcustom org-icalendar-combined-description nil
   "Calendar description for the combined iCalendar (all agenda files)."
   :group 'org-export-icalendar
+  :version "24.1"
   :type 'string)
 
 (defcustom org-icalendar-use-plain-timestamp t
@@ -74,6 +76,7 @@ for timed events.  If non-zero, alarms are created.
 (defcustom org-icalendar-honor-noexport-tag nil
   "Non-nil means don't export entries with a tag in `org-export-exclude-tags'."
   :group 'org-export-icalendar
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-icalendar-use-deadline '(event-if-not-todo todo-due)
@@ -191,7 +194,7 @@ or if they are only using it locally."
 
 (defcustom org-icalendar-timezone (getenv "TZ")
   "The time zone string for iCalendar export.
-When nil of the empty string, use the abbreviation retrieved from Emacs."
+When nil or the empty string, use output from \(current-time-zone\)."
   :group 'org-export-icalendar
   :type '(choice
 	  (const :tag "Unspecified" nil)
@@ -213,6 +216,7 @@ Interesting value are:
  - \":%Y%m%dT%H%M%SZ\" for time expressed in Universal Time"
 
   :group 'org-export-icalendar
+  :version "24.1"
   :type '(choice
 	  (const :tag "Local time" ":%Y%m%dT%H%M%S")
 	  (const :tag "Explicit local time" ";TZID=%Z:%Y%m%dT%H%M%S")
@@ -399,12 +403,12 @@ When COMBINE is non nil, add the category to each line."
 	  (if (or (string-match org-tr-regexp hd)
 		  (string-match org-ts-regexp hd))
 	      (setq hd (replace-match "" t t hd)))
-	  (if (string-match "\\+\\([0-9]+\\)\\([dwmy]\\)>" ts)
+	  (if (string-match "\\+\\([0-9]+\\)\\([hdwmy]\\)>" ts)
 	      (setq rrule
 		    (concat "\nRRULE:FREQ="
 			    (cdr (assoc
 				  (match-string 2 ts)
-				  '(("d" . "DAILY")("w" . "WEEKLY")
+				  '(("h" . "HOURLY")("d" . "DAILY")("w" . "WEEKLY")
 				    ("m" . "MONTHLY")("y" . "YEARLY"))))
 			    ";INTERVAL=" (match-string 1 ts)))
 	    (setq rrule ""))

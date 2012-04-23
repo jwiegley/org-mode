@@ -1,11 +1,11 @@
 ;;; ob-fortran.el --- org-babel functions for fortran
 
-;; Copyright (C) 2011 Sergey Litvinov, Eric Schulte
+;; Copyright (C) 2011-2012  Free Software Foundation, Inc.
 
-;; Authors: Sergey Litvinov (based on ob-C.el by Eric Schulte), Eric Schulte
+;; Authors: Sergey Litvinov
+;;       Eric Schulte
 ;; Keywords: literate programming, reproducible research, fortran
 ;; Homepage: http://orgmode.org
-;; Version: 7.8.02
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -108,7 +108,7 @@ it's header arguments."
   "Wrap body in a \"program ... end program\" block if none exists."
   (if (string-match "^[ \t]*program[ \t]*.*" (capitalize body))
        (let ((vars (mapcar #'cdr (org-babel-get-header params :var))))
-	 (if vars (error "cannot use :vars if 'program' statment is present"))
+	 (if vars (error "cannot use :vars if 'program' statement is present"))
 	 body)
     (format "program main\n%s\nend program main\n" body)))
 
@@ -125,7 +125,7 @@ support for sessions"
 ;; helper functions
 
 (defun org-babel-fortran-var-to-fortran (pair)
-  "fortranonvert an elisp val into a string of fortran code specifying a var
+  "Convert an elisp val into a string of fortran code specifying a var
 of the same value."
   ;; TODO list support
   (let ((var (car pair))

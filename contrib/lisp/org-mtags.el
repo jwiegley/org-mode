@@ -1,5 +1,6 @@
 ;;; org-mtags.el --- Muse-like tags in Org-mode
-;; Copyright (C) 2008-2011 Free Software Foundation, Inc.
+
+;; Copyright (C) 2008-2012 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -254,4 +255,3 @@ with string values.  In addition, it reutnrs the following properties:
 (provide 'org-mtags)
 
 ;;; org-mtags.el ends here
-

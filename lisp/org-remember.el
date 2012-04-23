@@ -1,6 +1,6 @@
 ;;; org-remember.el --- Fast note taking in Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -39,7 +39,7 @@
 (declare-function remember "remember" (&optional initial))
 (declare-function remember-buffer-desc "remember" ())
 (declare-function remember-finalize "remember" ())
-(declare-function org-pop-to-buffer-same-window 
+(declare-function org-pop-to-buffer-same-window
 		  "org-compat" (&optional buffer-or-name norecord label))
 
 (defvar remember-save-after-remembering)
@@ -943,7 +943,7 @@ See also the variable `org-reverse-note-order'."
 	(throw 'quit t))
       ;; Find the file
       (with-current-buffer (or visiting (find-file-noselect file))
-	(unless (or (eq major-mode 'org-mode) (member heading '(top bottom)))
+	(unless (or (derived-mode-p 'org-mode) (member heading '(top bottom)))
 	  (error "Target files for notes must be in Org-mode if not filing to top/bottom"))
 	(save-excursion
 	  (save-restriction
@@ -953,7 +953,7 @@ See also the variable `org-reverse-note-order'."
 	    ;; Find the default location
 	    (when heading
 	      (cond
-	       ((not (eq major-mode 'org-mode))
+	       ((not (derived-mode-p 'org-mode))
 		(if (eq heading 'top)
 		    (goto-char (point-min))
 		  (goto-char (point-max))
@@ -1014,7 +1014,7 @@ See also the variable `org-reverse-note-order'."
 					; not handle this note
 	    (and visitp (run-with-idle-timer 0.01 nil 'org-remember-visit-immediately))
 	    (goto-char spos)
-	    (cond ((org-on-heading-p t)
+	    (cond ((org-at-heading-p t)
 		   (org-back-to-heading t)
 		   (setq level (funcall outline-level))
 		   (cond
@@ -1152,4 +1152,3 @@ See also the variable `org-reverse-note-order'."
 (provide 'org-remember)
 
 ;;; org-remember.el ends here
-

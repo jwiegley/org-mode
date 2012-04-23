@@ -1,4 +1,4 @@
-% Copyright (C) 2007, 2008, 2009  Free Software Foundation, Inc.
+% Copyright (C) 2007-2012  Free Software Foundation, Inc.
 
 % This file is part of GNU Emacs.
 
@@ -31,6 +31,7 @@
     \else\if1#1 % Letter
       \pdfpagewidth=8.5in
       \pdfpageheight=11in
+      \letterpaper=1
     \fi\fi
     \if l#2 % Landscape
       \edef\oldwidth{\the\pdfpagewidth}

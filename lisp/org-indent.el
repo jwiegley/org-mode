@@ -1,5 +1,5 @@
 ;;; org-indent.el --- Dynamic indentation for  Org-mode
-;; Copyright (C) 2009-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2012 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -45,6 +45,7 @@
 (declare-function org-inlinetask-get-task-level "org-inlinetask" ())
 (declare-function org-inlinetask-in-task-p "org-inlinetask" ())
 (declare-function org-list-item-body-column "org-list" (item))
+(defvar org-inlinetask-show-first-star)
 
 (defgroup org-indent nil
   "Options concerning dynamic virtual outline indentation."
@@ -222,7 +223,7 @@ during idle time." nil " Ind" nil
 (defun org-indent-indent-buffer ()
   "Add indentation properties to the accessible part of the buffer."
   (interactive)
-  (if (not (eq major-mode 'org-mode))
+  (if (not (derived-mode-p 'org-mode))
       (error "Not in Org mode")
     (message "Setting buffer indentation. It may take a few seconds...")
     (org-indent-remove-properties (point-min) (point-max))
@@ -293,8 +294,10 @@ Assume point is at beginning of line."
 		(let ((stars (aref org-indent-stars
 				   (min l org-indent-max-levels))))
 		  (and stars
-		       (concat org-indent-inlinetask-first-star
-			       (substring stars 1)))))
+		       (if (org-bound-and-true-p org-inlinetask-show-first-star)
+			   (concat org-indent-inlinetask-first-star
+				   (substring stars 1))
+			 stars))))
 	       (h (aref org-indent-stars
 			(min l org-indent-max-levels)))
 	       (t (aref org-indent-strings
@@ -412,6 +415,7 @@ This function is meant to be called by `after-change-functions'."
       (if (or org-indent-modified-headline-flag
 	      (save-excursion
 		(goto-char beg)
+		(beginning-of-line)
 		(re-search-forward org-outline-regexp-bol end t)))
 	(let ((end (save-excursion
 		     (goto-char end)

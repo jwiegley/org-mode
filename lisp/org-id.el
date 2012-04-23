@@ -1,6 +1,6 @@
 ;;; org-id.el --- Global identifiers for Org-mode entries
 ;;
-;; Copyright (C) 2008-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2012 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -73,7 +73,7 @@
 (require 'org)
 
 (declare-function message-make-fqdn "message" ())
-(declare-function org-pop-to-buffer-same-window 
+(declare-function org-pop-to-buffer-same-window
 		  "org-compat" (&optional buffer-or-name norecord label))
 
 ;;; Customization
@@ -273,7 +273,7 @@ With optional argument MARKERP, return the position as a new marker."
     (when file
       (setq where (org-id-find-id-in-file id file markerp)))
     (unless where
-      (org-id-update-id-locations)
+      (org-id-update-id-locations nil t)
       (setq file (org-id-find-id-file id))
       (when file
 	(setq where (org-id-find-id-in-file id file markerp))))
@@ -403,7 +403,7 @@ and time is the usual three-integer representation of time."
 
 ;; Storing ID locations (files)
 
-(defun org-id-update-id-locations (&optional files)
+(defun org-id-update-id-locations (&optional files silent)
   "Scan relevant files for IDs.
 Store the relation between files and corresponding IDs.
 This will scan all agenda files, all associated archives, and all
@@ -431,7 +431,7 @@ When CHECK is given, prepare detailed information about duplicate IDs."
 		 (delq nil
 		       (mapcar (lambda (b)
 				 (with-current-buffer b
-				   (and (eq major-mode 'org-mode) (buffer-file-name))))
+				   (and (derived-mode-p 'org-mode) (buffer-file-name))))
 			       (buffer-list)))
 		 ;; All files known to have IDs
 		 org-id-files)))
@@ -441,8 +441,9 @@ When CHECK is given, prepare detailed information about duplicate IDs."
 	(setq files (delq 'agenda-archives (copy-sequence files))))
       (setq nfiles (length files))
       (while (setq file (pop files))
-	(message "Finding ID locations (%d/%d files): %s"
-		 (- nfiles (length files)) nfiles file)
+	(unless silent
+	  (message "Finding ID locations (%d/%d files): %s"
+		   (- nfiles (length files)) nfiles file))
 	(setq tfile (file-truename file))
 	(when (and (file-exists-p file) (not (member tfile seen)))
 	  (push tfile seen)
@@ -600,7 +601,7 @@ optional argument MARKERP, return the position as a new marker."
 (defun org-id-store-link ()
   "Store a link to the current entry, using its ID."
   (interactive)
-  (when (and (buffer-file-name (buffer-base-buffer)) (eq major-mode 'org-mode))
+  (when (and (buffer-file-name (buffer-base-buffer)) (derived-mode-p 'org-mode))
     (let* ((link (org-make-link "id:" (org-id-get-create)))
 	   (case-fold-search nil)
 	   (desc (save-excursion
@@ -641,7 +642,3 @@ optional argument MARKERP, return the position as a new marker."
 (provide 'org-id)
 
 ;;; org-id.el ends here
-
-
-
-

@@ -1,6 +1,6 @@
 ;;; org-checklist.el --- org functions for checklist handling
 
-;; Copyright (C) 2008-2011 James TD Smith
+;; Copyright (C) 2008-2012 James TD Smith
 
 ;; Author: James TD Smith (@ ahktenzero (. mohorovi cc))
 ;; Version: 1.0
@@ -129,7 +129,7 @@ of checkbox items"
 			 (a2ps-buffer)))))))))
 
 (defun org-checklist ()
-  (when (member state org-done-keywords)
+  (when (member org-state org-done-keywords) ;; org-state dynamically bound in org.el/org-todo
     (org-make-checklist-export)
     (org-reset-checkbox-state-maybe)))
 
@@ -138,6 +138,3 @@ of checkbox items"
 (provide 'org-checklist)
 
 ;;; org-checklist.el ends here
-
-
-

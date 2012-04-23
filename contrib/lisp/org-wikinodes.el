@@ -1,6 +1,6 @@
 ;;; org-wikinodes.el --- Wiki-like CamelCase links to outline nodes
 
-;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2012 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -102,7 +102,7 @@ to `directory'."
 
 This function goes into `org-open-at-point-functions'."
   (and org-wikinodes-active
-       (not (org-on-heading-p))
+       (not (org-at-heading-p))
        (let (case-fold-search) (org-in-regexp org-wikinodes-camel-regexp))
        (progn (org-wikinodes-follow-link (match-string 0)) t)))
 
@@ -174,13 +174,13 @@ setting of `org-wikinodes-create-targets'."
 	(message "New Wiki target `%s' created in current buffer"
 		 target))))))
 
-;;; The target cache 
+;;; The target cache
 
 (defvar org-wikinodes-directory-targets-cache nil)
 
 (defun org-wikinodes-clear-cache-when-on-target ()
   "When on a headline that is a Wiki target, clear the cache."
-  (when (and (org-on-heading-p)
+  (when (and (org-at-heading-p)
 	     (org-in-regexp (format org-complex-heading-regexp-format
 				    org-wikinodes-camel-regexp))
 	     (org-in-regexp org-wikinodes-camel-regexp))
@@ -206,7 +206,7 @@ setting of `org-wikinodes-create-targets'."
 	(while (re-search-forward re nil t)
 	  (push (org-match-string-no-properties 4) targets))))
     (nreverse targets)))
-		    
+
 (defun org-wikinodes-get-links-for-directory (dir)
   "Return an alist that connects wiki links to files in directory DIR."
   (let ((files (directory-files dir nil "\\`[^.#].*\\.org\\'"))
@@ -280,7 +280,7 @@ with working links."
     (while (re-search-forward re nil t)
       (org-if-unprotected-at (match-beginning 0)
 	(unless (save-match-data
-		  (or (org-on-heading-p)
+		  (or (org-at-heading-p)
 		      (org-in-regexp org-bracket-link-regexp)
 		      (org-in-regexp org-plain-link-re)
 		      (org-in-regexp "<<[^<>]+>>")))
@@ -328,7 +328,7 @@ with working links."
 	(setcdr m (cons '(org-wikinodes-activate-links) (cdr m)))
       (message
        "Failed to add wikinodes to `org-font-lock-extra-keywords'."))))
-  
+
 (add-hook 'org-font-lock-set-keywords-hook
 	  'org-wikinodes-add-to-font-lock-keywords)
 
