@@ -225,7 +225,7 @@ Consider using the interactive functions `org-protocol-create' and
   :type 'alist)
 
 (defcustom org-protocol-protocol-alist nil
-  "* Register custom handlers for org-protocol.
+  "Register custom handlers for org-protocol.
 
 Each element of this list must be of the form:
 
@@ -270,6 +270,12 @@ Here is an example:
   "The default template key to use.
 This is usually a single character string but can also be a
 string with two characters."
+  :group 'org-protocol
+  :type 'string)
+
+(defcustom org-protocol-data-separator "/+"
+  "The default data separator to use.
+   This should be a single regexp string."
   :group 'org-protocol
   :type 'string)
 
@@ -372,7 +378,7 @@ could contain slashes and the location definitely will.
 
 The sub-protocol used to reach this function is set in
 `org-protocol-protocol-alist'."
-  (let* ((splitparts (org-protocol-split-data fname t))
+  (let* ((splitparts (org-protocol-split-data fname t org-protocol-data-separator))
          (uri (org-protocol-sanitize-uri (car splitparts)))
          (title (cadr splitparts))
          orglink)
@@ -433,7 +439,7 @@ Now template ?b will be used."
 (defun org-protocol-do-capture (info capture-func)
   "Support `org-capture' and `org-remember' alike.
 CAPTURE-FUNC is either the symbol `org-remember' or `org-capture'."
-  (let* ((parts (org-protocol-split-data info t))
+  (let* ((parts (org-protocol-split-data info t org-protocol-data-separator))
 	 (template (or (and (>= 2 (length (car parts))) (pop parts))
 		       org-protocol-default-template-key))
 	 (url (org-protocol-sanitize-uri (car parts)))

@@ -540,12 +540,14 @@ This option can also be set with the +OPTIONS line, e.g. \"LaTeX:mathjax\".
 
 Allowed values are:
 
-nil        Don't do anything.
-verbatim   Keep everything in verbatim
-dvipng     Process the LaTeX fragments to images.
-           This will also include processing of non-math environments.
-t          Do MathJax preprocessing if there is at least on math snippet,
-           and arrange for MathJax.js to be loaded.
+nil             Don't do anything.
+verbatim        Keep everything in verbatim
+dvipng          Process the LaTeX fragments to images.
+                This will also include processing of non-math environments.
+imagemagick     Convert the LaTeX fragments to pdf files and use imagemagick
+                to convert pdf files to png files.
+t               Do MathJax preprocessing if there is at least on math snippet,
+                and arrange for MathJax.js to be loaded.
 
 The default is nil, because this option needs the `dvipng' program which
 is not available on all systems."
@@ -555,6 +557,7 @@ is not available on all systems."
 	  (const :tag "Do not process math in any way" nil)
 	  (const :tag "Obsolete, use dvipng setting" t)
 	  (const :tag "Use dvipng to make images" dvipng)
+	  (const :tag "Use imagemagick to make images" imagemagick)
 	  (const :tag "Use MathJax to display math" mathjax)
 	  (const :tag "Leave math verbatim" verbatim)))
 
@@ -2008,7 +2011,8 @@ When it is nil, all comments will be removed."
 
 (defun org-export-handle-table-metalines ()
   "Remove table specific metalines #+TBLNAME: and #+TBLFM:."
-  (let ((re "^[ \t]*#\\+TBL\\(NAME\\|FM\\):\\(.*\n?\\)")
+  (let ((re "^[ \t]*#\\+tbl\\(name\\|fm\\):\\(.*\n?\\)")
+	(case-fold-search t)
 	pos)
     (goto-char (point-min))
     (while (or (looking-at re)
@@ -2406,13 +2410,14 @@ TYPE must be a string, any of:
 (defun org-export-handle-include-files ()
   "Include the contents of include files, with proper formatting."
   (let ((case-fold-search t)
-	params file markup lang start end prefix prefix1 switches all minlevel lines)
+	params file markup lang start end prefix prefix1 switches all minlevel currentlevel addlevel lines)
     (goto-char (point-min))
     (while (re-search-forward "^#\\+INCLUDE:?[ \t]+\\(.*\\)" nil t)
       (setq params (read (concat "(" (match-string 1) ")"))
 	    prefix (org-get-and-remove-property 'params :prefix)
 	    prefix1 (org-get-and-remove-property 'params :prefix1)
 	    minlevel (org-get-and-remove-property 'params :minlevel)
+	    addlevel (org-get-and-remove-property 'params :addlevel)
 	    lines (org-get-and-remove-property 'params :lines)
 	    file (org-symname-or-string (pop params))
 	    markup (org-symname-or-string (pop params))
@@ -2421,6 +2426,7 @@ TYPE must be a string, any of:
 	    switches (mapconcat #'(lambda (x) (format "%s" x)) params " ")
 	    start nil end nil)
       (delete-region (match-beginning 0) (match-end 0))
+      (setq currentlevel (or (org-current-level) 0))
       (if (or (not file)
 	      (not (file-exists-p file))
 	      (not (file-readable-p file)))
@@ -2436,7 +2442,7 @@ TYPE must be a string, any of:
 		  end  (format "#+end_%s" markup))))
 	(insert (or start ""))
 	(insert (org-get-file-contents (expand-file-name file)
-				       prefix prefix1 markup minlevel lines))
+				       prefix prefix1 markup currentlevel minlevel addlevel lines))
 	(or (bolp) (newline))
 	(insert (or end ""))))
     all))
@@ -2453,13 +2459,15 @@ TYPE must be a string, any of:
 	(when intersection
 	  (error "Recursive #+INCLUDE: %S" intersection))))))
 
-(defun org-get-file-contents (file &optional prefix prefix1 markup minlevel lines)
+(defun org-get-file-contents (file &optional prefix prefix1 markup minlevel parentlevel addlevel lines)
   "Get the contents of FILE and return them as a string.
 If PREFIX is a string, prepend it to each line.  If PREFIX1
 is a string, prepend it to the first line instead of PREFIX.
 If MARKUP, don't protect org-like lines, the exporter will
-take care of the block they are in.  If LINES is a string
-specifying a range of lines, include only those lines ."
+take care of the block they are in.  If ADDLEVEL is a number,
+demote included file to current heading level+ADDLEVEL.
+If LINES is a string specifying a range of lines,
+include only those lines."
   (if (stringp markup) (setq markup (downcase markup)))
   (with-temp-buffer
     (insert-file-contents file)
@@ -2492,7 +2500,15 @@ specifying a range of lines, include only those lines ."
     (when minlevel
       (dotimes (lvl minlevel)
 	(org-map-region 'org-demote (point-min) (point-max))))
-    (buffer-string)))
+    (when addlevel
+      (let ((inclevel (or (if (org-before-first-heading-p)
+			      (1- (and (outline-next-heading)
+				       (org-current-level)))
+			    (1- (org-current-level)))
+			  0)))
+	(dotimes (level (- (+ parentlevel addlevel) inclevel))
+	  (org-map-region 'org-demote (point-min) (point-max)))))
+      (buffer-string)))
 
 (defun org-get-and-remove-property (listvar prop)
   "Check if the value of LISTVAR contains PROP as a property.

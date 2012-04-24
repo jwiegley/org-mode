@@ -4,8 +4,7 @@
 @setfilename ../../info/org
 @settitle The Org Manual
 
-@set VERSION 7.8.09
-@set DATE April 2012
+@include org-version.inc
 
 @c Use proper quote and backtick for code sections in PDF output
 @c Cf. Texinfo manual 14.2
@@ -5398,8 +5397,10 @@ timeline and agenda displays, the headline of an entry associated with a
 plain timestamp will be shown exactly on that date.
 
 @example
-* Meet Peter at the movies <2006-11-01 Wed 19:15>
-* Discussion on climate change <2006-11-02 Thu 20:00-22:00>
+* Meet Peter at the movies
+  <2006-11-01 Wed 19:15>
+* Discussion on climate change
+  <2006-11-02 Thu 20:00-22:00>
 @end example
 
 @item Timestamp with repeater interval
@@ -5410,7 +5411,8 @@ interval of N days (d), weeks (w), months (m), or years (y).  The
 following will show up in the agenda every Wednesday:
 
 @example
-* Pick up Sam at school <2007-05-16 Wed 12:30 +1w>
+* Pick up Sam at school
+  <2007-05-16 Wed 12:30 +1w>
 @end example
 
 @item Diary-style sexp entries
@@ -5454,7 +5456,8 @@ angular ones.  These timestamps are inactive in the sense that they do
 @emph{not} trigger an entry to show up in the agenda.
 
 @example
-* Gillian comes late for the fifth time [2006-11-01 Wed]
+* Gillian comes late for the fifth time
+  [2006-11-01 Wed]
 @end example
 
 @end table
@@ -5853,9 +5856,10 @@ or plain timestamp.  In the following example
 @noindent
 the @code{+1m} is a repeater; the intended interpretation is that the task
 has a deadline on <2005-10-01> and repeats itself every (one) month starting
-from that time.  If you need both a repeater and a special warning period in
-a deadline entry, the repeater should come first and the warning period last:
-@code{DEADLINE: <2005-10-01 Sat +1m -3d>}.
+from that time.  You can use yearly, monthly, weekly, daily and hourly repeat
+cookies by using the @code{y/w/m/d/h} letters.  If you need both a repeater
+and a special warning period in a deadline entry, the repeater should come
+first and the warning period last: @code{DEADLINE: <2005-10-01 Sat +1m -3d>}.
 
 @vindex org-todo-repeat-to-state
 Deadlines and scheduled items produce entries in the agenda when they are
@@ -6671,28 +6675,28 @@ these sequences literally, escape the @kbd{%} with a backslash.}  allow
 dynamic insertion of content.  The templates are expanded in the order given here:
 
 @smallexample
-%[@var{file}]     @r{insert the contents of the file given by @var{file}.}
-%(@var{sexp})     @r{evaluate Elisp @var{sexp} and replace with the result.}
-%<...>      @r{the result of format-time-string on the ... format specification.}
-%t          @r{timestamp, date only.}
-%T          @r{timestamp with date and time.}
-%u, %U      @r{like the above, but inactive timestamps.}
-%a          @r{annotation, normally the link created with @code{org-store-link}.}
-%i          @r{initial content, the region when capture is called while the}
+%[@var{file}]     @r{Insert the contents of the file given by @var{file}.}
+%(@var{sexp})     @r{Evaluate Elisp @var{sexp} and replace with the result.}
+%<...>      @r{The result of format-time-string on the ... format specification.}
+%t          @r{Timestamp, date only.}
+%T          @r{Timestamp, with date and time.}
+%u, %U      @r{Like the above, but inactive timestamps.}
+%a          @r{Annotation, normally the link created with @code{org-store-link}.}
+%i          @r{Initial content, the region when capture is called while the}
             @r{region is active.}
             @r{The entire text will be indented like @code{%i} itself.}
-%A          @r{like @code{%a}, but prompt for the description part.}
+%A          @r{Like @code{%a}, but prompt for the description part.}
 %c          @r{Current kill ring head.}
 %x          @r{Content of the X clipboard.}
-%k          @r{title of the currently clocked task.}
-%K          @r{link to the currently clocked task.}
-%n          @r{user name (taken from @code{user-full-name}).}
-%f          @r{file visited by current buffer when org-capture was called.}
-%F          @r{full path of the file or directory visited by current buffer.}
-%:keyword   @r{specific information for certain link types, see below.}
-%^g         @r{prompt for tags, with completion on tags in target file.}
-%^G         @r{prompt for tags, with completion all tags in all agenda files.}
-%^t         @r{like @code{%t}, but prompt for date.  Similarly @code{%^T}, @code{%^u}, @code{%^U}.}
+%k          @r{Title of the currently clocked task.}
+%K          @r{Link to the currently clocked task.}
+%n          @r{User name (taken from @code{user-full-name}).}
+%f          @r{File visited by current buffer when org-capture was called.}
+%F          @r{Full path of the file or directory visited by current buffer.}
+%:keyword   @r{Specific information for certain link types, see below.}
+%^g         @r{Prompt for tags, with completion on tags in target file.}
+%^G         @r{Prompt for tags, with completion all tags in all agenda files.}
+%^t         @r{Like @code{%t}, but prompt for date.  Similarly @code{%^T}, @code{%^u}, @code{%^U}.}
             @r{You may define a prompt like @code{%^@{Birthday@}t}.}
 %^C         @r{Interactive selection of which kill or clip to use.}
 %^L         @r{Like @code{%^C}, but insert as link.}
@@ -6701,6 +6705,9 @@ dynamic insertion of content.  The templates are expanded in the order given her
             @r{You may specify a default value and a completion table with}
             @r{%^@{prompt|default|completion2|completion3...@}.}
             @r{The arrow keys access a prompt-specific history.}
+%<n>        @r{Insert the text entered at the nth %^@{@var{prompt}@}, where <n> is}
+            @r{a number, starting from 1.}
+%?          @r{After completing the template, position cursor here.}
 @end smallexample
 
 @noindent
@@ -6977,16 +6984,20 @@ is invoked, the level 1 trees will be checked.
 @cindex archive locations
 The default archive location is a file in the same directory as the
 current file, with the name derived by appending @file{_archive} to the
-current file name.  For information and examples on how to change this,
+current file name.  You can also choose what heading to file archived
+items under, with the possibility to add them to a datetree in a file.
+For information and examples on how to specify the file and the heading,
 see the documentation string of the variable
-@code{org-archive-location}.  There is also an in-buffer option for
-setting this variable, for example@footnote{For backward compatibility,
-the following also works: If there are several such lines in a file,
-each specifies the archive location for the text below it.  The first
-such line also applies to any text before its definition.  However,
-using this method is @emph{strongly} deprecated as it is incompatible
-with the outline structure of the document.  The correct method for
-setting multiple archive locations in a buffer is using properties.}:
+@code{org-archive-location}.
+
+There is also an in-buffer option for setting this variable, for
+example@footnote{For backward compatibility, the following also works:
+If there are several such lines in a file, each specifies the archive
+location for the text below it.  The first such line also applies to any
+text before its definition.  However, using this method is
+@emph{strongly} deprecated as it is incompatible with the outline
+structure of the document.  The correct method for setting multiple
+archive locations in a buffer is using properties.}:
 
 @cindex #+ARCHIVE
 @example
@@ -7250,6 +7261,16 @@ the region.  Otherwise, restrict it to the current subtree@footnote{For
 backward compatibility, you can also press @kbd{0} to restrict to the
 current region/subtree.}.  After pressing @kbd{< <}, you still need to press the
 character selecting the command.
+
+@item *
+@vindex org-agenda-sticky
+Toggle sticky agenda views.  By default, Org maintains only a single agenda
+buffer and rebuilds it each time you change the view, to make sure everything
+is always up to date.  If you switch between views often and the build time
+bothers you, you can turn on sticky agenda buffers (make this the default by
+customizing the variable @code{org-agenda-sticky}).  With sticky agendas, the
+dispatcher only switches to the selected view, you need to update it by hand
+with @kbd{r} or @kbd{g}.
 @end table
 
 You can also define custom commands that will be accessible through the
@@ -7933,9 +7954,9 @@ Interactively select another agenda view and append it to the current view.
 Delete other windows.
 @c
 @orgcmdkskc{v d,d,org-agenda-day-view}
-@xorgcmdkskc{v w,w,org-agenda-day-view}
+@xorgcmdkskc{v w,w,org-agenda-week-view}
 @xorgcmd{v m,org-agenda-month-view}
-@xorgcmd{v y,org-agenda-month-year}
+@xorgcmd{v y,org-agenda-year-view}
 @xorgcmd{v SPC,org-agenda-reset-view}
 @vindex org-agenda-span
 Switch to day/week/month/year view.  When switching to day or week view, this
@@ -9415,10 +9436,11 @@ this regularly or on pages with significant page views, you should install
 server in order to limit the load of our server.}.  Finally, it can also
 process the mathematical expressions into images@footnote{For this to work
 you need to be on a system with a working @LaTeX{} installation.  You also
-need the @file{dvipng} program, available at
-@url{http://sourceforge.net/projects/dvipng/}.  The @LaTeX{} header that will
-be used when processing a fragment can be configured with the variable
-@code{org-format-latex-header}.}  that can be displayed in a browser or in
+need the @file{dvipng} program or the @file{convert}, respectively available
+at @url{http://sourceforge.net/projects/dvipng/} and from the
+@file{imagemagick} suite.  The @LaTeX{} header that will be used when
+processing a fragment can be configured with the variable
+@code{org-format-latex-header}.} that can be displayed in a browser or in
 DocBook documents.
 
 @LaTeX{} fragments don't need any special marking at all.  The following
@@ -15576,6 +15598,10 @@ calculation marks, that column is automatically discarded as well.
 Please note that the translator function sees the table @emph{after} the
 removal of these columns, the function never knows that there have been
 additional columns.
+
+@item :no-escape t
+When non-nil, do not escape special characters @code{&%#_^} when exporting
+the table.  The default value is nil.
 @end table
 
 @noindent

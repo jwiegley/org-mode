@@ -597,12 +597,12 @@ This means, between the beginning of line and the point."
   (beginning-of-line))
 
 (defadvice dnd-insert-text (around org-mouse-dnd-insert-text activate)
-  (if (eq major-mode 'org-mode)
+  (if (derived-mode-p 'org-mode)
       (org-mouse-insert-item text)
     ad-do-it))
 
 (defadvice dnd-open-file (around org-mouse-dnd-open-file activate)
-  (if (eq major-mode 'org-mode)
+  (if (derived-mode-p 'org-mode)
       (org-mouse-insert-item uri)
     ad-do-it))
 
@@ -915,6 +915,7 @@ This means, between the beginning of line and the point."
 	  ((assq :checkbox context) (org-toggle-checkbox))
 	  ((assq :item-bullet context)
 	   (let ((org-cycle-include-plain-lists t)) (org-cycle)))
+	  ((org-footnote-at-reference-p) nil)
 	  (t ad-do-it))))))
 
 (defun org-mouse-move-tree-start (event)

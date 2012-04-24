@@ -353,7 +353,7 @@ This is the compiled version of the format.")
 			  (funcall org-columns-modify-value-for-display-function
 				   title val))
 			 ((equal property "ITEM")
-			  (if (eq major-mode 'org-mode)
+			  (if (derived-mode-p 'org-mode)
 			      (org-columns-cleanup-item
 			       val org-columns-current-fmt-compiled)))
 			 ((and calc (functionp calc)
@@ -657,7 +657,7 @@ Where possible, use the standard interface for changing this line."
 		(org-columns-eval eval))
 	    (org-columns-display-here)))
 	(org-move-to-column col)
-	(if (and (eq major-mode 'org-mode)
+	(if (and (derived-mode-p 'org-mode)
 		 (nth 3 (assoc key org-columns-current-fmt-compiled)))
 	    (org-columns-update key)))))))
 
@@ -1166,7 +1166,7 @@ Don't set this, this is meant for dynamic scoping.")
     (if (marker-position org-columns-begin-marker)
 	(goto-char org-columns-begin-marker))
     (org-columns-remove-overlays)
-    (if (eq major-mode 'org-mode)
+    (if (derived-mode-p 'org-mode)
 	(call-interactively 'org-columns)
       (org-agenda-redo)
       (call-interactively 'org-agenda-columns)))
@@ -1402,6 +1402,7 @@ PARAMS is a property list of parameters:
 	(maxlevel (plist-get params :maxlevel))
 	(content-lines (org-split-string (plist-get params :content) "\n"))
 	(skip-empty-rows (plist-get params :skip-empty-rows))
+	(case-fold-search t)
 	tbl id idpos nfields tmp recalc line
 	id-as-string view-file view-pos)
     (when (setq id (plist-get params :id))
@@ -1467,7 +1468,7 @@ PARAMS is a property list of parameters:
       (while (setq line (pop content-lines))
 	(when (string-match "^#" line)
 	  (insert "\n" line)
-	  (when (string-match "^[ \t]*#\\+TBLFM" line)
+	  (when (string-match "^[ \t]*#\\+tblfm" line)
 	    (setq recalc t))))
       (if recalc
 	  (progn (goto-char pos) (org-table-recalculate 'all))
