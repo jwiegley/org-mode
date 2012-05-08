@@ -218,13 +218,15 @@ With prefix arg HERE, insert it at point."
   (let* ((origin default-directory)
 	 (version (if (boundp 'org-release) org-release "N/A"))
 	 (git-version (if (boundp 'org-git-version) org-git-version "N/A"))
-	 (org-install (ignore-errors (find-library-name "org-install"))))
-    (setq version (format "Org-mode version %s (%s @ %s)"
-			  version
-			  git-version
-			  (if org-install org-install "org-install.el can not be found!")))
-    (if here (insert version))
-    (message version)))
+	 (org-install (ignore-errors (find-library-name "org-install")))
+	 (version_ (format "Org-mode version %s (%s @ %s)"
+			   version
+			   git-version
+			   (if org-install org-install "org-install.el can not be found!"))))
+    (if (org-called-interactively-p 'interactive)
+	(if here (insert version_)
+	  (message version_))
+      version)))
 
 ;;; Compatibility constants
 
@@ -3072,7 +3074,8 @@ and the clock summary:
                      (org-minutes-to-hh:mm-string (- effort clocksum))))))"
   :group 'org-properties
   :version "24.1"
-  :type 'alist)
+  :type '(alist :key-type (string     :tag "Property")
+		:value-type (function :tag "Function")))
 
 (defcustom org-use-property-inheritance nil
   "Non-nil means properties apply also for sublevels.
@@ -4807,10 +4810,11 @@ but the stars and the body are.")
 		    "\\|" org-clock-string "\\)\\)?"
 		    " *\\([[<][0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} ?[^]\r\n>]*?[]>]\\|<%%([^\r\n>]*>\\)")
 	    org-planning-or-clock-line-re
-	    (concat "\\(?:^[ \t]*\\(" org-scheduled-string
-		    "\\|" org-deadline-string
-		    "\\|" org-closed-string "\\|" org-clock-string
-		    "\\)\\>\\)")
+	    (concat "^[ \t]*\\("
+		    org-scheduled-string "\\|"
+		    org-deadline-string "\\|"
+		    org-closed-string "\\|"
+		    org-clock-string "\\)")
 	    org-all-time-keywords
 	    (mapcar (lambda (w) (substring w 0 -1))
 		    (list org-scheduled-string org-deadline-string
@@ -5408,6 +5412,13 @@ will be prompted for."
   :group 'org-appearance
   :group 'org-babel)
 
+(defcustom org-src-prevent-auto-filling nil
+  "When non-nil, prevent auto-filling in src blocks."
+  :type 'boolean
+  :version "24.1"
+  :group 'org-appearance
+  :group 'org-babel)
+
 (defun org-fontify-meta-lines-and-blocks (limit)
   (condition-case nil
       (org-fontify-meta-lines-and-blocks-1 limit)
@@ -5888,7 +5899,7 @@ needs to be inserted at a specific position in the font-lock sequence.")
 		 (0 (org-get-checkbox-statistics-face) t)))
 	   ;; Description list items
 	   '("^[ \t]*[-+*][ \t]+\\(.*?[ \t]+::\\)\\([ \t]+\\|$\\)"
-	     1 'bold prepend)
+	     1 'org-list-dt prepend)
 	   ;; ARCHIVEd headings
 	   (list (concat
 		  org-outline-regexp-bol
@@ -5936,16 +5947,19 @@ needs to be inserted at a specific position in the font-lock sequence.")
     (when org-pretty-entities
       (catch 'match
 	(while (re-search-forward
-		"\\\\\\(frac[13][24]\\|[a-zA-Z]+\\)\\($\\|[^[:alpha:]\n]\\)"
+		"\\\\\\(frac[13][24]\\|[a-zA-Z]+\\)\\($\\|{}\\|[^[:alpha:]\n]\\)"
 		limit t)
 	  (if (and (not (org-in-indented-comment-line))
 		   (setq ee (org-entity-get (match-string 1)))
 		   (= (length (nth 6 ee)) 1))
-	      (progn
+	      (let*
+		  ((end (if (equal (match-string 2) "{}")
+			    (match-end 2)
+			  (match-end 1))))
 		(add-text-properties
-		 (match-beginning 0) (match-end 1)
+		 (match-beginning 0) end
 		 (list 'font-lock-fontified t))
-		(compose-region (match-beginning 0) (match-end 1)
+		(compose-region (match-beginning 0) end
 				(nth 6 ee) nil)
 		(backward-char 1)
 		(throw 'match t))))
@@ -8358,19 +8372,23 @@ C-c C-c     Set tags / toggle checkbox"
   "Unconditionally turn on `orgstruct-mode'."
   (orgstruct-mode 1))
 
+(defvar org-fb-vars nil)
+(make-variable-buffer-local 'org-fb-vars)
 (defun orgstruct++-mode (&optional arg)
   "Toggle `orgstruct-mode', the enhanced version of it.
-In addition to setting orgstruct-mode, this also exports all indentation
-and autofilling variables from org-mode into the buffer.  It will also
-recognize item context in multiline items.
-Note that turning off orgstruct-mode will *not* remove the
-indentation/paragraph settings.  This can only be done by refreshing the
-major mode, for example with \\[normal-mode]."
+In addition to setting orgstruct-mode, this also exports all
+indentation and autofilling variables from org-mode into the
+buffer.  It will also recognize item context in multiline items."
   (interactive "P")
   (setq arg (prefix-numeric-value (or arg (if orgstruct-mode -1 1))))
   (if (< arg 1)
-      (orgstruct-mode -1)
+      (progn (orgstruct-mode -1)
+	     (mapc (lambda(v)
+		     (org-set-local (car v)
+				    (if (eq (car-safe (cadr v)) 'quote) (cadadr v) (cadr v))))
+		   org-fb-vars))
     (orgstruct-mode 1)
+    (setq org-fb-vars nil)
     (let (var val)
       (mapc
        (lambda (x)
@@ -8378,6 +8396,7 @@ major mode, for example with \\[normal-mode]."
 		"^\\(paragraph-\\|auto-fill\\|fill-paragraph\\|adaptive-fill\\|indent-\\)"
 		(symbol-name (car x)))
 	   (setq var (car x) val (nth 1 x))
+	   (push (list var `(quote ,(eval var))) org-fb-vars)
 	   (org-set-local var (if (eq (car-safe val) 'quote) (nth 1 val) val))))
        org-local-vars)
       (org-set-local 'orgstruct-is-++ t))))
@@ -8566,7 +8585,8 @@ call CMD."
 
 (defun org-refresh-category-properties ()
   "Refresh category text properties in the buffer."
-  (let ((def-cat (cond
+  (let ((inhibit-read-only t)
+	(def-cat (cond
 		  ((null org-category)
 		   (if buffer-file-name
 		       (file-name-sans-extension
@@ -8600,7 +8620,7 @@ call CMD."
 ;;; Link abbreviations
 
 (defun org-link-expand-abbrev (link)
-  "Apply replacements as defined in `org-link-abbrev-alist."
+  "Apply replacements as defined in `org-link-abbrev-alist'."
   (if (string-match "^\\([^:]*\\)\\(::?\\(.*\\)\\)?$" link)
       (let* ((key (match-string 1 link))
 	     (as (or (assoc key org-link-abbrev-alist-local)
@@ -9464,7 +9484,7 @@ If the link is in hidden text, expose it."
 	   (string-match "\\([a-zA-Z0-9]+\\):\\(.*\\)" s))
       (progn
 	(setq s (funcall org-link-translation-function
-			 (match-string 1) (match-string 2)))
+			 (match-string 1 s) (match-string 2 s)))
 	(concat (car s) ":" (cdr s)))
     s))
 
@@ -10675,7 +10695,7 @@ RFLOC can be a refile location obtained in a different way.
 See also `org-refile-use-outline-path' and `org-completion-use-ido'.
 
 If you are using target caching (see `org-refile-use-cache'),
-You have to clear the target cache in order to find new targets.
+you have to clear the target cache in order to find new targets.
 This can be done with a 0 prefix (`C-0 C-c C-w') or a triple
 prefix argument (`C-u C-u C-u C-c C-w')."
 
@@ -10958,8 +10978,7 @@ this is used for the GOTO interface."
 	    rtn))
 	  ((eq flag 'lambda)
 	   ;; exact match?
-	   (assoc string thetable)))
-	 ))
+	   (assoc string thetable)))))
      args)))
 
 ;;;; Dynamic blocks
@@ -14703,10 +14722,10 @@ in the current file."
   (interactive (list nil nil))
   (let* ((property (or property (org-read-property-name)))
 	 (value (or value (org-read-property-value property)))
-	 (fn (assoc property org-properties-postprocess-alist)))
+	 (fn (cdr (assoc property org-properties-postprocess-alist))))
     (setq org-last-set-property property)
     ;; Possibly postprocess the inserted value:
-    (when fn (setq value (funcall (cadr fn) value)))
+    (when fn (setq value (funcall fn value)))
     (unless (equal (org-entry-get nil property) value)
       (org-entry-put nil property value))))
 
@@ -15127,7 +15146,7 @@ user."
       (save-excursion
 	(save-window-excursion
 	  (calendar)
-	  (org-eval-in-calendar '(setq cursor-type nil))
+	  (org-eval-in-calendar '(setq cursor-type nil) t)
           (unwind-protect
               (progn
 		(calendar-forward-day (- (time-to-days org-def)
@@ -15529,7 +15548,8 @@ user function argument order change dependent on argument order."
 
 (defun org-eval-in-calendar (form &optional keepdate)
   "Eval FORM in the calendar window and return to current window.
-Also, store the cursor date in variable org-ans2."
+When KEEPDATE is non-nil, update `org-ans2' from the cursor date,
+otherwise stick to the current value of `org-ans2'."
   (let ((sf (selected-frame))
 	(sw (selected-window)))
     (select-window (get-buffer-window "*Calendar*" t))
@@ -16356,7 +16376,7 @@ effort string \"2hours\" is equivalent to 120 minutes."
   :type '(alist :key-type (string :tag "Modifier")
 		:value-type (number :tag "Minutes")))
 
-(defun org-duration-string-to-minutes (s)
+(defun org-duration-string-to-minutes (s &optional output-to-string)
   "Convert a duration string S to minutes.
 
 A bare number is interpreted as minutes, modifiers can be set by
@@ -16365,15 +16385,16 @@ customizing `org-effort-durations' (which see).
 Entries containing a colon are interpreted as H:MM by
 `org-hh:mm-string-to-minutes'."
   (let ((result 0)
-	(re (concat "\\([0-9]+\\) *\\("
+	(re (concat "\\([0-9.]+\\) *\\("
 		    (regexp-opt (mapcar 'car org-effort-durations))
 		    "\\)")))
     (while (string-match re s)
       (incf result (* (cdr (assoc (match-string 2 s) org-effort-durations))
 		      (string-to-number (match-string 1 s))))
       (setq s (replace-match "" nil t s)))
+    (setq result (floor result))
     (incf result (org-hh:mm-string-to-minutes s))
-    result))
+    (if output-to-string (number-to-string result) result)))
 
 ;;;; Files
 
@@ -17023,7 +17044,7 @@ Some of the options can be changed using the variable
 	       ((eq processing-type 'imagemagick)
 		(unless executables-checked
 		  (org-check-external-command
-		   "converte" "you need to install imagemagick")
+		   "convert" "you need to install imagemagick")
 		  (setq executables-checked t))
 		(unless (file-exists-p movefile)
 		  (org-create-formula-image-with-imagemagick
@@ -17298,7 +17319,8 @@ inspection."
 			   (save-match-data
 			     (shell-quote-argument (file-name-directory texfile)))
 			   t t cmd)))
-	      (shell-command cmd)))
+	      (setq cmd (split-string cmd))
+	      (eval (append (list 'call-process (pop cmd) nil nil nil) cmd))))
 	(error nil))
       (cd dir))
     (if (not (file-exists-p pdffile))
@@ -19044,13 +19066,18 @@ argument ARG, change each line in region into an item."
   "Convert headings to normal text, or items or text to headings.
 If there is no active region, only the current line is considered.
 
-If the first non blank line is an headline, remove the stars from
-all headlines in the region.
+With a \\[universal-argument] prefix, convert the whole list at
+point into heading.
 
-If it is a plain list item, turn all plain list items into headings.
+In a region:
 
-If it is a normal line, turn each and every normal line (i.e. not
-an heading or an item) in the region into a heading.
+- If the first non blank line is an headline, remove the stars
+  from all headlines in the region.
+
+- If it is a normal line turn each and every normal line (i.e. not an
+  heading or an item) in the region into a heading.
+
+- If it is a plain list item, turn all plain list items into headings.
 
 When converting a line into a heading, the number of stars is chosen
 such that the lines become children of the current entry.  However,
@@ -19067,8 +19094,14 @@ stars to add."
 	      (skip-chars-forward " \r\t\n")
 	      (point-at-bol)))))
 	beg end)
-    ;; Determine boundaries of changes. If region ends at a bol, do
-    ;; not consider the last line to be in the region.
+    ;; Determine boundaries of changes.  If a universal prefix has
+    ;; been given, put the list in a region.  If region ends at a bol,
+    ;; do not consider the last line to be in the region.
+
+    (when (and current-prefix-arg (org-at-item-p))
+      (if (equal current-prefix-arg '(4)) (setq current-prefix-arg 1))
+      (org-mark-list))
+
     (if (org-region-active-p)
 	(setq beg (funcall skip-blanks (region-beginning))
 	      end (copy-marker (save-excursion
@@ -20435,14 +20468,14 @@ If point is in an inline task, mark that task instead."
       (save-excursion
 	(re-search-backward "^[ \t]*#\\+begin_\\([a-z]+\\)" nil t))
       (setq column
-            (cond ((equal (downcase (match-string 1)) "src")
-                   ;; src blocks: let `org-edit-src-exit' handle them
-                   (org-get-indentation))
-                  ((equal (downcase (match-string 1)) "example")
-                   (max (org-get-indentation)
+	    (cond ((equal (downcase (match-string 1)) "src")
+		   ;; src blocks: let `org-edit-src-exit' handle them
+		   (org-get-indentation))
+		  ((equal (downcase (match-string 1)) "example")
+		   (max (org-get-indentation)
 			(org-get-indentation (match-string 0))))
-                  (t
-                   (org-get-indentation (match-string 0))))))
+		  (t
+		   (org-get-indentation (match-string 0))))))
      ;; This line has nothing special, look at the previous relevant
      ;; line to compute indentation
      (t
@@ -20468,7 +20501,7 @@ If point is in an inline task, mark that task instead."
 			   (featurep 'org-inlinetask)
 			   (org-inlinetask-in-task-p)
 			   (or (org-inlinetask-goto-beginning) t))))
-      	(beginning-of-line 0))
+	(beginning-of-line 0))
       (cond
        ;; There was an heading above.
        ((looking-at "\\*+[ \t]+")
@@ -20496,7 +20529,10 @@ If point is in an inline task, mark that task instead."
 			       (format org-property-format
 				       (match-string 2) (match-string 3)))
 		       t t))
-    (org-move-to-column column)))
+    (org-move-to-column column)
+    (when (and orgstruct-is-++ (eq pos (point)))
+      (org-let org-fb-vars
+	'(indent-according-to-mode)))))
 
 (defun org-indent-drawer ()
   "Indent the drawer at point."
@@ -20539,6 +20575,8 @@ If point is in an inline task, mark that task instead."
     (when folded (org-cycle)))
   (message "Block at point indented"))
 
+;; For reference, this is the default value of adaptive-fill-regexp
+;;  "[ \t]*\\([-|#;>*]+[ \t]*\\|(?[0-9]+[.)][ \t]*\\)*"
 (defvar org-adaptive-fill-regexp-backup adaptive-fill-regexp
   "Variable to store copy of `adaptive-fill-regexp'.
 Since `adaptive-fill-regexp' is set to never match, we need to
@@ -20671,8 +20709,9 @@ the functionality can be provided as a fall-back.")
 	  ;; a paragraph adjacent to a list: make sure this paragraph
 	  ;; doesn't get merged with the end of the list by narrowing
 	  ;; buffer first.
-	  ((save-excursion (forward-paragraph -1)
-			   (setq itemp (org-in-item-p)))
+	  ((and (derived-mode-p 'org-mode)
+		(save-excursion (forward-paragraph -1)
+				(setq itemp (org-in-item-p))))
 	   (let ((struct (save-excursion (goto-char itemp)
 					 (org-list-struct))))
 	     (save-restriction
@@ -20681,18 +20720,21 @@ the functionality can be provided as a fall-back.")
 						 (point)))
 	       (fill-paragraph justify) t)))
 	  ;; Don't fill schedule/deadline line before a paragraph
-	  ((save-excursion (forward-paragraph -1)
-			   (or (looking-at (concat "^[^\n]*" org-scheduled-regexp ".*$"))
-			       (looking-at (concat "^[^\n]*" org-deadline-regexp ".*$"))))
+	  ;; This only makes sense in real org-mode buffers
+	  ((and (eq major-mode 'org-mode)
+		(save-excursion (forward-paragraph -1)
+				(or (looking-at (concat "^[^\n]*" org-scheduled-regexp ".*$"))
+				    (looking-at (concat "^[^\n]*" org-deadline-regexp ".*$")))))
 	   (save-restriction
 	     (narrow-to-region (1+ (match-end 0))
 			       (save-excursion (forward-paragraph 1) (point)))
 	     (fill-paragraph justify) t))
-	  ;; Else simply call `fill-paragraph'.
+	  ;; Else fall back on fill-paragraph-function as possibly
+	  ;; defined in `org-fb-vars'
+	  (orgstruct-is-++
+	   (org-let org-fb-vars
+	     '(fill-paragraph justify)))
 	  (t nil))))
-
-;; For reference, this is the default value of adaptive-fill-regexp
-;;  "[ \t]*\\([-|#;>*]+[ \t]*\\|(?[0-9]+[.)][ \t]*\\)*"
 
 (defun org-adaptive-fill-function ()
   "Return a fill prefix for org-mode files."
@@ -20723,16 +20765,19 @@ the functionality can be provided as a fall-back.")
 
 (defun org-auto-fill-function ()
   "Auto-fill function."
-  (let (itemp prefix)
-    ;; When in a list, compute an appropriate fill-prefix and make
-    ;; sure it will be used by `do-auto-fill'.
-    (if (setq itemp (org-in-item-p))
-	(progn
-	  (setq prefix (make-string (org-list-item-body-column itemp) ?\ ))
-	  (flet ((fill-context-prefix (from to &optional flr) prefix))
-	    (do-auto-fill)))
-      ;; Else just use `do-auto-fill'.
-      (do-auto-fill))))
+  (unless (and org-src-prevent-auto-filling (org-in-src-block-p))
+    (let (itemp prefix)
+      ;; When in a list, compute an appropriate fill-prefix and make
+      ;; sure it will be used by `do-auto-fill'.
+      (cond ((setq itemp (org-in-item-p))
+	     (progn
+	       (setq prefix (make-string (org-list-item-body-column itemp) ?\ ))
+	       (flet ((fill-context-prefix (from to &optional flr) prefix))
+		 (do-auto-fill))))
+	    (orgstruct-is-++
+	     (org-let org-fb-vars
+	       '(do-auto-fill)))
+	    (t (do-auto-fill))))))
 
 ;;; Other stuff.
 

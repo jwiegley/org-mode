@@ -52,7 +52,7 @@ already filled in `info'."
   (declare (debug (form body)) (indent 1))
   `(org-test-with-temp-text ,data
      (let* ((tree (org-element-parse-buffer))
-	    (info (org-export-collect-tree-properties tree nil nil)))
+	    (info (org-export-collect-tree-properties tree nil)))
        ,@body)))
 
 (ert-deftest test-org-export/parse-option-keyword ()
@@ -74,12 +74,12 @@ already filled in `info'."
    (equal
     (org-export-parse-option-keyword
      "arch:headline creator:comment d:(\"TEST\")
- ^:{} toc:1 tags:not-in-toc tasks:todo num:2")
+ ^:{} toc:1 tags:not-in-toc tasks:todo num:2 <:active")
     '( :section-numbers
        2
        :with-archived-trees headline :with-creator comment
        :with-drawers ("TEST") :with-sub-superscript {} :with-toc 1
-       :with-tags not-in-toc :with-tasks todo))))
+       :with-tags not-in-toc :with-tasks todo :with-timestamps active))))
 
 (ert-deftest test-org-export/get-inbuffer-options ()
   "Test reading all standard export keywords."
@@ -207,12 +207,48 @@ already filled in `info'."
     (org-test-with-temp-text ":TEST:\ncontents\n:END:"
       (org-test-with-backend "test"
 	(should (equal (org-export-as 'test nil nil nil '(:with-drawers nil))
-		       "")))))
-  (let ((org-drawers '("TEST")))
-    (org-test-with-temp-text ":TEST:\ncontents\n:END:"
-      (org-test-with-backend "test"
+		       ""))
 	(should (equal (org-export-as 'test nil nil nil '(:with-drawers t))
-		       ":TEST:\ncontents\n:END:\n"))))))
+		       ":TEST:\ncontents\n:END:\n")))))
+  (let ((org-drawers '("FOO" "BAR")))
+    (org-test-with-temp-text ":FOO:\nkeep\n:END:\n:BAR:\nremove\n:END:"
+      (org-test-with-backend "test"
+	(should
+	 (equal (org-export-as 'test nil nil nil '(:with-drawers ("FOO")))
+		":FOO:\nkeep\n:END:\n")))))
+  ;; Timestamps.
+  (org-test-with-temp-text "[2012-04-29 sun. 10:45]<2012-04-29 sun. 10:45>"
+    (org-test-with-backend "test"
+      (should
+       (equal (org-export-as 'test nil nil nil '(:with-timestamps t))
+	      "[2012-04-29 sun. 10:45]<2012-04-29 sun. 10:45>\n"))
+      (should
+       (equal (org-export-as 'test nil nil nil '(:with-timestamps nil)) ""))
+      (should
+       (equal (org-export-as 'test nil nil nil '(:with-timestamps active))
+	      "<2012-04-29 sun. 10:45>\n"))
+      (should
+       (equal (org-export-as 'test nil nil nil '(:with-timestamps inactive))
+	      "[2012-04-29 sun. 10:45]\n"))))
+  ;; Clocks.
+  (let ((org-clock-string "CLOCK:"))
+    (org-test-with-temp-text "CLOCK: [2012-04-29 sun. 10:45]"
+      (org-test-with-backend "test"
+	(should
+	 (equal (org-export-as 'test nil nil nil '(:with-clocks t))
+		"CLOCK: [2012-04-29 sun. 10:45]\n"))
+	(should
+	 (equal (org-export-as 'test nil nil nil '(:with-clocks nil)) "")))))
+  ;; Plannings.
+  (let ((org-closed-string "CLOSED:"))
+    (org-test-with-temp-text "CLOSED: [2012-04-29 sun. 10:45]"
+      (org-test-with-backend "test"
+	(should
+	 (equal (org-export-as 'test nil nil nil '(:with-plannings t))
+		"CLOSED: [2012-04-29 sun. 10:45]\n"))
+	(should
+	 (equal (org-export-as 'test nil nil nil '(:with-plannings nil))
+		""))))))
 
 (ert-deftest test-org-export/comment-tree ()
   "Test if export process ignores commented trees."
@@ -267,7 +303,7 @@ text
 
 (ert-deftest test-org-export/export-snippet ()
   "Test export snippets transcoding."
-  (org-test-with-temp-text "@test{A}@t{B}"
+  (org-test-with-temp-text "<test@A><t@B>"
     (org-test-with-backend "test"
       (flet ((org-test-export-snippet
 	      (snippet contents info)
@@ -344,9 +380,20 @@ body\n")))
 	(org-test-with-temp-text "* Head1\n* Head2 (note)\n"
 	  (should (equal (org-export-as 'test) "* Head1\n")))))))
 
+(ert-deftest test-org-export/before-parsing-hook ()
+  "Test `org-export-before-parsing-hook'."
+  (org-test-with-backend "test"
+    (org-test-with-temp-text "* Headline 1\nBody 1\n* Headline 2\nBody 2"
+      (let ((org-export-before-parsing-hook
+	     '((lambda ()
+		 (org-map-entries
+		  (lambda ()
+		    (delete-region (point) (progn (forward-line) (point)))))))))
+	(should (equal (org-export-as 'test) "Body 1\nBody 2\n"))))))
+
 
 
-;; Footnotes
+;;; Footnotes
 
 (ert-deftest test-org-export/footnotes ()
   "Test footnotes specifications."
@@ -426,81 +473,69 @@ Paragraph[fn:1]"
 (ert-deftest test-org-export/fuzzy-links ()
   "Test fuzzy link export specifications."
   ;; 1. Links to invisible (keyword) targets should be ignored.
-  (org-test-with-temp-text
+  (org-test-with-parsed-data
       "Paragraph.\n#+TARGET: Test\n[[Test]]"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should-not
-       (org-element-map
-	tree 'link
-	(lambda (link)
-	  (org-export-get-ordinal
-	   (org-export-resolve-fuzzy-link link info) info)) info))))
+    (should-not
+     (org-element-map
+      tree 'link
+      (lambda (link)
+	(org-export-get-ordinal
+	 (org-export-resolve-fuzzy-link link info) info)) info)))
   ;; 2. Link to an headline should return headline's number.
-  (org-test-with-temp-text
+  (org-test-with-parsed-data
       "Paragraph.\n* Head1\n* Head2\n* Head3\n[[Head2]]"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should
-       ;; Note: Headline's number is in fact a list of numbers.
-       (equal '(2)
-	      (org-element-map
-	       tree 'link
-	       (lambda (link)
-		 (org-export-get-ordinal
-		  (org-export-resolve-fuzzy-link link info) info)) info t)))))
+    (should
+     ;; Note: Headline's number is in fact a list of numbers.
+     (equal '(2)
+	    (org-element-map
+	     tree 'link
+	     (lambda (link)
+	       (org-export-get-ordinal
+		(org-export-resolve-fuzzy-link link info) info)) info t))))
   ;; 3. Link to a target in an item should return item's number.
-  (org-test-with-temp-text
+  (org-test-with-parsed-data
       "- Item1\n  - Item11\n  - <<test>>Item12\n- Item2\n\n\n[[test]]"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should
-       ;; Note: Item's number is in fact a list of numbers.
-       (equal '(1 2)
-	      (org-element-map
-	       tree 'link
-	       (lambda (link)
-		 (org-export-get-ordinal
-		  (org-export-resolve-fuzzy-link link info) info)) info t)))))
+    (should
+     ;; Note: Item's number is in fact a list of numbers.
+     (equal '(1 2)
+	    (org-element-map
+	     tree 'link
+	     (lambda (link)
+	       (org-export-get-ordinal
+		(org-export-resolve-fuzzy-link link info) info)) info t))))
   ;; 4. Link to a target in a footnote should return footnote's
   ;;    number.
-  (org-test-with-temp-text
-      "Paragraph[1][2][fn:lbl3:C<<target>>][[test]][[target]]\n[1] A\n\n[2] <<test>>B"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should
-       (equal '(2 3)
-	      (org-element-map
-	       tree 'link
-	       (lambda (link)
-		 (org-export-get-ordinal
-		  (org-export-resolve-fuzzy-link link info) info)) info)))))
+  (org-test-with-parsed-data "
+Paragraph[1][2][fn:lbl3:C<<target>>][[test]][[target]]\n[1] A\n\n[2] <<test>>B"
+    (should
+     (equal '(2 3)
+	    (org-element-map
+	     tree 'link
+	     (lambda (link)
+	       (org-export-get-ordinal
+		(org-export-resolve-fuzzy-link link info) info)) info))))
   ;; 5. Link to a named element should return sequence number of that
   ;;    element.
-  (org-test-with-temp-text
+  (org-test-with-parsed-data
       "#+NAME: tbl1\n|1|2|\n#+NAME: tbl2\n|3|4|\n#+NAME: tbl3\n|5|6|\n[[tbl2]]"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should
-       (= 2
-	  (org-element-map
-	   tree 'link
-	   (lambda (link)
-	     (org-export-get-ordinal
-	      (org-export-resolve-fuzzy-link link info) info)) info t)))))
+    (should
+     (= 2
+	(org-element-map
+	 tree 'link
+	 (lambda (link)
+	   (org-export-get-ordinal
+	    (org-export-resolve-fuzzy-link link info) info)) info t))))
   ;; 6. Link to a target not within an item, a table, a footnote
   ;;    reference or definition should return section number.
-  (org-test-with-temp-text
+  (org-test-with-parsed-data
       "* Head1\n* Head2\nParagraph<<target>>\n* Head3\n[[target]]"
-    (let* ((tree (org-element-parse-buffer))
-	   (info (org-export-collect-tree-properties tree nil 'test)))
-      (should
-       (equal '(2)
-	      (org-element-map
-	       tree 'link
-	       (lambda (link)
-		 (org-export-get-ordinal
-		  (org-export-resolve-fuzzy-link link info) info)) info t))))))
+    (should
+     (equal '(2)
+	    (org-element-map
+	     tree 'link
+	     (lambda (link)
+	       (org-export-get-ordinal
+		(org-export-resolve-fuzzy-link link info) info)) info t)))))
 
 (defun test-org-export/resolve-coderef ()
   "Test `org-export-resolve-coderef' specifications."
@@ -689,8 +724,8 @@ Another text. (ref:text)
       (org-element-map
        (org-element-parse-buffer) 'table 'identity nil 'first-match)))))
 
-(ert-deftest test-org-export/special-row ()
-  "Test if special rows in a table are properly recognized."
+(ert-deftest test-org-export/table-row-is-special-p ()
+  "Test `org-export-table-row-is-special-p' specifications."
   ;; 1. A row is special if it has a special marking character in the
   ;;    special column.
   (org-test-with-parsed-data "| ! | 1 |"
@@ -711,7 +746,7 @@ Another text. (ref:text)
      (org-export-table-row-is-special-p
       (org-element-map tree 'table-row 'identity nil 'first-match) info)))
   ;; 4. Everything else isn't considered as special.
-  (org-test-with-parsed-data "| a |   | c |"
+  (org-test-with-parsed-data "| \alpha |   | c |"
     (should-not
      (org-export-table-row-is-special-p
       (org-element-map tree 'table-row 'identity nil 'first-match) info)))
@@ -859,7 +894,7 @@ Another text. (ref:text)
     (org-test-with-temp-text "
 | text      |
 | some text |
-| 12345     |"
+| \alpha    |"
       (let* ((tree (org-element-parse-buffer))
 	     (info `(:parse-tree ,tree)))
 	(should

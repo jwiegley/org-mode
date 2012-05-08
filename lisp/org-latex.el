@@ -1522,7 +1522,7 @@ OPT-PLIST is the options plist for current buffer."
      (format "\\hypersetup{\n  pdfkeywords={%s},\n  pdfsubject={%s},\n  pdfcreator={%s}}\n"
          (org-export-latex-fontify-headline keywords)
          (org-export-latex-fontify-headline description)
-	 (concat "Emacs Org-mode version " org-version))
+	 (concat "Emacs Org-mode version " (org-version)))
      ;; beginning of the document
      "\n\\begin{document}\n\n"
      ;; insert the title command
@@ -1961,7 +1961,7 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
              (org-table-last-column-widths (copy-sequence
                                             org-table-last-column-widths))
              fnum fields line lines olines gr colgropen line-fmt align
-             caption width shortn label attr floatp placement
+             caption width shortn label attr hfmt floatp placement
 	     longtblp tblenv tabular-env)
         (if org-export-latex-tables-verbatim
             (let* ((tbl (concat "\\begin{verbatim}\n" raw-table

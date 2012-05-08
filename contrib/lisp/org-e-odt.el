@@ -47,12 +47,10 @@
 ;; progress. See org-html.el.
 
 (defun org-e-odt-format-preamble (info)
-  (let* ((title (org-export-secondary-string
-		 (plist-get info :title) 'e-odt info))
+  (let* ((title (org-export-data (plist-get info :title) info))
 	 (author (and (plist-get info :with-author)
 		      (let ((auth (plist-get info :author)))
-			(and auth (org-export-secondary-string
-				   auth 'e-odt info)))))
+			(and auth (org-export-data auth info)))))
 	 (date (plist-get info :date))
 	 (iso-date (org-e-odt-format-date date))
 	 (date (org-e-odt-format-date date "%d %b %Y"))
@@ -861,10 +859,9 @@ ATTR is a string of other attributes of the a element."
 	 (caption (org-element-property :caption caption-from))
 	 (short-caption (cdr caption))
 	 ;; transcode captions.
-	 (caption (and (car caption) (org-export-secondary-string
-				      (car caption) 'e-odt info)))
-	 (short-caption (and short-caption (org-export-secondary-string
-					    short-caption 'e-odt info))))
+	 (caption (and (car caption) (org-export-data (car caption) info)))
+	 (short-caption (and short-caption
+			     (org-export-data short-caption info))))
     (when (or label caption)
       (let* ((default-category
 	       (cond
@@ -1081,11 +1078,9 @@ ATTR is a string of other attributes of the a element."
       (insert "\n</manifest:manifest>"))))
 
 (defun org-e-odt-update-meta-file (info) ; FIXME opt-plist
-  (let ((title (org-export-secondary-string
-		(plist-get info :title) 'e-odt info))
+  (let ((title (org-export-data (plist-get info :title) info))
 	(author (or (let ((auth (plist-get info :author)))
-		      (and auth (org-export-secondary-string
-				 auth 'e-odt info))) ""))
+		      (and auth (org-export-data auth info))) ""))
 	(date (org-e-odt-format-date (plist-get info :date)))
 	(email (plist-get info :email))
 	(keywords (plist-get info :keywords))
@@ -1352,8 +1347,7 @@ formula file."
 (defvar org-element-string-restrictions)
 (defvar org-element-object-restrictions)
 
-(declare-function org-export-clean-table "org-export" (table specialp))
-(declare-function org-export-data "org-export" (data backend info))
+(declare-function org-export-data "org-export" (data info))
 (declare-function org-export-directory "org-export" (type plist))
 (declare-function org-export-expand-macro "org-export" (macro info))
 (declare-function org-export-first-sibling-p "org-export" (headline info))
@@ -1376,10 +1370,7 @@ formula file."
 		  "org-export" (extension &optional subtreep pub-dir))
 (declare-function org-export-resolve-coderef "org-export" (ref info))
 (declare-function org-export-resolve-fuzzy-link "org-export" (link info))
-(declare-function org-export-secondary-string "org-export"
-		  (secondary backend info))
 (declare-function org-export-solidify-link-text "org-export" (s))
-(declare-function org-export-table-format-info "org-export" (table))
 (declare-function
  org-export-to-buffer "org-export"
  (backend buffer &optional subtreep visible-only body-only ext-plist))
@@ -2287,7 +2278,7 @@ configuration."
 
 ;;;; Tags
 
-;;;; Time-stamps
+;;;; Timestamps
 ;;;; Statistics Cookie
 ;;;; Subscript
 ;;;; Superscript
@@ -2334,7 +2325,7 @@ configuration."
 ;;;; Table
 
 ;;;; Target
-;;;; Time-stamp
+;;;; Timestamp
 
 ;;;; Verbatim
 ;;;; Verse Block
@@ -2385,20 +2376,20 @@ order to reproduce the default set-up:
 
 ;;;; Footnotes
 
-;;;; Time-stamps
+;;;; Timestamps
 
 (defcustom org-e-odt-active-timestamp-format "\\textit{%s}"
-  "A printf format string to be applied to active time-stamps."
+  "A printf format string to be applied to active timestamps."
   :group 'org-export-e-odt
   :type 'string)
 
 (defcustom org-e-odt-inactive-timestamp-format "\\textit{%s}"
-  "A printf format string to be applied to inactive time-stamps."
+  "A printf format string to be applied to inactive timestamps."
   :group 'org-export-e-odt
   :type 'string)
 
 (defcustom org-e-odt-diary-timestamp-format "\\textit{%s}"
-  "A printf format string to be applied to diary time-stamps."
+  "A printf format string to be applied to diary timestamps."
   :group 'org-export-e-odt
   :type 'string)
 
@@ -2699,7 +2690,7 @@ Replaces invalid characters with \"_\"."
 	(org-e-odt-format-fontify
 	 x (concat "" ;; org-e-odt-tag-class-prefix
 		   (org-e-odt-fix-class-name x))))
-      (org-split-string tags ":")
+      tags
       (org-e-odt-format-spaces 1)) "tag")))
 
 (defun org-e-odt-format-section-number (&optional snumber level)
@@ -2750,15 +2741,14 @@ For non-floats, see `org-e-odt--wrap-label'."
      ;; Option caption format with short name.
      ((cdr caption)
       (format "\\caption[%s]{%s%s}\n"
-	      (org-export-secondary-string (cdr caption) 'e-odt info)
+	      (org-export-data (cdr caption) info)
 	      label-str
-	      (org-export-secondary-string (car caption) 'e-odt info)))
+	      (org-export-data (car caption) info)))
      ;; Standard caption format.
      ;; (t (format "\\caption{%s%s}\n"
      ;; 		label-str
-     ;; 		(org-export-secondary-string (car caption) 'e-odt info)))
-
-     (t (org-export-secondary-string (car caption) 'e-odt info)))))
+     ;; 		(org-export-data (car caption) info)))
+     (t (org-export-data (car caption) info)))))
 
 (defun org-e-odt--find-verb-separator (s)
   "Return a character not used in string S.
@@ -2936,13 +2926,47 @@ original parsed data.  INFO is a plist holding export options."
 
 ;;; Transcode Functions
 
-;;;; Block
+;;;; Bold
+
+(defun org-e-odt-bold (bold contents info)
+  "Transcode BOLD from Org to HTML.
+CONTENTS is the text with bold markup.  INFO is a plist holding
+contextual information."
+  (org-e-odt-format-fontify contents 'bold))
+
+
+;;;; Center Block
 
 (defun org-e-odt-center-block (center-block contents info)
   "Transcode a CENTER-BLOCK element from Org to HTML.
-CONTENTS holds the contents of the block.  INFO is a plist
+CONTENTS holds the contents of the center block.  INFO is a plist
 holding contextual information."
   (org-e-odt--wrap-label center-block contents))
+
+
+;;;; Clock
+
+(defun org-e-odt-clock (clock contents info)
+  "Transcode a CLOCK element from Org to HTML.
+CONTENTS is nil.  INFO is a plist used as a communication
+channel."
+  (org-e-odt-format-fontify
+   (concat (org-e-odt-format-fontify org-clock-string "timestamp-kwd")
+	   (org-e-odt-format-fontify
+	    (concat (org-translate-time (org-element-property :value clock))
+		    (let ((time (org-element-property :time clock)))
+		      (and time (format " (%s)" time))))
+	    "timestamp"))
+   "timestamp-wrapper"))
+
+
+;;;; Code
+
+(defun org-e-odt-code (code contents info)
+  "Transcode a CODE object from Org to HTML.
+CONTENTS is nil.  INFO is a plist used as a communication
+channel."
+  (org-e-odt-format-fontify (org-element-property :value code) 'code))
 
 
 ;;;; Comment
@@ -2976,29 +3000,8 @@ holding contextual information."
 (defun org-e-odt-dynamic-block (dynamic-block contents info)
   "Transcode a DYNAMIC-BLOCK element from Org to HTML.
 CONTENTS holds the contents of the block.  INFO is a plist
-holding contextual information.  See
-`org-export-data'."
+holding contextual information.  See `org-export-data'."
   (org-e-odt--wrap-label dynamic-block contents))
-
-
-;;;; Emphasis
-
-(defun org-e-odt-emphasis (emphasis contents info)
-  "Transcode EMPHASIS from Org to HTML.
-CONTENTS is the contents of the emphasized text.  INFO is a plist
-holding contextual information.."
-  ;; (format (cdr (assoc (org-element-property :marker emphasis)
-  ;; 		      org-e-odt-emphasis-alist))
-  ;; 	  contents)
-  (org-e-odt-format-fontify
-   contents (cadr (assoc
-		   (org-element-property :marker emphasis)
-		   '(("*" bold)
-		     ("/" emphasis)
-		     ("_" underline)
-		     ("=" code)
-		     ("~" verbatim)
-		     ("+" strike))))))
 
 
 ;;;; Entity
@@ -3039,7 +3042,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 (defun org-e-odt-export-block (export-block contents info)
   "Transcode a EXPORT-BLOCK element from Org to HTML.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (when (string= (org-element-property :type export-block) "latex")
+  (when (string= (org-element-property :type export-block) "ODT")
     (org-remove-indentation (org-element-property :value export-block))))
 
 
@@ -3048,12 +3051,10 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 (defun org-e-odt-fixed-width (fixed-width contents info)
   "Transcode a FIXED-WIDTH element from Org to HTML.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (let* ((value (org-element-normalize-string
-		 (replace-regexp-in-string
-		  "^[ \t]*: ?" ""
-		  (org-element-property :value fixed-width)))))
-    (org-e-odt--wrap-label
-     fixed-width (org-e-odt-format-source-code-or-example value nil))))
+  (org-e-odt--wrap-label
+   fixed-width
+   (org-e-odt-format-source-code-or-example
+    (org-element-property :value fixed-width) nil)))
 
 
 ;;;; Footnote Definition
@@ -3065,10 +3066,9 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 (defun org-e-odt-footnote-def (raw info) ; FIXME
   (if (equal (org-element-type raw) 'org-data)
-      (org-trim (org-export-data raw 'e-odt info)) ; fix paragraph
-					; style
+      (org-trim (org-export-data raw info)) ; fix paragraph style
     (org-e-odt-format-stylized-paragraph
-     'footnote (org-trim (org-export-secondary-string raw 'e-odt info)))))
+     'footnote (org-trim (org-export-data raw info)))))
 
 (defvar org-e-odt-footnote-separator
   (org-e-odt-format-fontify "," 'superscript))
@@ -3122,15 +3122,12 @@ holding contextual information."
 			      (mapconcat 'number-to-string
 					 headline-number ".")))
 	 (todo (and (plist-get info :with-todo-keywords)
-		    (let ((todo (org-element-property
-				 :todo-keyword headline)))
-		      (and todo
-			   (org-export-secondary-string todo 'e-odt info)))))
+		    (let ((todo (org-element-property :todo-keyword headline)))
+		      (and todo (org-export-data todo info)))))
 	 (todo-type (and todo (org-element-property :todo-type headline)))
 	 (priority (and (plist-get info :with-priority)
 			(org-element-property :priority headline)))
-	 (text (org-export-secondary-string
-		(org-element-property :title headline) 'e-odt info))
+	 (text (org-export-data (org-element-property :title headline) info))
 	 (tags (and (plist-get info :with-tags)
 		    (org-element-property :tags headline)))
 	 (headline-label (concat "sec-" (mapconcat 'number-to-string
@@ -3156,8 +3153,7 @@ holding contextual information."
   (let* ((numberedp (org-export-numbered-headline-p headline info))
 	 ;; Get level relative to current parsed data.
 	 (level (org-export-get-relative-level headline info))
-	 (text (org-export-secondary-string
-		(org-element-property :title headline) 'e-odt info))
+	 (text (org-export-data (org-element-property :title headline) info))
 	 ;; Create the headline text.
 	 (full-text (org-e-odt-format-headline--wrap headline info)))
     (cond
@@ -3257,6 +3253,15 @@ holding contextual information."
 		     contents)
 	     nil nil "OrgInlineTaskFrame" " style:rel-width=\"100%\""))))))
 
+;;;; Italic
+
+(defun org-e-odt-italic (italic contents info)
+  "Transcode ITALIC from Org to HTML.
+CONTENTS is the text with italic markup.  INFO is a plist holding
+contextual information."
+  (org-e-odt-format-fontify contents 'italic))
+
+
 ;;;; Item
 
 (defun org-e-odt-format-list-item (contents type checkbox
@@ -3278,15 +3283,12 @@ holding contextual information."
   "Transcode an ITEM element from Org to HTML.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
-  ;; Grab `:level' from plain-list properties, which is always the
-  ;; first element above current item.
   (let* ((plain-list (org-export-get-parent item info))
 	 (type (org-element-property :type plain-list))
-	 (level (org-element-property :level plain-list))
 	 (counter (org-element-property :counter item))
 	 (checkbox (org-element-property :checkbox item))
 	 (tag (let ((tag (org-element-property :tag item)))
-		(and tag (org-export-secondary-string tag 'e-odt info)))))
+		(and tag (org-export-data tag info)))))
     (org-e-odt-format-list-item
      contents type checkbox (or tag counter))))
 
@@ -3350,10 +3352,9 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 	    (org-element-property :value latex-environment)))
 	  (processing-type (plist-get info :LaTeX-fragments))
 	  (caption (org-element-property :caption latex-environment))
-	  (short-caption (and (cdr caption) (org-export-secondary-string
-					     (cdr caption) 'e-odt info)))
-	  (caption (and (car caption) (org-export-secondary-string
-				       (car caption) 'e-odt info)))
+	  (short-caption (and (cdr caption)
+			      (org-export-data (cdr caption) info)))
+	  (caption (and (car caption) (org-export-data (car caption) info)))
 	  (label (org-element-property :name latex-environment))
 	  (attr nil)			; FIXME
 	  (label (org-element-property :name latex-environment)))
@@ -3580,10 +3581,10 @@ INFO is a plist holding contextual information.  See
      ;; display of the contents.
      ((string= type "radio")
       (org-e-odt-format-internal-link
-       (org-export-secondary-string
+       (org-export-data
 	(org-element-parse-secondary-string
 	 path (org-element-restriction 'radio-target))
-	'e-odt info)
+	info)
        (org-export-solidify-link-text path)))
      ;; Links pointing to an headline: Find destination and build
      ;; appropriate referencing command.
@@ -3595,9 +3596,9 @@ INFO is a plist holding contextual information.  See
 	  ;; Fuzzy link points nowhere.
 	  ('nil
 	   (org-e-odt-format-fontify
-	    (or desc (org-export-secondary-string
-		      (org-element-property :raw-link link)
-		      'e-odt info)) 'emphasis))
+	    (or desc (org-export-data
+		      (org-element-property :raw-link link) info))
+	    'emphasis))
 	  ;; Fuzzy link points to an invisible target.
 	  (keyword nil)
 	  ;; LINK points to an headline.  If headlines are numbered
@@ -3613,9 +3614,8 @@ INFO is a plist holding contextual information.  See
 		   (cond
 		    (desc desc)
 		    ((plist-get info :section-numbers) section-no)
-		    (t (org-export-secondary-string
-			(org-element-property :title destination)
-			'e-odt info))))
+		    (t (org-export-data
+			(org-element-property :title destination) info))))
 	     (org-e-odt-format-internal-link desc label)))
 	  ;; Fuzzy link points to a target.  Do as above.
 	  (otherwise
@@ -3637,7 +3637,7 @@ INFO is a plist holding contextual information.  See
      ;; Coderef: replace link with the reference name or the
      ;; equivalent line number.
      ((string= type "coderef")
-      (let* ((fmt (org-export-get-coderef-format path (or desc "%s")))
+      (let* ((fmt (org-export-get-coderef-format path desc))
 	     (res (org-export-resolve-coderef path info))
 	     (org-e-odt-suppress-xref nil)
 	     (href (org-xml-format-href (concat "#coderef-" path))))
@@ -3762,6 +3762,32 @@ contextual information."
   text)
 
 
+;;;; Planning
+
+(defun org-e-odt-planning (planning contents info)
+  "Transcode a PLANNING element from Org to HTML.
+CONTENTS is nil.  INFO is a plist used as a communication
+channel."
+  (org-e-odt-format-fontify
+   (concat
+    (let ((closed (org-element-property :closed planning)))
+      (when closed
+	(concat (org-e-odt-format-fontify org-closed-string "timestamp-kwd")
+		(org-e-odt-format-fontify (org-translate-time closed)
+					  "timestamp"))))
+    (let ((deadline (org-element-property :deadline planning)))
+      (when deadline
+	(concat (org-e-odt-format-fontify org-deadline-string "timestamp-kwd")
+		(org-e-odt-format-fontify (org-translate-time deadline)
+					  "timestamp"))))
+    (let ((scheduled (org-element-property :scheduled planning)))
+      (when scheduled
+	(concat (org-e-odt-format-fontify org-scheduled-string "timestamp-kwd")
+		(org-e-odt-format-fontify (org-translate-time scheduled)
+					  "timestamp")))))
+   "timestamp-wrapper"))
+
+
 ;;;; Property Drawer
 
 (defun org-e-odt-property-drawer (property-drawer contents info)
@@ -3831,15 +3857,14 @@ CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
   (let* ((lang (org-element-property :language src-block))
 	 (caption (org-element-property :caption src-block))
-	 (short-caption (and (cdr caption) (org-export-secondary-string
-					    (cdr caption) 'e-odt info)))
-	 (caption (and (car caption) (org-export-secondary-string
-				      (car caption) 'e-odt info)))
+	 (short-caption (and (cdr caption)
+			     (org-export-data (cdr caption) info)))
+	 (caption (and (car caption) (org-export-data (car caption) info)))
 	 (label (org-element-property :name src-block)))
     ;; FIXME: Handle caption
     ;; caption-str (when caption)
-    ;; (main (org-export-secondary-string (car caption) 'e-odt info))
-    ;; (secondary (org-export-secondary-string (cdr caption) 'e-odt info))
+    ;; (main (org-export-data (car caption) info))
+    ;; (secondary (org-export-data (cdr caption) info))
     ;; (caption-str (org-e-odt--caption/label-string caption label info))
     (let* ((captions (org-e-odt-format-label src-block info 'definition))
 	   (caption (car captions)) (short-caption (cdr captions)))
@@ -3855,6 +3880,15 @@ contextual information."
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (let ((cookie-value (org-element-property :value statistics-cookie)))
     (org-e-odt-format-fontify cookie-value 'code)))
+
+
+;;;; Strike-Through
+
+(defun org-e-odt-strike-through (strike-through contents info)
+  "Transcode STRIKE-THROUGH from Org to HTML.
+CONTENTS is the text with strike-through markup.  INFO is a plist
+holding contextual information."
+  (org-e-odt-format-fontify contents 'strike))
 
 
 ;;;; Subscript
@@ -4098,40 +4132,26 @@ information."
    "" (org-export-solidify-link-text (org-element-property :value target))))
 
 
-;;;; Time-stamp
+;;;; Timestamp
 
-(defun org-e-odt-time-stamp (time-stamp contents info)
-  "Transcode a TIME-STAMP object from Org to HTML.
-CONTENTS is nil.  INFO is a plist holding contextual
-information."
-  ;; (let ((value (org-element-property :value time-stamp))
-  ;; 	(type (org-element-property :type time-stamp))
-  ;; 	(appt-type (org-element-property :appt-type time-stamp)))
-  ;;   (concat (cond ((eq appt-type 'scheduled)
-  ;; 		   (format "\\textbf{\\textsc{%s}} " org-scheduled-string))
-  ;; 		  ((eq appt-type 'deadline)
-  ;; 		   (format "\\textbf{\\textsc{%s}} " org-deadline-string))
-  ;; 		  ((eq appt-type 'closed)
-  ;; 		   (format "\\textbf{\\textsc{%s}} " org-closed-string)))
-  ;; 	    (cond ((memq type '(active active-range))
-  ;; 		   (format org-e-odt-active-timestamp-format value))
-  ;; 		  ((memq type '(inactive inactive-range))
-  ;; 		   (format org-e-odt-inactive-timestamp-format value))
-  ;; 		  (t
-  ;; 		   (format org-e-odt-diary-timestamp-format value)))))
-  (let ((value (org-element-property :value time-stamp))
-        (type (org-element-property :type time-stamp))
-        (appt-type (org-element-property :appt-type time-stamp)))
-    (setq value (org-export-secondary-string value 'e-odt info))
-    (org-e-odt-format-fontify
-     (concat
-      (org-e-odt-format-fontify
-       (cond ((eq appt-type 'scheduled) org-scheduled-string)
-	     ((eq appt-type 'deadline) org-deadline-string)
-	     ((eq appt-type 'closed) org-closed-string)) "timestamp-kwd")
-      ;; FIXME: (org-translate-time value)
-      (org-e-odt-format-fontify value "timestamp"))
-     "timestamp-wrapper")))
+(defun org-e-odt-timestamp (timestamp contents info)
+  "Transcode a TIMESTAMP object from Org to HTML.
+CONTENTS is nil.  INFO is a plist used as a communication
+channel."
+  (org-e-odt-format-fontify
+   (org-e-odt-format-fontify
+    (org-translate-time (org-element-property :value timestamp))
+    "timestamp")
+   "timestamp-wrapper"))
+
+
+;;;; Underline
+
+(defun org-e-odt-underline (underline contents info)
+  "Transcode UNDERLINE from Org to HTML.
+CONTENTS is the text with underline markup.  INFO is a plist
+holding contextual information."
+  (org-e-odt-format-fontify contents 'underline))
 
 
 ;;;; Verbatim
@@ -4140,25 +4160,21 @@ information."
   "Transcode a VERBATIM object from Org to HTML.
 CONTENTS is nil.  INFO is a plist used as a communication
 channel."
-  (org-e-odt-emphasis
-   verbatim (org-element-property :value verbatim) info))
+  (org-e-odt-format-fontify (org-element-property :value verbatim) 'verbatim))
 
 
 ;;;; Verse Block
 
 (defun org-e-odt-verse-block (verse-block contents info)
   "Transcode a VERSE-BLOCK element from Org to HTML.
-CONTENTS is nil.  INFO is a plist holding contextual information."
+CONTENTS is verse block contents.  INFO is a plist holding
+contextual information."
   ;; Replace each newline character with line break.  Also replace
   ;; each blank line with a line break.
   (setq contents (replace-regexp-in-string
 		  "^ *\\\\\\\\$" "<br/>\n"
 		  (replace-regexp-in-string
-		   "\\(\\\\\\\\\\)?[ \t]*\n" " <br/>\n"
-		   (org-remove-indentation
-		    (org-export-secondary-string
-		     (org-element-property :value verse-block)
-		     'e-odt info)))))
+		   "\\(\\\\\\\\\\)?[ \t]*\n" " <br/>\n" contents)))
 
   ;; Replace each white space at beginning of a line with a
   ;; non-breaking space.
