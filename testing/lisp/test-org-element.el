@@ -841,7 +841,25 @@ Paragraph"
   (should
    (org-test-with-temp-text "\\begin{equation}\ne^{i\\pi}+1=0\n\\end{equation}"
      (org-element-map
-      (org-element-parse-buffer) 'latex-environment 'identity))))
+      (org-element-parse-buffer) 'latex-environment 'identity)))
+  ;; Allow nested environments.
+  (should
+   (equal
+    "\\begin{outer}
+\\begin{inner}
+e^{i\\pi}+1=0
+\\end{inner}
+\\end{outer}"
+    (org-test-with-temp-text "
+\\begin{outer}
+\\begin{inner}
+e^{i\\pi}+1=0
+\\end{inner}
+\\end{outer}"
+      (org-element-property
+       :value
+       (org-element-map
+	(org-element-parse-buffer) 'latex-environment 'identity nil t))))))
 
 
 ;;;; Latex Fragment
@@ -1261,7 +1279,21 @@ Outside list"
   "Test `table' parser."
   (should
    (org-test-with-temp-text "| a |"
-     (org-element-map (org-element-parse-buffer) 'table 'identity))))
+     (org-element-map (org-element-parse-buffer) 'table 'identity)))
+  ;; TBLFM keyword is case insensitive.
+  (should
+   (org-test-with-temp-text "| a |\n#+tblfm: test"
+     (org-element-property
+      :tblfm
+      (org-element-map (org-element-parse-buffer) 'table 'identity nil t))))
+  ;; Handle multiple TBLFM lines.
+  (should
+   (= 2
+      (org-test-with-temp-text "| a |\n#+TBLFM: test1\n#+TBLFM: test2"
+	(length (org-element-property
+		 :tblfm
+		 (org-element-map
+		  (org-element-parse-buffer) 'table 'identity nil t)))))))
 
 
 ;;;; Table Cell
@@ -1275,7 +1307,7 @@ Outside list"
 
 ;;;; Table Row
 
-(ert-deftest test-org-element/table-parser ()
+(ert-deftest test-org-element/table-row-parser ()
   "Test `table-row' parser."
   (should
    (equal '(standard rule)
@@ -1684,18 +1716,23 @@ CLOSED: <2012-01-01> DEADLINE: <2012-01-01> SCHEDULED: <2012-01-01>\n"))))
   ;; 1. Simple table.
   (should (equal (org-test-parse-and-interpret "| a | b |\n| c | d |")
 		 "| a | b |\n| c | d |\n"))
-  ;; 2. Table with horizontal rules.
+  ;; 2. With horizontal rules.
   (should (equal (org-test-parse-and-interpret
 		  "| a | b |\n|---+---|\n| c | d |")
 		 "| a | b |\n|---+---|\n| c | d |\n"))
-  ;; 3. Table with meta-data.
+  ;; 3. With meta-data.
   (should (equal (org-test-parse-and-interpret "| / | < | > |\n| * | 1 | 2 |")
 		 "| / | < | > |\n| * | 1 | 2 |\n"))
   ;; 4. With a formula.
   (should
    (equal (org-test-parse-and-interpret
 	   "| 2 |\n| 4 |\n| 3 |\n#+TBLFM: @3=vmean(@1..@2)")
-	  "| 2 |\n| 4 |\n| 3 |\n#+TBLFM: @3=vmean(@1..@2)\n")))
+	  "| 2 |\n| 4 |\n| 3 |\n#+TBLFM: @3=vmean(@1..@2)\n"))
+  ;; 5. With multiple formulas.
+  (should
+   (equal (org-test-parse-and-interpret
+	   "| 2 |\n| 4 |\n| 3 |\n#+TBLFM: test1\n#+TBLFM: test2")
+	  "| 2 |\n| 4 |\n| 3 |\n#+TBLFM: test1\n#+TBLFM: test2\n")))
 
 (ert-deftest test-org-element/verse-block-interpreter ()
   "Test verse block interpretation."
@@ -2255,7 +2292,24 @@ Outside."
     (search-forward "graph")
     (org-element-drag-backward)
     (should (equal (buffer-string) "Paragraph 2\n\n\nPara1\n\nPara3"))
-    (should (looking-at " 2"))))
+    (should (looking-at " 2")))
+  ;; 5. Preserve visibility of elements and their contents.
+  (org-test-with-temp-text "
+#+BEGIN_CENTER
+Text.
+#+END_CENTER
+- item 1
+  #+BEGIN_QUOTE
+  Text.
+  #+END_QUOTE"
+    (while (search-forward "BEGIN_" nil t) (org-cycle))
+    (search-backward "- item 1")
+    (org-element-drag-backward)
+    (should
+     (equal
+      '((63 . 82) (26 . 48))
+      (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
+	      (overlays-in (point-min) (point-max)))))))
 
 (ert-deftest test-org-element/drag-forward ()
   "Test `org-element-drag-forward' specifications."
@@ -2277,7 +2331,24 @@ Outside."
     (search-forward "graph")
     (org-element-drag-forward)
     (should (equal (buffer-string) "Para2\n\n\nParagraph 1\n\nPara3"))
-    (should (looking-at " 1"))))
+    (should (looking-at " 1")))
+  ;; 5. Preserve visibility of elements and their contents.
+  (org-test-with-temp-text "
+#+BEGIN_CENTER
+Text.
+#+END_CENTER
+- item 1
+  #+BEGIN_QUOTE
+  Text.
+  #+END_QUOTE"
+    (while (search-forward "BEGIN_" nil t) (org-cycle))
+    (search-backward "#+BEGIN_CENTER")
+    (org-element-drag-forward)
+    (should
+     (equal
+      '((63 . 82) (26 . 48))
+      (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
+	      (overlays-in (point-min) (point-max)))))))
 
 (ert-deftest test-org-element/fill-paragraph ()
   "Test `org-element-fill-paragraph' specifications."

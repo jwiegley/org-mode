@@ -210,6 +210,7 @@ identifier."
 ;;; Version
 
 (defvaralias 'org-version 'org-release)
+
 ;;;###autoload
 (defun org-version (&optional here)
   "Show the org-mode version in the echo area.
@@ -5419,6 +5420,14 @@ will be prompted for."
   :group 'org-appearance
   :group 'org-babel)
 
+(defcustom org-allow-promoting-top-level-subtree nil
+  "When non-nil, allow promoting a top level subtree.
+The leading star of the top level headline will be replaced
+by a #."
+  :type 'boolean
+  :version "24.1"
+  :group 'org-appearance)
+
 (defun org-fontify-meta-lines-and-blocks (limit)
   (condition-case nil
       (org-fontify-meta-lines-and-blocks-1 limit)
@@ -7467,6 +7476,8 @@ even level numbers will become the next higher odd number."
       (define-obsolete-function-alias 'org-get-legal-level
 	'org-get-valid-level "23.1")))
 
+(defvar org-called-with-limited-levels nil) ;; Dynamically bound in
+					    ;; ̀org-with-limited-levels'
 (defun org-promote ()
   "Promote the current heading higher up the tree.
 If the region is active in `transient-mark-mode', promote all headings
@@ -7477,11 +7488,16 @@ in the region."
 					  after-change-functions))
 	 (up-head (concat (make-string (org-get-valid-level level -1) ?*) " "))
 	 (diff (abs (- level (length up-head) -1))))
-    (if (= level 1) (error "Cannot promote to level 0.  UNDO to recover if necessary"))
-    (replace-match up-head nil t)
-    ;; Fixup tag positioning
-    (and org-auto-align-tags (org-set-tags nil t))
-    (if org-adapt-indentation (org-fixup-indentation (- diff)))
+    (cond ((and (= level 1) org-called-with-limited-levels
+		org-allow-promoting-top-level-subtree)
+	   (replace-match "# " nil t))
+	  ((= level 1)
+	   (error "Cannot promote to level 0.  UNDO to recover if necessary"))
+	  (t (replace-match up-head nil t)))
+      ;; Fixup tag positioning
+    (unless (= level 1)
+      (and org-auto-align-tags (org-set-tags nil t))
+      (if org-adapt-indentation (org-fixup-indentation (- diff))))
     (run-hooks 'org-after-promote-entry-hook)))
 
 (defun org-demote ()
@@ -12893,7 +12909,9 @@ headlines matching this string."
 		     " *\\(\\<\\("
 		     (mapconcat 'regexp-quote org-todo-keywords-1 "\\|")
 		     (org-re
-		      "\\>\\)\\)? *\\(.*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$")))
+		      (if todo-only
+			  "\\>\\)\\)[ \t]+\\(.*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$"
+			"\\>\\)\\)? *\\([^ ].*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$"))))
 	 (props (list 'face 'default
 		      'done-face 'org-agenda-done
 		      'undone-face 'default
@@ -13474,94 +13492,104 @@ If DATA is nil or the empty string, any tags will be removed."
   "Set the tags for the current headline.
 With prefix ARG, realign all tags in headings in the current buffer."
   (interactive "P")
-  (let* ((re org-outline-regexp-bol)
-	 (current (unless arg (org-get-tags-string)))
-	 (col (current-column))
-	 (org-setting-tags t)
-	 table current-tags inherited-tags ; computed below when needed
-	 tags p0 c0 c1 rpl di tc level)
-    (if arg
-	(save-excursion
-	  (goto-char (point-min))
-	  (let ((buffer-invisibility-spec (org-inhibit-invisibility)))
-	    (while (re-search-forward re nil t)
-	      (org-set-tags nil t)
-	      (end-of-line 1)))
-	  (message "All tags realigned to column %d" org-tags-column))
-      (if just-align
-	  (setq tags current)
-	;; Get a new set of tags from the user
-	(save-excursion
-	  (setq table (append org-tag-persistent-alist
-			      (or org-tag-alist (org-get-buffer-tags))
-			      (and
-			       org-complete-tags-always-offer-all-agenda-tags
-			       (org-global-tags-completion-table
-				(org-agenda-files))))
-		org-last-tags-completion-table table
-		current-tags (org-split-string current ":")
-		inherited-tags (nreverse
-				(nthcdr (length current-tags)
-					(nreverse (org-get-tags-at))))
-		tags
-		(if (or (eq t org-use-fast-tag-selection)
-			(and org-use-fast-tag-selection
-			     (delq nil (mapcar 'cdr table))))
-		    (org-fast-tag-selection
-		     current-tags inherited-tags table
-		     (if org-fast-tag-selection-include-todo
-			 org-todo-key-alist))
-		  (let ((org-add-colon-after-tag-completion (< 1 (length table))))
-		    (org-trim
-		     (org-icompleting-read "Tags: "
-					   'org-tags-completion-function
-					   nil nil current 'org-tags-history))))))
-	(while (string-match "[-+&]+" tags)
-	  ;; No boolean logic, just a list
-	  (setq tags (replace-match ":" t t tags))))
+  (if (and (org-region-active-p) org-loop-over-headlines-in-active-region)
+      (let ((cl (if (eq org-loop-over-headlines-in-active-region 'start-level)
+		    'region-start-level 'region))
+	    org-loop-over-headlines-in-active-region)
+	(org-map-entries
+	 ;; We don't use ARG and JUST-ALIGN here these args are not
+	 ;; useful when looping over headlines
+	 `(org-set-tags)
+	 org-loop-over-headlines-in-active-region
+	 cl (if (outline-invisible-p) (org-end-of-subtree nil t))))
+    (let* ((re org-outline-regexp-bol)
+	   (current (unless arg (org-get-tags-string)))
+	   (col (current-column))
+	   (org-setting-tags t)
+	   table current-tags inherited-tags ; computed below when needed
+	   tags p0 c0 c1 rpl di tc level)
+      (if arg
+	  (save-excursion
+	    (goto-char (point-min))
+	    (let ((buffer-invisibility-spec (org-inhibit-invisibility)))
+	      (while (re-search-forward re nil t)
+		(org-set-tags nil t)
+		(end-of-line 1)))
+	    (message "All tags realigned to column %d" org-tags-column))
+	(if just-align
+	    (setq tags current)
+	  ;; Get a new set of tags from the user
+	  (save-excursion
+	    (setq table (append org-tag-persistent-alist
+				(or org-tag-alist (org-get-buffer-tags))
+				(and
+				 org-complete-tags-always-offer-all-agenda-tags
+				 (org-global-tags-completion-table
+				  (org-agenda-files))))
+		  org-last-tags-completion-table table
+		  current-tags (org-split-string current ":")
+		  inherited-tags (nreverse
+				  (nthcdr (length current-tags)
+					  (nreverse (org-get-tags-at))))
+		  tags
+		  (if (or (eq t org-use-fast-tag-selection)
+			  (and org-use-fast-tag-selection
+			       (delq nil (mapcar 'cdr table))))
+		      (org-fast-tag-selection
+		       current-tags inherited-tags table
+		       (if org-fast-tag-selection-include-todo
+			   org-todo-key-alist))
+		    (let ((org-add-colon-after-tag-completion (< 1 (length table))))
+		      (org-trim
+		       (org-icompleting-read "Tags: "
+					     'org-tags-completion-function
+					     nil nil current 'org-tags-history))))))
+	  (while (string-match "[-+&]+" tags)
+	    ;; No boolean logic, just a list
+	    (setq tags (replace-match ":" t t tags))))
 
-      (setq tags (replace-regexp-in-string "[,]" ":" tags))
+	(setq tags (replace-regexp-in-string "[,]" ":" tags))
 
-      (if org-tags-sort-function
-      	  (setq tags (mapconcat 'identity
-      				(sort (org-split-string
-				       tags (org-re "[^[:alnum:]_@#%]+"))
-      				      org-tags-sort-function) ":")))
+	(if org-tags-sort-function
+	    (setq tags (mapconcat 'identity
+				  (sort (org-split-string
+					 tags (org-re "[^[:alnum:]_@#%]+"))
+					org-tags-sort-function) ":")))
 
-      (if (string-match "\\`[\t ]*\\'" tags)
-	  (setq tags "")
-	(unless (string-match ":$" tags) (setq tags (concat tags ":")))
-	(unless (string-match "^:" tags) (setq tags (concat ":" tags))))
+	(if (string-match "\\`[\t ]*\\'" tags)
+	    (setq tags "")
+	  (unless (string-match ":$" tags) (setq tags (concat tags ":")))
+	  (unless (string-match "^:" tags) (setq tags (concat ":" tags))))
 
-      ;; Insert new tags at the correct column
-      (beginning-of-line 1)
-      (setq level (or (and (looking-at org-outline-regexp)
-			   (- (match-end 0) (point) 1))
-		      1))
-      (cond
-       ((and (equal current "") (equal tags "")))
-       ((re-search-forward
-	 (concat "\\([ \t]*" (regexp-quote current) "\\)[ \t]*$")
-	 (point-at-eol) t)
-	(if (equal tags "")
-	    (setq rpl "")
-	  (goto-char (match-beginning 0))
-	  (setq c0 (current-column)
-		;; compute offset for the case of org-indent-mode active
-		di (if org-indent-mode
-		       (* (1- org-indent-indentation-per-level) (1- level))
-		     0)
-		p0 (if (equal (char-before) ?*) (1+ (point)) (point))
-		tc (+ org-tags-column (if (> org-tags-column 0) (- di) di))
-		c1 (max (1+ c0) (if (> tc 0) tc (- (- tc) (length tags))))
-		rpl (concat (make-string (max 0 (- c1 c0)) ?\ ) tags)))
-	(replace-match rpl t t)
-	(and (not (featurep 'xemacs)) c0 indent-tabs-mode (tabify p0 (point)))
-	tags)
-       (t (error "Tags alignment failed")))
-      (org-move-to-column col)
-      (unless just-align
-	(run-hooks 'org-after-tags-change-hook)))))
+	;; Insert new tags at the correct column
+	(beginning-of-line 1)
+	(setq level (or (and (looking-at org-outline-regexp)
+			     (- (match-end 0) (point) 1))
+			1))
+	(cond
+	 ((and (equal current "") (equal tags "")))
+	 ((re-search-forward
+	   (concat "\\([ \t]*" (regexp-quote current) "\\)[ \t]*$")
+	   (point-at-eol) t)
+	  (if (equal tags "")
+	      (setq rpl "")
+	    (goto-char (match-beginning 0))
+	    (setq c0 (current-column)
+		  ;; compute offset for the case of org-indent-mode active
+		  di (if org-indent-mode
+			 (* (1- org-indent-indentation-per-level) (1- level))
+		       0)
+		  p0 (if (equal (char-before) ?*) (1+ (point)) (point))
+		  tc (+ org-tags-column (if (> org-tags-column 0) (- di) di))
+		  c1 (max (1+ c0) (if (> tc 0) tc (- (- tc) (length tags))))
+		  rpl (concat (make-string (max 0 (- c1 c0)) ?\ ) tags)))
+	  (replace-match rpl t t)
+	  (and (not (featurep 'xemacs)) c0 indent-tabs-mode (tabify p0 (point)))
+	  tags)
+	 (t (error "Tags alignment failed")))
+	(org-move-to-column col)
+	(unless just-align
+	  (run-hooks 'org-after-tags-change-hook))))))
 
 (defun org-change-tag-in-region (beg end tag off)
   "Add or remove TAG for each entry in the region.
@@ -17247,7 +17275,8 @@ inspection."
 	;; Use the requested file name and clean up
 	(copy-file pngfile tofile 'replace)
 	(loop for e in '(".dvi" ".tex" ".aux" ".log" ".png" ".out") do
-	      (delete-file (concat texfilebase e)))
+	      (if (file-exists-p (concat texfilebase e))
+		  (delete-file (concat texfilebase e))))
 	pngfile))))
 
 (defvar org-latex-to-pdf-process) ;; Defined in org-latex.el
@@ -17352,7 +17381,8 @@ inspection."
 	;; Use the requested file name and clean up
 	(copy-file pngfile tofile 'replace)
 	(loop for e in '(".pdf" ".tex" ".aux" ".log" ".png") do
-	      (delete-file (concat texfilebase e)))
+	      (if (file-exists-p (concat texfilebase e))
+		  (delete-file (concat texfilebase e))))
 	pngfile))))
 
 (defun org-splice-latex-header (tpl def-pkg pkg snippets-p &optional extra)

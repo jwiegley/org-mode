@@ -4982,13 +4982,7 @@ This function is invoked if `org-agenda-todo-ignore-deadlines',
 					     0 'org-hd-marker a))
 				   (cons (marker-position mm) a)))
 		  deadline-results))
-	 (remove-re
-	  (concat
-	   (regexp-quote
-	    (format-time-string
-	     "<%Y-%m-%d"
-	     (encode-time 0 0 0 (nth 1 date) (nth 0 date) (nth 2 date))))
-	   ".*?>"))
+	 (remove-re org-ts-regexp)
 	 (regexp
 	  (concat
 	   (if org-agenda-include-inactive-timestamps "[[<]" "<")
@@ -8873,7 +8867,7 @@ The prefix arg is passed through to the command if possible."
 		    (delete e org-agenda-bulk-marked-entries)))
 	    (setq cnt (1+ cnt))))
 	(when (not org-agenda-persistent-marks)
-	  (org-agenda-bulk-remove-all-marks))
+	  (org-agenda-bulk-unmark-all))
 	(when redo-at-end (org-agenda-redo))
 	(message "Acted on %d entries%s%s"
 		 cnt

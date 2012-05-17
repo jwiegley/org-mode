@@ -1265,20 +1265,23 @@ keywords.
 Assume point is at the beginning of the latex environment."
   (save-excursion
     (let* ((case-fold-search t)
-	   (contents-begin (point))
+	   (code-begin (point))
 	   (keywords (org-element-collect-affiliated-keywords))
 	   (begin (car keywords))
-	   (contents-end (progn (re-search-forward "^[ \t]*\\\\end")
-				(forward-line)
-				(point)))
-	   (value (buffer-substring-no-properties contents-begin contents-end))
+	   (env (progn (looking-at "^[ \t]*\\\\begin{\\([A-Za-z0-9*]+\\)}")
+		       (regexp-quote (match-string 1))))
+	   (code-end
+	    (progn (re-search-forward (format "^[ \t]*\\\\end{%s}" env))
+		   (forward-line)
+		   (point)))
+	   (value (buffer-substring-no-properties code-begin code-end))
 	   (end (progn (org-skip-whitespace)
 		       (if (eobp) (point) (point-at-bol)))))
       `(latex-environment
 	(:begin ,begin
 		:end ,end
 		:value ,value
-		:post-blank ,(count-lines contents-end end)
+		:post-blank ,(count-lines code-end end)
 		,@(cadr keywords))))))
 
 (defun org-element-latex-environment-interpreter (latex-environment contents)
@@ -1581,9 +1584,11 @@ Assume point is at the beginning of the table."
 	   (keywords (org-element-collect-affiliated-keywords))
 	   (begin (car keywords))
 	   (table-end (goto-char (marker-position (org-table-end t))))
-	   (tblfm (when (looking-at "[ \t]*#\\+TBLFM: +\\(.*\\)[ \t]*$")
-		    (prog1 (org-match-string-no-properties 1)
-		      (forward-line))))
+	   (tblfm (let (acc)
+		    (while (looking-at "[ \t]*#\\+TBLFM: +\\(.*\\)[ \t]*$")
+		      (push (org-match-string-no-properties 1) acc)
+		      (forward-line))
+		    acc))
 	   (pos-before-blank (point))
 	   (end (progn (org-skip-whitespace)
 		       (if (eobp) (point) (point-at-bol)))))
@@ -1611,8 +1616,9 @@ CONTENTS is nil."
     (concat (with-temp-buffer (insert contents)
 			      (org-table-align)
 			      (buffer-string))
-	    (when (org-element-property :tblfm table)
-	      (concat "#+TBLFM: " (org-element-property :tblfm table))))))
+	    (mapconcat (lambda (fm) (concat "#+TBLFM: " fm))
+		       (reverse (org-element-property :tblfm table))
+		       "\n"))))
 
 
 ;;;; Table Row
@@ -3076,9 +3082,12 @@ element it has to parse."
        ;; Inlinetask.
        ((org-at-heading-p) (org-element-inlinetask-parser raw-secondary-p))
        ;; LaTeX Environment.
-       ((looking-at "[ \t]*\\\\begin{")
+       ((looking-at "[ \t]*\\\\begin{\\([A-Za-z0-9*]+\\)}")
         (if (save-excursion
-              (re-search-forward "[ \t]*\\\\end{[^}]*}[ \t]*" nil t))
+              (re-search-forward
+	       (format "[ \t]*\\\\end{%s}[ \t]*"
+		       (regexp-quote (match-string 1)))
+	       nil t))
             (org-element-latex-environment-parser)
           (org-element-paragraph-parser)))
        ;; Drawer and Property Drawer.
@@ -3191,12 +3200,12 @@ it's value will be a list of parsed strings.  It defaults to
 
 DUALS is a list of strings.  Any keyword member of this list can
 have two parts: one mandatory and one optional.  Its value is
-a cons cell whose car is the former, and the cdr the latter.  If
+a cons cell whose CAR is the former, and the CDR the latter.  If
 a keyword is a member of both PARSED and DUALS, both values will
 be parsed.  It defaults to `org-element-dual-keywords'.
 
-Return a list whose car is the position at the first of them and
-cdr a plist of keywords and values."
+Return a list whose CAR is the position at the first of them and
+CDR a plist of keywords and values."
   (save-excursion
     (let ((case-fold-search t)
 	  (key-re (or key-re org-element--affiliated-re))
@@ -3929,6 +3938,16 @@ end of ELEM-A."
 		    (goto-char (org-element-property :end elem-B))
 		    (skip-chars-backward " \r\t\n")
 		    (point-at-eol)))
+	   ;; Store overlays responsible for visibility status.  We
+	   ;; also need to store their boundaries as they will be
+	   ;; removed from buffer.
+	   (overlays
+	    (cons
+	     (mapcar (lambda (ov) (list ov (overlay-start ov) (overlay-end ov)))
+		     (overlays-in beg-A end-A))
+	     (mapcar (lambda (ov) (list ov (overlay-start ov) (overlay-end ov)))
+		     (overlays-in beg-B end-B))))
+	   ;; Get contents.
 	   (body-A (buffer-substring beg-A end-A))
 	   (body-B (delete-and-extract-region beg-B end-B)))
       (goto-char beg-B)
@@ -3936,9 +3955,22 @@ end of ELEM-A."
 	(setq body-B (replace-regexp-in-string "\\`[ \t]*" "" body-B))
 	(org-indent-to-column ind-B))
       (insert body-A)
+      ;; Restore ex ELEM-A overlays.
+      (mapc (lambda (ov)
+	      (move-overlay
+	       (car ov)
+	       (+ (nth 1 ov) (- beg-B beg-A))
+	       (+ (nth 2 ov) (- beg-B beg-A))))
+	    (car overlays))
       (goto-char beg-A)
       (delete-region beg-A end-A)
       (insert body-B)
+      ;; Restore ex ELEM-B overlays.
+      (mapc (lambda (ov)
+	      (move-overlay (car ov)
+			    (+ (nth 1 ov) (- beg-A beg-B))
+			    (+ (nth 2 ov) (- beg-A beg-B))))
+	    (cdr overlays))
       (goto-char (org-element-property :end elem-B)))))
 
 (defun org-element-forward ()
