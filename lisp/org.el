@@ -89,7 +89,8 @@
   (unless (boundp 'diary-fancy-buffer)
     (defvaralias 'diary-fancy-buffer 'fancy-diary-buffer)))
 
-(require 'outline) (require 'noutline)
+(require 'outline)
+(require 'noutline "noutline" 'noerror) ;; stock XEmacs does not have it
 ;; Other stuff we need.
 (require 'time-date)
 (unless (fboundp 'time-subtract) (defalias 'time-subtract 'subtract-time))
@@ -208,26 +209,40 @@ identifier."
   :group 'org-id)
 
 ;;; Version
-
-(defvaralias 'org-version 'org-release)
-
+(eval-when-compile
+  (defun org-release () "N/A")
+  (defun org-git-version () "N/A !!check installation!!")
+  (and (load (concat (org-find-library-dir "org") "../UTILITIES/org-fixup.el")
+	    'noerror 'nomessage 'nosuffix)
+       (org-no-warnings (org-fixup))))
 ;;;###autoload
-(defun org-version (&optional here)
+(defun org-version (&optional here full message)
   "Show the org-mode version in the echo area.
 With prefix arg HERE, insert it at point."
   (interactive "P")
-  (let* ((origin default-directory)
-	 (version (if (boundp 'org-release) org-release "N/A"))
-	 (git-version (if (boundp 'org-git-version) org-git-version "N/A"))
-	 (org-install (ignore-errors (find-library-name "org-install")))
-	 (version_ (format "Org-mode version %s (%s @ %s)"
-			   version
+  (let* ((org-dir         (ignore-errors (org-find-library-dir "org")))
+	 (org-install-dir (ignore-errors (org-find-library-dir "org-install.el")))
+	 (org-trash       (or
+			   (and (fboundp 'org-release) (fboundp 'org-git-version))
+			   (load (concat org-dir "org-version.el")
+				 'noerror 'nomessage 'nosuffix)))
+	 (org-version (org-release))
+	 (git-version (org-git-version))
+	 (version (format "Org-mode version %s (%s @ %s)"
+			  org-version
 			   git-version
-			   (if org-install org-install "org-install.el can not be found!"))))
+			  (if org-install-dir
+			      (if (string= org-dir org-install-dir)
+				  org-install-dir
+				(concat "mixed installation! " org-install-dir " and " org-dir))
+			    "org-install.el can not be found!")))
+	 (_version (if full version org-version)))
     (if (org-called-interactively-p 'interactive)
-	(if here (insert version_)
-	  (message version_))
-      version)))
+	(if here
+	    (insert version)
+	  (message version))
+      (if message (message _version))
+      _version)))
 
 ;;; Compatibility constants
 
@@ -4893,9 +4908,9 @@ This is for getting out of special buffers like remember.")
 
 ;; FIXME: Occasionally check by commenting these, to make sure
 ;;        no other functions uses these, forgetting to let-bind them.
-(defvar entry)
+(org-no-warnings (defvar entry)) ;; unprefixed, from calendar.el
 (defvar org-last-state)
-(defvar date)
+(org-no-warnings (defvar date)) ;; unprefixed, from calendar.el
 
 ;; Defined somewhere in this file, but used before definition.
 (defvar org-entities)     ;; defined in org-entities.el
@@ -5956,7 +5971,7 @@ needs to be inserted at a specific position in the font-lock sequence.")
     (when org-pretty-entities
       (catch 'match
 	(while (re-search-forward
-		"\\\\\\(frac[13][24]\\|[a-zA-Z]+\\)\\($\\|{}\\|[^[:alpha:]\n]\\)"
+		"\\\\\\(there4\\|sup[123]\\|frac[13][24]\\|[a-zA-Z]+\\)\\($\\|{}\\|[^[:alpha:]\n]\\)"
 		limit t)
 	  (if (and (not (org-in-indented-comment-line))
 		   (setq ee (org-entity-get (match-string 1)))
@@ -6029,6 +6044,7 @@ When FACE-OR-COLOR is not a string, just return it."
 (defun org-font-lock-add-priority-faces (limit)
   "Add the special priority faces."
   (while (re-search-forward "\\[#\\([A-Z0-9]\\)\\]" limit t)
+    (when (save-match-data (org-at-heading-p))
     (add-text-properties
      (match-beginning 0) (match-end 0)
      (list 'face (or (org-face-from-face-or-color
@@ -6036,7 +6052,7 @@ When FACE-OR-COLOR is not a string, just return it."
 		      (cdr (assoc (char-after (match-beginning 1))
 				  org-priority-faces)))
 		     'org-special-keyword)
-	   'font-lock-fontified t))))
+	     'font-lock-fontified t)))))
 
 (defun org-get-tag-face (kwd)
   "Get the right face for a TODO keyword KWD.
@@ -9596,6 +9612,7 @@ application the system uses for this file type."
   (org-remove-occur-highlights nil nil t)
   (cond
    ((and (org-at-heading-p)
+	 (not (org-at-timestamp-p t))
 	 (not (org-in-regexp
 	       (concat org-plain-link-re "\\|"
 		       org-bracket-link-regexp "\\|"
@@ -12908,10 +12925,7 @@ headlines matching this string."
 		       org-outline-regexp)
 		     " *\\(\\<\\("
 		     (mapconcat 'regexp-quote org-todo-keywords-1 "\\|")
-		     (org-re
-		      (if todo-only
-			  "\\>\\)\\)[ \t]+\\(.*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$"
-			"\\>\\)\\)? *\\([^ ].*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$"))))
+		     (org-re "\\)\\>\\)? *\\(.*?\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*$")))
 	 (props (list 'face 'default
 		      'done-face 'org-agenda-done
 		      'undone-face 'default
@@ -15569,7 +15583,7 @@ user function argument order change dependent on argument order."
 	(list arg2 arg1 arg3))
        ((eq calendar-date-style 'iso)
 	(list arg2 arg3 arg1)))
-    (with-no-warnings ;; european-calendar-style is obsolete as of version 23.1
+    (org-no-warnings ;; european-calendar-style is obsolete as of version 23.1
       (if (org-bound-and-true-p european-calendar-style)
 	  (list arg2 arg1 arg3)
 	(list arg1 arg2 arg3)))))
@@ -16153,8 +16167,8 @@ With prefix ARG, change that many days."
 	       ((= pos (match-beginning 0))         'bracket)
 	       ;; Point is considered to be "on the bracket" whether
 	       ;; it's really on it or right after it.
-	       ((or (= pos (1- (match-end 0)))
-                    (= pos (match-end 0)))          'bracket)
+	       ((= pos (1- (match-end 0)))          'bracket)
+	       ((= pos (match-end 0))               'after)
 	       ((org-pos-in-match-range pos 2)      'year)
 	       ((org-pos-in-match-range pos 3)      'month)
 	       ((org-pos-in-match-range pos 7)      'hour)
@@ -18896,6 +18910,7 @@ Also updates the keyword regular expressions."
 Calls `org-table-next-row' or `newline', depending on context.
 See the individual commands for more information."
   (interactive)
+  (let (org-ts-what)
   (cond
    ((or (bobp) (org-in-src-block-p))
     (if indent (newline-and-indent) (newline)))
@@ -18915,6 +18930,10 @@ See the individual commands for more information."
 	    (org-indent-line-function)
 	  (org-indent-line-to ind)))))
    ((and org-return-follows-link
+	   (org-at-timestamp-p t)
+	   (not (eq org-ts-what 'after)))
+      (org-follow-timestamp-link))
+     ((and org-return-follows-link
          (let ((tprop (get-text-property (point) 'face)))
 	   (or (eq tprop 'org-link)
 	       (and (listp tprop) (memq 'org-link tprop)))))
@@ -18925,7 +18944,7 @@ See the individual commands for more information."
     (org-show-entry)
     (end-of-line 1)
     (newline))
-   (t (if indent (newline-and-indent) (newline)))))
+     (t (if indent (newline-and-indent) (newline))))))
 
 (defun org-return-indent ()
   "Goto next table row or insert a newline and indent.
@@ -19492,7 +19511,7 @@ information about your Org-mode version and configuration."
   (let ((reporter-prompt-for-summary-p "Bug report subject: "))
     (reporter-submit-bug-report
      "emacs-orgmode@gnu.org"
-     (org-version)
+     (org-version nil 'full)
      (let (list)
        (save-window-excursion
 	 (org-pop-to-buffer-same-window (get-buffer-create "*Warn about privacy*"))
@@ -19573,11 +19592,11 @@ Your bug report will be posted to the Org-mode mailing list.
 With prefix arg UNCOMPILED, load the uncompiled versions."
   (interactive "P")
   (require 'find-func)
-  (let* ((file-re "^\\(org\\|orgtbl\\)\\(\\.el\\|-.*\\.el\\)")
-	 (dir-org (file-name-directory (org-find-library-name "org")))
+  (let* ((file-re "^org\\(-.*\\)?\\.el")
+	 (dir-org (file-name-directory (org-find-library-dir "org")))
 	 (dir-org-contrib (ignore-errors
 			   (file-name-directory
-			    (org-find-library-name "org-contribdir"))))
+			    (org-find-library-dir "org-contribdir"))))
 	 (babel-files
 	  (mapcar (lambda (el) (concat "ob" (when el (format "-%s" el)) ".el"))
 		  (append (list nil "comint" "eval" "exp" "keys"
@@ -19588,10 +19607,10 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
 				   (when (cdr lang) (symbol-name (car lang))))
 				 org-babel-load-languages)))))
 	 (files
-	  (append (directory-files dir-org t file-re)
-		  babel-files
+	  (append  babel-files
 		  (and dir-org-contrib
-		       (directory-files dir-org-contrib t file-re))))
+		       (directory-files dir-org-contrib t file-re))
+		   (directory-files dir-org t file-re)))
 	 (remove-re (concat (if (featurep 'xemacs)
 				"org-colview" "org-colview-xemacs")
 			    "\\'")))
@@ -19605,10 +19624,11 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
        (when (featurep (intern (file-name-nondirectory f)))
 	 (if (and (not uncompiled)
 		  (file-exists-p (concat f ".elc")))
-	     (load (concat f ".elc") nil nil t)
-	   (load (concat f ".el") nil nil t))))
-     files))
-  (org-version))
+	     (load (concat f ".elc") nil nil 'nosuffix)
+	   (load (concat f ".el") nil nil 'nosuffix))))
+     files)
+    (load (concat dir-org "org-version.el") 'noerror nil 'nosuffix))
+  (org-version nil 'full 'message))
 
 ;;;###autoload
 (defun org-customize ()

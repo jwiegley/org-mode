@@ -1,10 +1,11 @@
+.EXPORT_ALL_VARIABLES:
 .NOTPARALLEL: .PHONY
 # Additional distribution files
 DISTFILES_extra=  Makefile request-assign-future.txt contrib etc
-.EXPORT_ALL_VARIABLES:
 
 LISPDIRS      = lisp
-SUBDIRS       = doc etc $(LISPDIRS)
+OTHERDIRS     = doc etc
+SUBDIRS       = $(OTHERDIRS) $(LISPDIRS)
 INSTSUB       = $(SUBDIRS:%=install-%)
 ORG_MAKE_DOC ?= info html pdf
 
@@ -18,16 +19,42 @@ else
 endif
 DATE          = $(shell date +%Y-%m-%d)
 ifneq ($(GITSTATUS),)
-  GITVERSION := $(GITVERSION).dirty
+  GITVERSION := $(GITVERSION:.dirty=).dirty
 endif
 
 .PHONY:	all oldorg update update2 up0 up1 up2 compile $(SUBDIRS) \
 	check test install info html pdf card doc docs $(INSTSUB) \
-	autoloads cleanall clean cleancontrib cleanrel clean-install \
+	autoloads cleanall clean cleancontrib cleanutils cleanrel clean-install \
 	cleanelc cleandirs cleanlisp cleandoc cleandocs cleantest \
-	compile compile-dirty uncompiled
+	compile compile-dirty uncompiled \
+	config config-test config-exe config-all config-eol
 
-oldorg:	compile autoloads info	# what the old makefile did when no target was specified
+CONF_BASE = EMACS lispdir infodir datadir testdir
+CONF_TEST = BTEST_PRE BTEST_POST BTEST_OB_LANGUAGES BTEST_EXTRA
+CONF_EXEC = CP MKDIR RM RMR FIND SUDO PDFTEX TEXI2PDF TEXI2HTML MAKEINFO INSTALL_INFO
+CONF_CALL = BATCH BATCHL ELCDIR BTEST MAKE_LOCAL_MK MAKE_ORG_INSTALL MAKE_ORG_VERSION
+config-eol:: EOL = \#
+config-eol:: config-all
+config config-all::
+	$(info )
+	$(info ========= Emacs executable and Installation paths)
+	$(foreach var,$(CONF_BASE),$(info $(var)	= $($(var))$(EOL)))
+config-test config-all::
+	$(info )
+	$(info ========= Test configuration)
+	$(foreach var,$(CONF_TEST),$(info $(var)	= $($(var))$(EOL)))
+config-exe config-all::
+	$(info )
+	$(info ========= Executables used by make)
+	$(foreach var,$(CONF_EXEC),$(info $(var)	= $($(var))$(EOL)))
+config-cmd config-all::
+	$(info )
+	$(info ========= Commands used by make)
+	$(foreach var,$(CONF_CALL),$(info $(var)	= $($(var))$(EOL)))
+config config-test config-exe config-all::
+	$(info )
+
+oldorg:	compile info	# what the old makefile did when no target was specified
 uncompiled:	cleanlisp autoloads	# for developing
 refcard:	card
 update update2::	up0 all
@@ -40,29 +67,17 @@ local.mk:
 	$(info = Setting "oldorg" as the default target.            =)
 	$(info = Please adapt local.mk to your local setup!         =)
 	$(info ======================================================)
-	-@$(SED) -n \
-		-e '1 i ## Remove the following line to make "all" the default target' \
-		-e '1 i oldorg:' \
-		-e '/-8<-/,/->8-/ {s/^\(\s*[^#]\)/#\1/;p}' \
-		-e '$$ i ## See default.mk for further configuration options.' \
-		default.mk > $@
+	-@$(MAKE_LOCAL_MK)
 
-all \
-compile::	lisp
-	$(MAKE) -C $< clean
-
-compile \
-compile-dirty::	lisp
-	$(MAKE) -C $< $@
-
-all \
-clean-install::
+all compile::
+	$(foreach dir, doc lisp, $(MAKE) -C $(dir) clean;)
+compile compile-dirty::
+	$(MAKE) -C lisp $@
+all clean-install::
 	$(foreach dir, $(SUBDIRS), $(MAKE) -C $(dir) $@;)
 
-check test::	all
-
-check test \
-test-dirty::
+check test::	compile
+check test test-dirty::
 	-$(MKDIR) $(testdir)
 	TMPDIR=$(testdir) $(BTEST)
 ifeq ($(TEST_NO_AUTOCLEAN),) # define this variable to leave $(testdir) around for inspection
@@ -99,11 +114,14 @@ clean:	cleanrel
 	$(MAKE) -C lisp clean
 	$(MAKE) -C doc clean
 
-cleanall: cleandirs cleantest cleancontrib
-	-$(FIND) . -name \*~ -exec $(RM) {} \;
+cleanall: cleandirs cleantest cleancontrib cleanutils
+	-$(FIND) . -name \*~ -o -name \*# -o -name .#\* -exec $(RM) {} \;
 
 cleancontrib:
-	-$(FIND) contrib -name \*~ -exec $(RM) {} \;
+	-$(FIND) contrib -name \*~ -o -name \*.elc -exec $(RM) {} \;
+
+cleanutils:
+	-$(FIND) UTILITIES -name \*~ -o -name \*.elc -exec $(RM) {} \;
 
 cleanrel:
 	$(RMR) RELEASEDIR

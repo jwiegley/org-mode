@@ -42,15 +42,11 @@
 
 (declare-function org-element-property "org-element" (property element))
 (declare-function org-element-normalize-string "org-element" (s))
-(declare-function org-element-parse-secondary-string
-		  "org-element" (string restriction &optional buffer))
-(defvar org-element-string-restrictions)
-(defvar org-element-object-restrictions)
 
 (declare-function org-export-data "org-export" (data info))
 (declare-function org-export-directory "org-export" (type plist))
 (declare-function org-export-expand-macro "org-export" (macro info))
-(declare-function org-export-first-sibling-p "org-export" (headline info))
+(declare-function org-export-first-sibling-p "org-export" (headline))
 (declare-function org-export-footnote-first-reference-p "org-export"
 		  (footnote-reference info))
 (declare-function org-export-format-code "org-export"
@@ -60,17 +56,18 @@
 (declare-function org-export-get-footnote-definition "org-export"
 		  (footnote-reference info))
 (declare-function org-export-get-footnote-number "org-export" (footnote info))
-(declare-function org-export-get-previous-element "org-export" (blob info))
+(declare-function org-export-get-previous-element "org-export" (blob))
 (declare-function org-export-get-relative-level "org-export" (headline info))
 (declare-function org-export-unravel-code "org-export" (element))
 (declare-function org-export-inline-image-p "org-export"
 		  (link &optional extensions))
-(declare-function org-export-last-sibling-p "org-export" (headline info))
+(declare-function org-export-last-sibling-p "org-export" (headline))
 (declare-function org-export-low-level-p "org-export" (headline info))
 (declare-function org-export-output-file-name
 		  "org-export" (extension &optional subtreep pub-dir))
 (declare-function org-export-resolve-coderef "org-export" (ref info))
 (declare-function org-export-resolve-fuzzy-link "org-export" (link info))
+(declare-function org-export-resolve-radio-link "org-export" (link info))
 (declare-function org-export-solidify-link-text "org-export" (s))
 (declare-function
  org-export-to-buffer "org-export"
@@ -81,16 +78,72 @@
 
 
 
-;;; Internal Variables
+;;; Define Back-End
 
-(defconst org-e-latex-option-alist
+(defvar org-e-latex-translate-alist
+  '((babel-call . org-e-latex-babel-call)
+    (bold . org-e-latex-bold)
+    (center-block . org-e-latex-center-block)
+    (clock . org-e-latex-clock)
+    (code . org-e-latex-code)
+    (comment . org-e-latex-comment)
+    (comment-block . org-e-latex-comment-block)
+    (drawer . org-e-latex-drawer)
+    (dynamic-block . org-e-latex-dynamic-block)
+    (entity . org-e-latex-entity)
+    (example-block . org-e-latex-example-block)
+    (export-block . org-e-latex-export-block)
+    (export-snippet . org-e-latex-export-snippet)
+    (fixed-width . org-e-latex-fixed-width)
+    (footnote-definition . org-e-latex-footnote-definition)
+    (footnote-reference . org-e-latex-footnote-reference)
+    (headline . org-e-latex-headline)
+    (horizontal-rule . org-e-latex-horizontal-rule)
+    (inline-babel-call . org-e-latex-inline-babel-call)
+    (inline-src-block . org-e-latex-inline-src-block)
+    (inlinetask . org-e-latex-inlinetask)
+    (italic . org-e-latex-italic)
+    (item . org-e-latex-item)
+    (keyword . org-e-latex-keyword)
+    (latex-environment . org-e-latex-latex-environment)
+    (latex-fragment . org-e-latex-latex-fragment)
+    (line-break . org-e-latex-line-break)
+    (link . org-e-latex-link)
+    (macro . org-e-latex-macro)
+    (paragraph . org-e-latex-paragraph)
+    (plain-list . org-e-latex-plain-list)
+    (plain-text . org-e-latex-plain-text)
+    (planning . org-e-latex-planning)
+    (property-drawer . org-e-latex-property-drawer)
+    (quote-block . org-e-latex-quote-block)
+    (quote-section . org-e-latex-quote-section)
+    (radio-target . org-e-latex-radio-target)
+    (section . org-e-latex-section)
+    (special-block . org-e-latex-special-block)
+    (src-block . org-e-latex-src-block)
+    (statistics-cookie . org-e-latex-statistics-cookie)
+    (strike-through . org-e-latex-strike-through)
+    (subscript . org-e-latex-subscript)
+    (superscript . org-e-latex-superscript)
+    (table . org-e-latex-table)
+    (table-cell . org-e-latex-table-cell)
+    (table-row . org-e-latex-table-row)
+    (target . org-e-latex-target)
+    (template . org-e-latex-template)
+    (timestamp . org-e-latex-timestamp)
+    (underline . org-e-latex-underline)
+    (verbatim . org-e-latex-verbatim)
+    (verse-block . org-e-latex-verse-block))
+  "Alist between element or object types and translators.")
+
+(defconst org-e-latex-options-alist
   '((:date "DATE" nil org-e-latex-date-format t)
     (:latex-class "LATEX_CLASS" nil org-e-latex-default-class t)
     (:latex-class-options "LATEX_CLASS_OPTIONS" nil nil t)
     (:latex-header-extra "LATEX_HEADER" nil nil newline))
   "Alist between LaTeX export properties and ways to set them.
-See `org-export-option-alist' for more information on the
-structure of the value.")
+See `org-export-options-alist' for more information on the
+structure of the values.")
 
 
 
@@ -345,6 +398,11 @@ default we use here encompasses both."
   :group 'org-export-e-latex
   :type '(alist :key-type (string :tag "Type")
 		:value-type (regexp :tag "Path")))
+
+(defcustom org-e-latex-link-with-unknown-path-format "\\texttt{%s}"
+  "Format string for links with unknown path type."
+  :group 'org-export-latex
+  :type 'string)
 
 
 ;;;; Tables
@@ -1050,15 +1108,6 @@ information."
 	   (org-export-format-code-default example-block info))))
 
 
-;;;; Export Snippet
-
-(defun org-e-latex-export-snippet (export-snippet contents info)
-  "Transcode a EXPORT-SNIPPET object from Org to LaTeX.
-CONTENTS is nil.  INFO is a plist holding contextual information."
-  (when (eq (org-export-snippet-backend export-snippet) 'e-latex)
-    (org-element-property :value export-snippet)))
-
-
 ;;;; Export Block
 
 (defun org-e-latex-export-block (export-block contents info)
@@ -1066,6 +1115,15 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (when (string= (org-element-property :type export-block) "LATEX")
     (org-remove-indentation (org-element-property :value export-block))))
+
+
+;;;; Export Snippet
+
+(defun org-e-latex-export-snippet (export-snippet contents info)
+  "Transcode a EXPORT-SNIPPET object from Org to LaTeX.
+CONTENTS is nil.  INFO is a plist holding contextual information."
+  (when (eq (org-export-snippet-backend export-snippet) 'e-latex)
+    (org-element-property :value export-snippet)))
 
 
 ;;;; Fixed Width
@@ -1092,7 +1150,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (concat
    ;; Insert separator between two footnotes in a row.
-   (let ((prev (org-export-get-previous-element footnote-reference info)))
+   (let ((prev (org-export-get-previous-element footnote-reference)))
      (when (eq (org-element-type prev) 'footnote-reference)
        org-e-latex-footnote-separator))
    (cond
@@ -1102,7 +1160,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 	     (org-export-get-footnote-number footnote-reference info)))
     ;; Use also \footnotemark if reference is within another footnote
     ;; reference or footnote definition.
-    ((loop for parent in (org-export-get-genealogy footnote-reference info)
+    ((loop for parent in (org-export-get-genealogy footnote-reference)
 	   thereis (memq (org-element-type parent)
 			 '(footnote-reference footnote-definition)))
      (let ((num (org-export-get-footnote-number footnote-reference info)))
@@ -1183,7 +1241,7 @@ holding contextual information."
 		 (and todo (org-export-data todo info)))))
 	 (todo-type (and todo (org-element-property :todo-type headline)))
 	 (tags (and (plist-get info :with-tags)
-		    (org-element-property :tags headline)))
+		    (org-export-get-tags headline info)))
 	 (priority (and (plist-get info :with-priority)
 			(org-element-property :priority headline)))
 	 ;; Create the headline text.
@@ -1219,14 +1277,14 @@ holding contextual information."
       (let ((low-level-body
 	     (concat
 	      ;; If the headline is the first sibling, start a list.
-	      (when (org-export-first-sibling-p headline info)
+	      (when (org-export-first-sibling-p headline)
 		(format "\\begin{%s}\n" (if numberedp 'enumerate 'itemize)))
 	      ;; Itemize headline
 	      "\\item " full-text "\n" headline-label pre-blanks contents)))
 	;; If headline is not the last sibling simply return
 	;; LOW-LEVEL-BODY.  Otherwise, also close the list, before any
 	;; blank line.
-	(if (not (org-export-last-sibling-p headline info)) low-level-body
+	(if (not (org-export-last-sibling-p headline)) low-level-body
 	  (replace-regexp-in-string
 	   "[ \t\n]*\\'"
 	   (format "\n\\\\end{%s}" (if numberedp 'enumerate 'itemize))
@@ -1302,7 +1360,7 @@ holding contextual information."
 		     (and todo (org-export-data todo info)))))
 	(todo-type (org-element-property :todo-type inlinetask))
 	(tags (and (plist-get info :with-tags)
-		   (org-element-property :tags inlinetask)))
+		   (org-export-get-tags inlinetask info)))
 	(priority (and (plist-get info :with-priority)
 		       (org-element-property :priority inlinetask))))
     ;; If `org-e-latex-format-inlinetask-function' is provided, call it
@@ -1350,7 +1408,7 @@ contextual information."
   (let* ((counter
 	  (let ((count (org-element-property :counter item))
 		(level
-		 (loop for parent in (org-export-get-genealogy item info)
+		 (loop for parent in (org-export-get-genealogy item)
 		       count (eq (org-element-type parent) 'plain-list)
 		       until (eq (org-element-type parent) 'headline))))
 	    (and count
@@ -1358,13 +1416,16 @@ contextual information."
 		 (format "\\setcounter{enum%s}{%s}\n"
 			 (nth (1- level) '("i" "ii" "iii" "iv"))
 			 (1- count)))))
-	 (checkbox (let ((checkbox (org-element-property :checkbox item)))
-		     (cond ((eq checkbox 'on) "$\\boxtimes$ ")
-			   ((eq checkbox 'off) "$\\Box$ ")
-			   ((eq checkbox 'trans) "$\\boxminus$ "))))
+	 (checkbox (case (org-element-property :checkbox item)
+		     (on "$\\boxtimes$ ")
+		     (off "$\\Box$ ")
+		     (trans "$\\boxminus$ ")))
 	 (tag (let ((tag (org-element-property :tag item)))
-		(and tag (format "[%s]" (org-export-data tag info))))))
-    (concat counter "\\item" tag " " checkbox contents)))
+		;; Check-boxes must belong to the tag.
+		(and tag (format "[%s] "
+				 (concat checkbox
+					 (org-export-data tag info)))))))
+    (concat counter "\\item" (or tag (concat " " checkbox)) contents)))
 
 
 ;;;; Keyword
@@ -1443,7 +1504,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
   "Return LaTeX code for an inline image.
 LINK is the link pointing to the inline image.  INFO is a plist
 used as a communication channel."
-  (let* ((parent (org-export-get-parent-paragraph link info))
+  (let* ((parent (org-export-get-parent-element link))
 	 (path (let ((raw-path (org-element-property :path link)))
 		 (if (not (file-name-absolute-p raw-path)) raw-path
 		   (expand-file-name raw-path))))
@@ -1519,24 +1580,20 @@ INFO is a plist holding contextual information.  See
 		   (setq raw-path (match-string 1 raw-path)))
 		 (if (file-name-absolute-p raw-path)
 		     (concat "file://" (expand-file-name raw-path))
-		   ;; TODO: Not implemented yet.  Concat also:
-		   ;; (org-export-directory :LaTeX info)
 		   (concat "file://" raw-path)))
 		(t raw-path)))
 	 protocol)
     (cond
      ;; Image file.
      (imagep (org-e-latex-link--inline-image link info))
-     ;; Radioed target: Target's name is obtained from original raw
-     ;; link.  Path is parsed and transcoded in order to have a proper
-     ;; display of the contents.
+     ;; Radio link: Transcode target's contents and use them as link's
+     ;; description.
      ((string= type "radio")
-      (format "\\hyperref[%s]{%s}"
-	      (org-export-solidify-link-text path)
-	      (org-export-data
-	       (org-element-parse-secondary-string
-		path (cdr (assq 'radio-target org-element-object-restrictions)))
-	       info)))
+      (let ((destination (org-export-resolve-radio-link link info)))
+	(when destination
+	  (format "\\hyperref[%s]{%s}"
+		  (org-export-solidify-link-text path)
+		  (org-export-data (org-element-contents destination) info)))))
      ;; Links pointing to an headline: Find destination and build
      ;; appropriate referencing command.
      ((member type '("custom-id" "fuzzy" "id"))
@@ -1544,9 +1601,13 @@ INFO is a plist holding contextual information.  See
 			     (org-export-resolve-fuzzy-link link info)
 			   (org-export-resolve-id-link link info))))
 	(case (org-element-type destination)
+	  ;; Id link points to an external file.
+	  (plain-text
+	   (if desc (format "\\href{file://%s}{%s}" destination desc)
+	     (format "\\url{file://%s}" destination)))
 	  ;; Fuzzy link points nowhere.
 	  ('nil
-	   (format "\\texttt{%s}"
+	   (format org-e-latex-link-with-unknown-path-format
 		   (or desc
 		       (org-export-data
 			(org-element-property :raw-link link) info))))
@@ -1587,7 +1648,7 @@ INFO is a plist holding contextual information.  See
      ;; External link without a description part.
      (path (format "\\url{%s}" path))
      ;; No path, only description.  Try to do something useful.
-     (t (format "\\texttt{%s}" desc)))))
+     (t (format org-e-latex-link-with-unknown-path-format desc)))))
 
 
 ;;;; Macro
@@ -1749,15 +1810,6 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
     (when value (format "\\begin{verbatim}\n%s\\end{verbatim}" value))))
 
 
-;;;; Section
-
-(defun org-e-latex-section (section contents info)
-  "Transcode a SECTION element from Org to LaTeX.
-CONTENTS holds the contents of the section.  INFO is a plist
-holding contextual information."
-  contents)
-
-
 ;;;; Radio Target
 
 (defun org-e-latex-radio-target (radio-target text info)
@@ -1768,6 +1820,15 @@ contextual information."
 	  (org-export-solidify-link-text
 	   (org-element-property :value radio-target))
 	  text))
+
+
+;;;; Section
+
+(defun org-e-latex-section (section contents info)
+  "Transcode a SECTION element from Org to LaTeX.
+CONTENTS holds the contents of the section.  INFO is a plist
+holding contextual information."
+  contents)
 
 
 ;;;; Special Block
@@ -1944,7 +2005,8 @@ contextual information."
 
 (defun org-e-latex-table (table contents info)
   "Transcode a TABLE element from Org to LaTeX.
-CONTENTS is nil.  INFO is a plist holding contextual information."
+CONTENTS is the contents of the table.  INFO is a plist holding
+contextual information."
   (cond
    ;; Case 1: verbatim table.
    ((or org-e-latex-tables-verbatim
@@ -2120,7 +2182,7 @@ a communication channel."
 		      (match-string 1 contents)
 		      (match-string 2 contents))
 	    contents)
-	  (when (org-export-get-next-element table-cell info) " & ")))
+	  (when (org-export-get-next-element table-cell) " & ")))
 
 
 ;;;; Table Row
@@ -2134,7 +2196,7 @@ a communication channel."
   (when (eq (org-element-property :type table-row) 'standard)
     (let* ((attr (mapconcat 'identity
 			    (org-element-property
-			     :attr_latex (org-export-get-parent table-row info))
+			     :attr_latex (org-export-get-parent table-row))
 			    " "))
 	   (longtablep (and attr (string-match "\\<longtable\\>" attr)))
 	   (booktabsp
@@ -2162,7 +2224,7 @@ a communication channel."
 		 (if booktabsp "\\midrule" "\\hline")
 		 ;; Number of columns.
 		 (cdr (org-export-table-dimensions
-		       (org-export-get-parent-table table-row info) info))))
+		       (org-export-get-parent-table table-row) info))))
 	;; When BOOKTABS are activated enforce bottom rule even when
 	;; no hline was specifically marked.
 	((and booktabsp (memq 'bottom borders)) "\\bottomrule")

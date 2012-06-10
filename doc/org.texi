@@ -746,7 +746,7 @@ Interaction with other packages
 
 Hacking
 
-* Hooks::                       Who to reach into Org's internals
+* Hooks::                       How to reach into Org's internals
 * Add-on packages::             Available extensions
 * Adding hyperlink types::      New custom link types
 * Context-sensitive commands::  How to add functionality to such commands
@@ -861,23 +861,66 @@ Theory Ltd.}
 @cindex XEmacs
 
 @b{Important:} @i{If you are using a version of Org that is part of the Emacs
-distribution or an XEmacs package, please skip this section and go directly
-to @ref{Activation}.  To see what version of Org (if any) is part of your
-Emacs distribution, type @kbd{M-x load-library RET org} and then @kbd{M-x
-org-version}.}
+distribution, GNU ELPA or an XEmacs package, please skip this section and go
+directly to @ref{Activation}.  To see what version of Org (if any) is part of
+your Emacs distribution, type @kbd{M-x org-version} (if your Emacs
+distribution does not come with Org, this function will not be defined).}
 
-If you have downloaded Org from the Web, either as a distribution @file{.zip}
-or @file{.tar} file, or as a Git archive, you must take the following steps
-to install it: go into the unpacked Org distribution directory and edit the
-top section of the file @file{Makefile}.  You must set the name of the Emacs
-binary (likely either @file{emacs} or @file{xemacs}), and the paths to the
-directories where local Lisp and Info files are kept.  If you don't have
-access to the system-wide directories, you can simply run Org directly from
-the distribution directory by adding the @file{lisp} subdirectory to the
-Emacs load path.  To do this, add the following line to @file{.emacs}:
+If you have downloaded Org from the Web as a distribution @file{.zip} or
+@file{.tar} archive, you must take the following steps to install it:
+
+@itemize @bullet
+@item Unpack the distribution archive.
+@item Change into (@code{cd}) the Org directory.
+@item Run @code{make help}
+and then check and edit the file @file{local.mk}.  You must set the name of
+the Emacs binary (likely either @file{emacs} or @file{xemacs}), and the paths
+to the directories where local Lisp and Info files will be installed.
+@item Run @code{make config}
+to check the configuration.
+@item Run @code{make install} or @code{sudo make install}
+to build and install Org mode on your system.  If you use a local Git
+repository, preferrably us @code{make update2} or, if you want to run the
+complete test suite before installation, @code{make up2}.
+@end itemize
+
+If you use a cloned Git repository, then the procedure is slightly different:
+
+@itemize @bullet
+@item Change into (@code{cd}) the Org repository.
+@item Run @code{git checkout master}
+to switch to the @code{master} branch of the Org repository.
+@item Run @code{make help}
+and then check and edit the file @file{local.mk}.  You must set the name of
+the Emacs binary (likely either @file{emacs} or @file{xemacs}), and the paths
+to the directories where local Lisp and Info files will be installed.
+@item Run @code{make config}
+to check the configuration.
+@item Run @code{make update2} or @code{make up2}
+to update the Git repository and build and install Org mode.  The latter
+invocation runs the complete test suite before installation and installs only
+if the build passes all tests.
+@end itemize
+
+If you don't have access to the system-wide directories and you don't want to
+install somewhere into your home directory, you can run Org directly from the
+distribution directory or Org repository by compiling Org mode in place:
+
+@itemize @bullet
+@item Change into (@code{cd}) the Org repository.
+@item Run @code{git checkout master}
+to switch to the @code{master} branch of the Org repository.
+@item Run @code{make compile}
+@end itemize
+
+Last but not least you can also run Org mode directly from an Org repository
+without any compilation.  Simply replace the last step in the recipe above
+with @code{make uncompiled}.
+
+Then add the following line to @file{.emacs}:
 
 @example
-(setq load-path (cons "~/path/to/orgdir/lisp" load-path))
+(add-to-list 'load-path "~/path/to/orgdir/lisp")
 @end example
 
 @noindent
@@ -885,36 +928,24 @@ If you plan to use code from the @file{contrib} subdirectory, do a similar
 step for this directory:
 
 @example
-(setq load-path (cons "~/path/to/orgdir/contrib/lisp" load-path))
-@end example
-
-@noindent Now byte-compile the Lisp files with the shell command:
-
-@example
-make
-@end example
-
-@noindent If you are running Org from the distribution directory, this is
-all.  If you want to install Org into the system directories, use (as
-administrator)
-
-@example
-make install
+(add-to-list 'load-path "~/path/to/orgdir/contrib/lisp")
 @end example
 
 Installing Info files is system dependent, because of differences in the
-@file{install-info} program.  The following should correctly install the Info
-files on most systems, please send a bug report if not@footnote{The output
-from install-info (if any) is also system dependent.  In particular Debian
-and its derivatives use two different versions of install-info and you may
-see the message:
+@file{install-info} program.  The Info documentation is installed together
+with the rest of Org mode.  If you don't install Org mode, it is possible to
+install the Info documentation seperately (you need to have
+install-info@footnote{The output from install-info (if any) is system
+dependent.  In particular Debian and its derivatives use two different
+versions of install-info and you may see the message:
 
 @example
 This is not dpkg install-info anymore, but GNU install-info
 See the man page for ginstall-info for command line arguments
 @end example
 
-@noindent which can be safely ignored.}.
+@noindent which can be safely ignored.}
+on your system).
 
 @example
 make install-info
@@ -4931,6 +4962,7 @@ column view (@pxref{Column view}), or to use them in queries.  The following
 property names are special and (except for @code{:CATEGORY:}) should not be
 used as keys in the properties drawer:
 
+@cindex property, special, ID
 @cindex property, special, TODO
 @cindex property, special, TAGS
 @cindex property, special, ALLTAGS
@@ -4947,6 +4979,8 @@ used as keys in the properties drawer:
 @cindex property, special, ITEM
 @cindex property, special, FILE
 @example
+ID           @r{A globally unique ID used for synchronization during}
+             @r{iCalendar or MobileOrg export.}
 TODO         @r{The TODO keyword of the entry.}
 TAGS         @r{The tags defined directly in the headline.}
 ALLTAGS      @r{All tags, including inherited ones.}
@@ -6469,6 +6503,12 @@ template in the usual way.
 @orgkey{C-u C-u C-c c}
 Visit the last stored capture item in its buffer.
 @end table
+
+@vindex org-capture-bookmark
+@cindex org-capture-last-stored
+You can also jump to the bookmark @code{org-capture-last-stored}, which will
+automatically be created unless you set @code{org-capture-bookmark} to
+@code{nil}.
 
 To insert the capture at point in an Org buffer, call @code{org-capture} with
 a @code{C-0} prefix argument.
@@ -10864,7 +10904,7 @@ special characters included in XHTML entities:
 @cindex org-odt.el
 @cindex org-modules
 
-Orgmode@footnote{Versions 7.8 or later} supports export to OpenDocument Text
+Org Mode@footnote{Versions 7.8 or later} supports export to OpenDocument Text
 (ODT) format using the @file{org-odt.el} module.  Documents created
 by this exporter use the @cite{OpenDocument-v1.2
 specification}@footnote{@url{http://docs.oasis-open.org/office/v1.2/OpenDocument-v1.2.html,
@@ -13554,10 +13594,10 @@ should be the path to a file and the second a description for the link.
 @subsubsection @code{:file-desc}
 
 The value of the @code{:file-desc} header argument is used to provide a
-description for file code block results which are inserted as Org-mode links
+description for file code block results which are inserted as Org mode links
 (see @ref{Link format}).  If the @code{:file-desc} header argument is given
 with no value the link path will be placed in both the ``link'' and the
-``description'' portion of the Org-mode link.
+``description'' portion of the Org mode link.
 
 @node dir, exports, file-desc, Specific header arguments
 @subsubsection @code{:dir} and remote execution
@@ -13857,7 +13897,7 @@ the results of evaluating code blocks.  It can be used to avoid re-evaluating
 unchanged code blocks.  Note that the @code{:cache} header argument will not
 attempt to cache results when the @code{:session} header argument is used,
 because the results of the code block execution may be stored in the session
-outside of the Org-mode buffer.  The @code{:cache} header argument can have
+outside of the Org mode buffer.  The @code{:cache} header argument can have
 one of two values: @code{yes} or @code{no}.
 
 @itemize @bullet
@@ -14217,7 +14257,7 @@ correct code is not broken in a language, such as Ruby, where
 syntactically valid in languages that you use, then please consider setting
 the default value.
 
-Note: if noweb tangling is slow in large Org-mode files consider setting the
+Note: if noweb tangling is slow in large Org mode files consider setting the
 @code{*org-babel-use-quick-and-dirty-noweb-expansion*} variable to true.
 This will result in faster noweb reference resolution at the expense of not
 correctly resolving inherited values of the @code{:noweb-ref} header
@@ -15354,7 +15394,7 @@ This appendix covers some aspects where users can extend the functionality of
 Org.
 
 @menu
-* Hooks::                       Who to reach into Org's internals
+* Hooks::                       How to reach into Org's internals
 * Add-on packages::             Available extensions
 * Adding hyperlink types::      New custom link types
 * Context-sensitive commands::  How to add functionality to such commands

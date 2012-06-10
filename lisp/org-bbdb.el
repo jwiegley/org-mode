@@ -122,7 +122,7 @@
 (declare-function calendar-leap-year-p "calendar" (year))
 (declare-function diary-ordinal-suffix "diary-lib" (n))
 
-(defvar date)   ;; dynamically scoped from Org
+(org-no-warnings (defvar date)) ;; unprefixed, from calendar.el
 
 ;; Customization
 
@@ -221,6 +221,8 @@ italicized, in all other cases it is left unchanged."
   (cond
    ((eq format 'html) (format "<i>%s</i>" desc))
    ((eq format 'latex) (format "\\textit{%s}" desc))
+   ((eq format 'odt)
+    (format "<text:span text:style-name=\"Emphasis\">%s</text:span>" desc))
    (t desc)))
 
 (defun org-bbdb-open (name)

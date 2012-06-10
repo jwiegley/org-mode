@@ -144,7 +144,7 @@ The function is called with point at the beginning of the headline."
   :type 'function)
 
 (defcustom org-clock-string-limit 0
-  "Maximum length of clock strings in the modeline.  0 means no limit."
+  "Maximum length of clock strings in the mode line.  0 means no limit."
   :group 'org-clock
   :type 'integer)
 
@@ -203,7 +203,7 @@ file name  play this sound file.  If not possible, fall back to beep"
 	  (file :tag "Play sound file")))
 
 (defcustom org-clock-modeline-total 'auto
-  "Default setting for the time included for the modeline clock.
+  "Default setting for the time included for the mode line clock.
 This can be overruled locally using the CLOCK_MODELINE_TOTAL property.
 Allowed values are:
 
@@ -222,7 +222,7 @@ auto     Automatically, either `all', or `repeat' for repeating tasks"
 
 (defvaralias 'org-task-overrun-text 'org-clock-task-overrun-text)
 (defcustom org-clock-task-overrun-text nil
-  "The extra modeline text that should indicate that the clock is overrun.
+  "Extra mode line text to indicate that the clock is overrun.
 The can be nil to indicate that instead of adding text, the clock time
 should get a different face (`org-mode-line-clock-overrun').
 When this is a string, it is prepended to the clock string as an indication,
@@ -705,7 +705,7 @@ Use alsa's aplay tool if available."
 	      (error (beep t) (beep t)))))))))
 
 (defvar org-clock-mode-line-entry nil
-  "Information for the modeline about the running clock.")
+  "Information for the mode line about the running clock.")
 
 (defun org-find-open-clocks (file)
   "Search through the given file and find all open clocks."
@@ -1379,7 +1379,7 @@ If there is no running clock, throw an error, unless FAIL-QUIETLY is set."
       (if fail-quietly (throw 'exit t) (error "No active clock")))
     (let (ts te s h m remove)
       (save-excursion ; Do not replace this with `with-current-buffer'.
-	(with-no-warnings (set-buffer (org-clocking-buffer)))
+	(org-no-warnings (set-buffer (org-clocking-buffer)))
 	(save-restriction
 	  (widen)
 	  (goto-char org-clock-marker)
@@ -1523,7 +1523,7 @@ UPDOWN tells whether to change 'up or 'down."
     (force-mode-line-update)
     (error "No active clock"))
   (save-excursion ; Do not replace this with `with-current-buffer'.
-    (with-no-warnings (set-buffer (org-clocking-buffer)))
+    (org-no-warnings (set-buffer (org-clocking-buffer)))
     (goto-char org-clock-marker)
     (delete-region (1- (point-at-bol)) (point-at-eol))
     ;; Just in case, remove any empty LOGBOOK left over

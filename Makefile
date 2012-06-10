@@ -1,4 +1,5 @@
 # Makefile - for the org-mode distribution
+# GNU make is required
 #
 # This file is not part of GNU Emacs
 
@@ -12,8 +13,7 @@ all::
 # Describe valid make targets for org-mode.
 .PHONY:	targets help helpall
 targets:	help
-helpall::	help
-help::
+help helpall::
 	$(info )
 	$(info Getting Help)
 	$(info ============)
@@ -45,6 +45,7 @@ helpall::
 	$(info make up2           - pull from upstream, build, check and install)
 	$(info make update        - pull from upstream and build)
 	$(info make update2       - pull from upstream, build and install)
+	$(info make uncompiled    - combine cleanlisp and autoloads)
 	$(info make local.mk      - create new local.mk as template for adaptation)
 	$(info )
 	$(info Cleaning)
@@ -57,24 +58,34 @@ helpall::
 	$(info make cleandocs     - ditto)
 	$(info make cleanlisp     - remove built Org ELisp files)
 	$(info make cleanelc      - ditto)
-	$(info make cleanrel      - remove release remnants)
 	$(info make cleantest     - remove check remnants)
 	$(info make clean-install - remove previous Org installation)
 	$(info )
+	$(info Configuration Check)
+	$(info ===================)
+help helpall::
+	$(info make config        - check main configuration)
+helpall::
+	$(info make config-test   - check test configuration)
+	$(info make config-exe    - check executables configuration)
+	$(info make config-cmd    - check command configuration)
+	$(info make config-all    - check all configuration)
+	$(info make config-eol    - check all configuration, mark end-of-line)
+	$(info )
 	$(info Documentation)
 	$(info =============)
-help::
+help helpall::
 	$(info make doc           - build all documentation)
 helpall::
 	$(info make docs          - ditto)
-help::
+help helpall::
 	$(info make info          - build Info documentation)
 helpall::
 	$(info make html          - build HTML documentation)
 	$(info make pdf           - build PDF documentation)
 	$(info make card          - build reference cards)
 	$(info make refcard       - ditto)
-help::
+help helpall::
 	$(info )
 	$(info Installation)
 	$(info ============)
@@ -83,7 +94,7 @@ helpall::
 	$(info make install-etc   - build and install files in /etc)
 	$(info make install-lisp  - build and install Org Elisp files)
 	$(info make install-info  - build and install Info documentation)
-help::
+help helpall::
 	@echo ""
 
  include targets.mk	# toplevel make machinery
