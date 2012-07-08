@@ -470,7 +470,7 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
   (should
    (equal
     '("back-end" . "contents")
-    (org-test-with-temp-text "<back-end@contents>"
+    (org-test-with-temp-text "@@back-end:contents@@"
       (org-element-map
        (org-element-parse-buffer) 'export-snippet
        (lambda (snippet) (cons (org-element-property :back-end snippet)
@@ -1551,26 +1551,31 @@ Outside list"
 
 (ert-deftest test-org-element/plain-list-interpreter ()
   "Test plain-list and item interpreters."
-  ;; 1. Unordered list.
-  (should (equal (org-test-parse-and-interpret "- item 1") "- item 1\n"))
-  ;; 2. Description list.
-  (should
-   (equal (org-test-parse-and-interpret "- tag :: desc") "- tag :: desc\n"))
-  ;; 3. Ordered list.
-  (should
-   (equal (let ((org-plain-list-ordered-item-terminator t))
-	    (org-test-parse-and-interpret "1. Item"))
-	  "1. Item\n"))
-  ;; 4. Ordered list with counter.
-  (should
-   (equal (let ((org-plain-list-ordered-item-terminator t))
-	    (org-test-parse-and-interpret "1. [@5] Item"))
-	  "5. [@5] Item\n"))
-  ;; 5. List with check-boxes.
-  (should
-   (equal (org-test-parse-and-interpret
-	   "- [-] Item 1\n  - [X] Item 2\n  - [ ] Item 3")
-	  "- [-] Item 1\n  - [X] Item 2\n  - [ ] Item 3\n")))
+  (let ((org-list-two-spaces-after-bullet-regexp nil))
+    ;; 1. Unordered list.
+    (should (equal (org-test-parse-and-interpret "- item 1") "- item 1\n"))
+    ;; 2. Description list.
+    (should
+     (equal (org-test-parse-and-interpret "- tag :: desc") "- tag :: desc\n"))
+    ;; 3. Ordered list.
+    (should
+     (equal (let ((org-plain-list-ordered-item-terminator t))
+	      (org-test-parse-and-interpret "1. Item"))
+	    "1. Item\n"))
+    ;; 4. Ordered list with counter.
+    (should
+     (equal (let ((org-plain-list-ordered-item-terminator t))
+	      (org-test-parse-and-interpret "1. [@5] Item"))
+	    "5. [@5] Item\n"))
+    ;; 5. List with check-boxes.
+    (should
+     (equal (org-test-parse-and-interpret
+	     "- [-] Item 1\n  - [X] Item 2\n  - [ ] Item 3")
+	    "- [-] Item 1\n  - [X] Item 2\n  - [ ] Item 3\n"))
+    ;; 6. Item not starting with a paragraph.
+    (should
+     (equal (org-test-parse-and-interpret "-\n  | a | b |")
+	    "- \n  | a | b |\n"))))
 
 (ert-deftest test-org-element/quote-block-interpreter ()
   "Test quote block interpreter."
@@ -1753,8 +1758,8 @@ CLOSED: <2012-01-01> DEADLINE: <2012-01-01> SCHEDULED: <2012-01-01>\n"))))
 
 (ert-deftest test-org-element/export-snippet-interpreter ()
   "Test export snippet interpreter."
-  (should (equal (org-test-parse-and-interpret "<back-end@contents>")
-		 "<back-end@contents>\n")))
+  (should (equal (org-test-parse-and-interpret "@@back-end:contents@@")
+		 "@@back-end:contents@@\n")))
 
 (ert-deftest test-org-element/footnote-reference-interpreter ()
   "Test footnote reference interpreter."
@@ -2066,6 +2071,25 @@ Paragraph \\alpha."
    (eq 'plain-list
        (org-test-with-temp-text "- item"
 	 (org-element-type (org-element-at-point))))))
+
+(ert-deftest test-org-element/context ()
+  "Test `org-element-context' specifications."
+  ;; List all objects and elements containing point.
+  (should
+   (equal
+    '(subscript bold paragraph)
+    (mapcar 'car
+	    (org-test-with-temp-text "Some *text with _underline_*"
+	      (progn (search-forward "under")
+		     (org-element-context))))))
+  ;; Find objects in secondary strings.
+  (should
+   (equal
+    '(underline headline)
+    (mapcar 'car
+	    (org-test-with-temp-text "* Headline _with_ underlining"
+	      (progn (search-forward "w")
+		     (org-element-context)))))))
 
 (ert-deftest test-org-element/forward ()
   "Test `org-element-forward' specifications."

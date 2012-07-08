@@ -124,7 +124,7 @@ structure of the values.")
 	 (author (and (plist-get info :with-author)
 		      (let ((auth (plist-get info :author)))
 			(and auth (org-export-data auth info)))))
-	 (date (plist-get info :date))
+	 (date (org-export-data (plist-get info :date) info))
 	 (iso-date (org-e-odt-format-date date))
 	 (date (org-e-odt-format-date date "%d %b %Y"))
 	 (email (plist-get info :email))
@@ -368,7 +368,7 @@ new entry in `org-e-odt-automatic-styles'.  Return (OBJECT-NAME
       (when (numberp desc)
 	(setq desc (format "%d" desc) xref-format "number"))
       (when (listp desc)
-	(setq desc (mapconcat 'identity desc ".") xref-format "chapter"))
+	(setq desc (mapconcat 'number-to-string desc ".") xref-format "chapter"))
       (setq href (concat org-e-odt-bookmark-prefix href))
       (org-e-odt-format-tags-simple
        '("<text:bookmark-ref text:reference-format=\"%s\" text:ref-name=\"%s\">" .
@@ -394,12 +394,6 @@ new entry in `org-e-odt-automatic-styles'.  Return (OBJECT-NAME
   (let ((tab "<text:tab/>")
 	(n (or n 1)))
     (insert tab)))
-
-(defun org-e-odt-format-line-break ()
-  (org-e-odt-format-tags "<text:line-break/>" ""))
-
-(defun org-e-odt-format-horizontal-line ()
-  (org-e-odt-format-stylized-paragraph 'horizontal-line ""))
 
 (defun org-e-odt-encode-plain-text (text &optional no-whitespace-filling)
   (mapc
@@ -724,14 +718,6 @@ ATTR is a string of other attributes of the a element."
       '("<text:note-ref text:note-class=\"%s\" text:reference-format=\"%s\" text:ref-name=\"%s\">" . "</text:note-ref>")
       n note-class ref-format ref-name)
      "OrgSuperscript")))
-
-(defun org-e-odt-element-attributes (element info)
-  (let* ((raw-attr (org-element-property :attr_odt element))
-	 (raw-attr (and raw-attr
-			(org-trim (mapconcat #'identity raw-attr " ")))))
-    (unless (and raw-attr (string-match "\\`(.*)\\'" raw-attr))
-      (setq raw-attr (format "(%s)" raw-attr)))
-    (ignore-errors (read raw-attr))))
 
 (defun org-e-odt-format-object-description (title description)
   (concat (and title (org-e-odt-format-tags
@@ -1080,7 +1066,8 @@ ATTR is a string of other attributes of the a element."
   (let ((title (org-export-data (plist-get info :title) info))
 	(author (or (let ((auth (plist-get info :author)))
 		      (and auth (org-export-data auth info))) ""))
-	(date (org-e-odt-format-date (plist-get info :date)))
+	(date (org-e-odt-format-date
+	       (org-export-data (plist-get info :date) info)))
 	(email (plist-get info :email))
 	(keywords (plist-get info :keywords))
 	(description (plist-get info :description)))
@@ -2929,11 +2916,8 @@ holding contextual information."
 (defun org-e-odt-horizontal-rule (horizontal-rule contents info)
   "Transcode an HORIZONTAL-RULE  object from Org to ODT.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (let ((attr (mapconcat #'identity
-			 (org-element-property :attr_odt horizontal-rule)
-			 " ")))
-    (org-e-odt--wrap-label horizontal-rule
-			    (org-e-odt-format-horizontal-line))))
+  (org-e-odt--wrap-label
+   horizontal-rule (org-e-odt-format-stylized-paragraph 'horizontal-line "")))
 
 
 ;;;; Inline Babel Call
@@ -3171,7 +3155,7 @@ used as a communication channel."
 		      (link (org-export-get-parent-element element))
 		      (t element)))
 	 ;; convert attributes to a plist.
-	 (attr-plist (org-e-odt-element-attributes attr-from info))
+	 (attr-plist (org-export-read-attribute :attr_odt attr-from))
 	 ;; handle `:anchor', `:style' and `:attributes' properties.
 	 (user-frame-anchor
 	  (car (assoc-string (plist-get attr-plist :anchor)
@@ -3337,21 +3321,26 @@ INFO is a plist holding contextual information.  See
 	    'italic))
 	  ;; Fuzzy link points to an invisible target.
 	  (keyword nil)
-	  ;; LINK points to an headline.  If headlines are numbered
-	  ;; and the link has no description, display headline's
-	  ;; number.  Otherwise, display description or headline's
-	  ;; title.
+	  ;; LINK points to an headline.  Check if LINK should display
+	  ;; section numbers.
 	  (headline
 	   (let* ((headline-no (org-export-get-headline-number destination info))
 		  (label (format "sec-%s" (mapconcat 'number-to-string
 						     headline-no "-")))
-		  (section-no (mapconcat 'number-to-string headline-no ".")))
-	     (setq desc
-		   (cond
-		    (desc desc)
-		    ((plist-get info :section-numbers) section-no)
-		    (t (org-export-data
-			(org-element-property :title destination) info))))
+		  (desc
+		   ;; Case 1: Headline is numbered and LINK has no
+		   ;; description or LINK's description matches
+		   ;; headline's title.  Display section number.
+		   (if (and (org-export-numbered-headline-p destination info)
+			    (or (not desc)
+				(string= desc (org-element-property
+					       :raw-value destination))))
+		       headline-no
+		     ;; Case 2: Either the headline is un-numbered or
+		     ;; LINK has a custom description.  Display LINK's
+		     ;; description or headline's title.
+		     (or desc (org-export-data (org-element-property
+						:title destination) info)))))
 	     (org-e-odt-format-internal-link desc label)))
 	  ;; Fuzzy link points to a target.  Do as above.
 	  (otherwise
@@ -3424,11 +3413,10 @@ the plist used as a communication channel."
     ;; item and the item has a checkbox, splice the checkbox and
     ;; paragraph contents together.
     (when (and (eq (org-element-type parent) 'item)
-	       (not (eq (org-element-property :type
-					      (org-export-get-parent parent))
-			'descriptive))
-	       (= (org-element-property :begin paragraph)
-		  (org-element-property :contents-begin parent)))
+    	       (not  (eq (org-element-property :type
+					       (org-export-get-parent parent))
+			 'descriptive))
+    	       (eq paragraph (car (org-element-contents parent))))
       (setq contents (concat (org-e-odt--checkbox parent) contents)))
     (org-e-odt-format-stylized-paragraph style contents)))
 
@@ -3631,7 +3619,7 @@ contextual information."
 
 (defun org-e-odt-table-style-spec (element info)
   (let* ((table (org-export-get-parent-table element))
-	 (table-attributes (org-e-odt-element-attributes table info))
+	 (table-attributes (org-export-read-attribute :attr_odt table))
 	 (table-style (plist-get table-attributes :style)))
     (assoc table-style org-e-odt-table-styles)))
 
@@ -3717,7 +3705,7 @@ channel."
 		    (org-export-get-parent-table table-row) info))
 	      "OrgTableHeading")
 	     ((let* ((table (org-export-get-parent-table table-cell))
-		     (table-attrs (org-e-odt-element-attributes table info))
+		     (table-attrs (org-export-read-attribute :attr_odt table))
 		     (table-header-columns (plist-get table-attrs
 						      :header-columns)))
 		(<= c (cond ((wholenump table-header-columns)
@@ -3819,7 +3807,7 @@ contextual information."
     (otherwise
      (let* ((captions (org-e-odt-format-label table info 'definition))
 	    (caption (car captions)) (short-caption (cdr captions))
-	    (attributes (org-e-odt-element-attributes table info))
+	    (attributes (org-export-read-attribute :attr_odt table))
 	    (custom-table-style (nth 1 (org-e-odt-table-style-spec table info)))
 	    (table-column-specs
 	     (function

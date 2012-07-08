@@ -70,8 +70,11 @@
 
 (defvar org-babel-default-header-args:R '())
 
-(defvar org-babel-R-command "R --slave --no-save"
-  "Name of command to use for executing R code.")
+(defcustom org-babel-R-command "R --slave --no-save"
+  "Name of command to use for executing R code."
+  :group 'org-babel
+  :version "24.1"
+  :type 'string)
 
 (defvar ess-local-process-name)
 (defun org-babel-edit-prep:R (info)
@@ -260,7 +263,7 @@ current code buffer."
     (setq args (mapconcat
 		(lambda (pair)
 		  (if (member (car pair) allowed-args)
-		      (format ",%s=%s"
+		      (format ",%s=%S"
 			      (substring (symbol-name (car pair)) 1)
 			      (cdr pair)) ""))
 		params ""))

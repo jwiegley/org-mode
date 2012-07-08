@@ -1053,7 +1053,7 @@ With a prefix argument SELECT (\\[universal-argument]), offer a list of \
 recently clocked tasks to
 clock into.  When SELECT is \\[universal-argument] \\[universal-argument], \
 clock into the current task and mark
-is as the default task, a special task that will always be offered in
+it as the default task, a special task that will always be offered in
 the clocking selection, associated with the letter `d'."
   (interactive "P")
   (setq org-clock-notification-was-shown nil)
@@ -1234,6 +1234,17 @@ the clocking selection, associated with the letter `d'."
 		  (run-with-timer 60 60 'org-resolve-clocks-if-idle))
 	    (message "Clock starts at %s - %s" ts msg-extra)
 	    (run-hooks 'org-clock-in-hook)))))))
+
+;;;###autoload
+(defun org-clock-in-last (&optional arg)
+  "Clock in the last closed clocked item.
+When already clocking in, send an warning."
+  (interactive "P")
+  (if arg (org-clock-select-task)
+    (org-clock-clock-in (cons (car org-clock-history) (current-time)))
+    (message "Now clocking in: %s (in %s)"
+	     org-clock-current-task
+	     (buffer-name (marker-buffer org-clock-marker)))))
 
 (defun org-clock-mark-default-task ()
   "Mark current task as default task."

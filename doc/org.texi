@@ -1284,6 +1284,7 @@ tables, @kbd{S-@key{TAB}} jumps to the previous field.
 @cindex show all, command
 @orgcmd{C-u C-u C-u @key{TAB},show-all}
 Show all, including drawers.
+@cindex revealing context
 @orgcmd{C-c C-r,org-reveal}
 Reveal context around point, showing the current entry, the following heading
 and the hierarchy above.  Useful for working near a location that has been
@@ -1291,8 +1292,13 @@ exposed by a sparse tree command (@pxref{Sparse trees}) or an agenda command
 (@pxref{Agenda commands}).  With a prefix argument show, on each
 level, all sibling headings.  With a double prefix argument, also show the
 entire subtree of the parent.
+@cindex show branches, command
 @orgcmd{C-c C-k,show-branches}
 Expose all the headings of the subtree, CONTENT view for just one subtree.
+@cindex show children, command
+@orgcmd{C-c @key{TAB},show-children}
+Expose all direct children of the subtree.  With a numeric prefix argument N,
+expose all children down to level N.
 @orgcmd{C-c C-x b,org-tree-to-indirect-buffer}
 Show the current subtree in an indirect buffer@footnote{The indirect
 buffer
@@ -2711,7 +2717,7 @@ modified in order to still reference the same field.  To avoid this from
 happening, in particular in range references, anchor ranges at the table
 borders (using @code{@@<}, @code{@@>}, @code{$<}, @code{$>}), or at hlines
 using the @code{@@I} notation.  Automatic adaptation of field references does
-of cause not happen if you edit the table structure with normal editing
+of course not happen if you edit the table structure with normal editing
 commands---then you must fix the equations yourself.
 
 Instead of typing an equation into the field, you may also use the following

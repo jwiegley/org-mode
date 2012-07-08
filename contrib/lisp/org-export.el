@@ -104,6 +104,27 @@
 (eval-when-compile (require 'cl))
 (require 'org-element)
 
+(declare-function org-e-ascii-export-to-ascii "org-e-ascii"
+		  (&optional subtreep visible-only body-only ext-plist pub-dir))
+(declare-function org-e-html-export-to-html "org-e-html"
+		  (&optional subtreep visible-only body-only ext-plist pub-dir))
+(declare-function org-e-latex-export-to-latex "org-e-latex"
+		  (&optional subtreep visible-only body-only ext-plist pub-dir))
+(declare-function org-e-latex-export-to-pdf "org-e-latex"
+		  (&optional subtreep visible-only body-only ext-plist pub-dir))
+(declare-function org-e-odt-export-to-odt "org-e-odt"
+		  (&optional subtreep visible-only body-only ext-plist pub-dir))
+(declare-function org-e-publish "org-e-publish" (project &optional force))
+(declare-function org-e-publish-all "org-e-publish" (&optional force))
+(declare-function org-e-publish-current-file "org-e-publish" (&optional force))
+(declare-function org-e-publish-current-project "org-e-publish"
+		  (&optional force))
+(declare-function org-export-blocks-preprocess "org-exp-blocks")
+
+(defvar org-e-publish-project-alist)
+(defvar org-table-number-fraction)
+(defvar org-table-number-regexp)
+
 
 
 ;;; Internal Variables
@@ -121,13 +142,13 @@
     (:date "DATE" nil nil t)
     (:description "DESCRIPTION" nil nil newline)
     (:email "EMAIL" nil user-mail-address t)
-    (:exclude-tags "EXPORT_EXCLUDE_TAGS" nil org-export-exclude-tags split)
+    (:exclude-tags "EXCLUDE_TAGS" nil org-export-exclude-tags split)
     (:headline-levels nil "H" org-export-headline-levels)
     (:keywords "KEYWORDS" nil nil space)
     (:language "LANGUAGE" nil org-export-default-language t)
     (:preserve-breaks nil "\\n" org-export-preserve-breaks)
     (:section-numbers nil "num" org-export-with-section-numbers)
-    (:select-tags "EXPORT_SELECT_TAGS" nil org-export-select-tags split)
+    (:select-tags "SELECT_TAGS" nil org-export-select-tags split)
     (:time-stamp-file nil "timestamp" org-export-time-stamp-file)
     (:title "TITLE" nil nil space)
     (:with-archived-trees nil "arch" org-export-with-archived-trees)
@@ -155,11 +176,15 @@
 The CAR of the alist is the property name, and the CDR is a list
 like (KEYWORD OPTION DEFAULT BEHAVIOUR) where:
 
-KEYWORD is a string representing a buffer keyword, or nil.
+KEYWORD is a string representing a buffer keyword, or nil.  Each
+  property defined this way can also be set, during subtree
+  export, through an headline property named after the keyword
+  with the \"EXPORT_\" prefix (i.e. DATE keyword and EXPORT_DATE
+  property).
 OPTION is a string that could be found in an #+OPTIONS: line.
 DEFAULT is the default value for the property.
 BEHAVIOUR determine how Org should handle multiple keywords for
-the same property.  It is a symbol among:
+  the same property.  It is a symbol among:
   nil       Keep old value and discard the new one.
   t         Replace old value with the new one.
   `space'   Concatenate the values, separating them with a space.
@@ -241,7 +266,7 @@ way they are handled must be hard-coded into
   "Alist between filters properties and initial values.
 
 The key of each association is a property name accessible through
-the communication channel its value is a configurable global
+the communication channel.  Its value is a configurable global
 variable defining initial filters.
 
 This list is meant to install user specified filters.  Back-end
@@ -377,8 +402,7 @@ All trees carrying any of these tags will be excluded from
 export.  This is without condition, so even subtrees inside that
 carry one of the `org-export-select-tags' will be removed.
 
-This option can also be set with the #+EXPORT_EXCLUDE_TAGS:
-keyword."
+This option can also be set with the #+EXCLUDE_TAGS: keyword."
   :group 'org-export-general
   :type '(repeat (string :tag "Tag")))
 
@@ -482,8 +506,7 @@ one of these tags will be ignored during export.  Inside trees
 that are selected like this, you can still deselect a subtree by
 tagging it with one of the `org-export-exclude-tags'.
 
-This option can also be set with the #+EXPORT_SELECT_TAGS:
-keyword."
+This option can also be set with the #+SELECT_TAGS: keyword."
   :group 'org-export-general
   :type '(repeat (string :tag "Tag")))
 
@@ -641,9 +664,9 @@ confirm the use of these lines."
 
 This variable allows to provide shortcuts for export snippets.
 
-For example, with a value of '\(\(\"h\" . \"html\"\)\), the HTML
-back-end will recognize the contents of \"@h{<b>}\" as HTML code
-while every other back-end will ignore it."
+For example, with a value of '\(\(\"h\" . \"e-html\"\)\), the
+HTML back-end will recognize the contents of \"@@h:<b>@@\" as
+HTML code while every other back-end will ignore it."
   :group 'org-export-general
   :type '(repeat
 	  (cons
@@ -1072,7 +1095,7 @@ inferior to file-local settings."
     backend
     (and buffer-file-name (org-remove-double-quotes buffer-file-name)))
    ;; ... and from subtree, when appropriate.
-   (and subtreep (org-export-get-subtree-options))
+   (and subtreep (org-export-get-subtree-options backend))
    ;; Eventually install back-end symbol and its translation table.
    `(:back-end
      ,backend
@@ -1109,31 +1132,60 @@ specific items to read, if any."
 	  alist)
     plist))
 
-(defun org-export-get-subtree-options ()
+(defun org-export-get-subtree-options (&optional backend)
   "Get export options in subtree at point.
-
-Assume point is at subtree's beginning.
-
-Return options as a plist."
-  (let (prop plist)
-    (when (setq prop (progn (looking-at org-todo-line-regexp)
-			    (or (save-match-data
-				  (org-entry-get (point) "EXPORT_TITLE"))
-				(org-match-string-no-properties 3))))
-      (setq plist
-	    (plist-put
-	     plist :title
-	     (org-element-parse-secondary-string
-	      prop (org-element-restriction 'keyword)))))
-    (when (setq prop (org-entry-get (point) "EXPORT_TEXT"))
-      (setq plist (plist-put plist :text prop)))
-    (when (setq prop (org-entry-get (point) "EXPORT_AUTHOR"))
-      (setq plist (plist-put plist :author prop)))
-    (when (setq prop (org-entry-get (point) "EXPORT_DATE"))
-      (setq plist (plist-put plist :date prop)))
-    (when (setq prop (org-entry-get (point) "EXPORT_OPTIONS"))
-      (setq plist (org-export-add-options-to-plist plist prop)))
-    plist))
+Optional argument BACKEND is a symbol specifying back-end used
+for export.  Return options as a plist."
+  ;; For each buffer keyword, create an headline property setting the
+  ;; same property in communication channel. The name for the property
+  ;; is the keyword with "EXPORT_" appended to it.
+  (org-with-wide-buffer
+   (let (prop plist)
+     ;; Make sure point is at an heading.
+     (unless (org-at-heading-p) (org-back-to-heading t))
+     ;; Take care of EXPORT_TITLE. If it isn't defined, use headline's
+     ;; title as its fallback value.
+     (when (setq prop (progn (looking-at org-todo-line-regexp)
+			     (or (save-match-data
+				   (org-entry-get (point) "EXPORT_TITLE"))
+				 (org-match-string-no-properties 3))))
+       (setq plist
+	     (plist-put
+	      plist :title
+	      (org-element-parse-secondary-string
+	       prop (org-element-restriction 'keyword)))))
+     ;; EXPORT_OPTIONS are parsed in a non-standard way.
+     (when (setq prop (org-entry-get (point) "EXPORT_OPTIONS"))
+       (setq plist
+	     (nconc plist (org-export-parse-option-keyword prop backend))))
+     ;; Handle other keywords.
+     (let ((seen '("TITLE")))
+       (mapc
+	(lambda (option)
+	  (let ((property (nth 1 option)))
+	    (when (and property (not (member property seen)))
+	      (let* ((subtree-prop (concat "EXPORT_" property))
+		     (value (org-entry-get (point) subtree-prop)))
+		(push property seen)
+		(when value
+		  (setq plist
+			(plist-put
+			 plist
+			 (car option)
+			 ;; Parse VALUE if required.
+			 (if (member property org-element-parsed-keywords)
+			     (org-element-parse-secondary-string
+			      value (org-element-restriction 'keyword))
+			   value))))))))
+	;; Also look for both general keywords and back-end specific
+	;; options if BACKEND is provided.
+	(append (and backend
+		     (let ((var (intern
+				 (format "org-%s-options-alist" backend))))
+		       (and (boundp var) (symbol-value var))))
+		org-export-options-alist)))
+     ;; Return value.
+     plist)))
 
 (defun org-export-get-inbuffer-options (&optional backend files)
   "Return current buffer export options, as a plist.
@@ -1332,12 +1384,25 @@ process."
 		     (and backend
 			  (let ((var (intern
 				      (format "org-%s-options-alist" backend))))
-			    (and (boundp var) (eval var))))))
+			    (and (boundp var) (symbol-value var))))))
 	;; Output value.
 	plist)
-    (mapc (lambda (cell)
-	    (setq plist (plist-put plist (car cell) (eval (nth 3 cell)))))
-	  all)
+    (mapc
+     (lambda (cell)
+       (setq plist
+	     (plist-put
+	      plist
+	      (car cell)
+	      ;; Eval default value provided.  If keyword is a member
+	      ;; of `org-element-parsed-keywords', parse it as
+	      ;; a secondary string before storing it.
+	      (let ((value (eval (nth 3 cell))))
+		(if (not (stringp value)) value
+		  (let ((keyword (nth 1 cell)))
+		    (if (not (member keyword org-element-parsed-keywords)) value
+		      (org-element-parse-secondary-string
+		       value (org-element-restriction 'keyword)))))))))
+     all)
     ;; Return value.
     plist))
 
@@ -1761,7 +1826,7 @@ a plist."
     (table (plist-get info :with-tables))
     (otherwise t)))
 
-(defsubst org-export-expand (blob contents)
+(defun org-export-expand (blob contents)
   "Expand a parsed element or object to its original state.
 BLOB is either an element or an object.  CONTENTS is its
 contents, as a string or nil."
@@ -2307,10 +2372,8 @@ Return code as a string."
 	     (goto-char (point-min))
 	     (forward-line)
 	     (narrow-to-region (point) (point-max))))
-      ;; 1. Get export environment from original buffer.  Store
-      ;;    original footnotes definitions in communication channel as
-      ;;    they might not be accessible anymore in a narrowed parse
-      ;;    tree.  Also install user's and developer's filters.
+      ;; 1. Get export environment from original buffer.  Also install
+      ;;    user's and developer's filters.
       (let ((info (org-export-install-filters
 		   (org-export-get-environment backend subtreep ext-plist)))
 	    ;; 2. Get parse tree.  Buffer isn't parsed directly.
@@ -2346,7 +2409,8 @@ Return code as a string."
 	;;    into a template, if required.  Eventually call
 	;;    final-output filter.
 	(let* ((body (org-element-normalize-string (org-export-data tree info)))
-	       (template (intern (format "org-%s-template" backend)))
+	       (template (cdr (assq 'template
+				    (plist-get info :translate-alist))))
 	       (output (org-export-filter-apply-functions
 			(plist-get info :filter-final-output)
 			(if (or (not (fboundp template)) body-only) body
@@ -2461,9 +2525,9 @@ buffer.
 
 Point is at buffer's beginning when BODY is applied."
   (org-with-gensyms (original-buffer offset buffer-string overlays)
-    `(let ((,original-buffer ,(current-buffer))
-	   (,offset ,(1- (point-min)))
-	   (,buffer-string ,(buffer-string))
+    `(let ((,original-buffer (current-buffer))
+	   (,offset (1- (point-min)))
+	   (,buffer-string (buffer-string))
 	   (,overlays (mapcar
 		       'copy-overlay (overlays-in (point-min) (point-max)))))
        (with-temp-buffer
@@ -2648,6 +2712,22 @@ file should have."
 ;; As of now, functions operating on footnotes, headlines, links,
 ;; macros, references, src-blocks, tables and tables of contents are
 ;; implemented.
+
+;;;; For Affiliated Keywords
+;;
+;; `org-export-read-attribute' reads a property from a given element
+;;  as a plist.  It can be used to normalize affiliated keywords'
+;;  syntax.
+
+(defun org-export-read-attribute (attribute element)
+  "Turn ATTRIBUTE property from ELEMENT into a plist.
+This function assumes attributes are defined as \":keyword
+value\" pairs.  It is appropriate for `:attr_html' like
+properties."
+  (let ((value (org-element-property attribute element)))
+    (and value
+	 (read (format "(%s)" (mapconcat 'identity value " "))))))
+
 
 ;;;; For Export Snippets
 ;;
@@ -3988,7 +4068,6 @@ Return an error if key pressed has no associated command."
       (?q nil)
       ;; Export with `e-ascii' back-end.
       ((?A ?N ?U)
-       (require 'org-e-ascii)
        (let ((outbuf
 	      (org-export-to-buffer
 	       'e-ascii "*Org E-ASCII Export*"
@@ -3999,13 +4078,11 @@ Return an error if key pressed has no associated command."
 	 (when org-export-show-temporary-export-buffer
 	   (switch-to-buffer-other-window outbuf))))
       ((?a ?n ?u)
-       (require 'org-e-ascii)
        (org-e-ascii-export-to-ascii
 	(memq 'subtree optns) (memq 'visible optns) (memq 'body optns)
 	`(:ascii-charset ,(case raw-key (?a 'ascii) (?n 'latin1) (t 'utf-8)))))
       ;; Export with `e-latex' back-end.
       (?L
-       (require 'org-e-latex)
        (let ((outbuf
 	      (org-export-to-buffer
 	       'e-latex "*Org E-LaTeX Export*"
@@ -4014,66 +4091,52 @@ Return an error if key pressed has no associated command."
 	 (when org-export-show-temporary-export-buffer
 	   (switch-to-buffer-other-window outbuf))))
       (?l
-       (require 'org-e-latex)
        (org-e-latex-export-to-latex
-	(require 'org-e-latex)
 	(memq 'subtree optns) (memq 'visible optns) (memq 'body optns)))
       (?p
-       (require 'org-e-latex)
        (org-e-latex-export-to-pdf
 	(memq 'subtree optns) (memq 'visible optns) (memq 'body optns)))
       (?d
-       (require 'org-e-latex)
        (org-open-file
 	(org-e-latex-export-to-pdf
 	 (memq 'subtree optns) (memq 'visible optns) (memq 'body optns))))
       ;; Export with `e-html' back-end.
       (?H
-       (require 'org-e-html)
        (let ((outbuf
 	      (org-export-to-buffer
 	       'e-html "*Org E-HTML Export*"
 	       (memq 'subtree optns) (memq 'visible optns) (memq 'body optns))))
 	 ;; set major mode
-	 (with-current-buffer outbuf
-	   (if (featurep 'nxhtml-mode) (nxhtml-mode) (nxml-mode)))
+	 (with-current-buffer outbuf (nxml-mode))
 	 (when org-export-show-temporary-export-buffer
 	   (switch-to-buffer-other-window outbuf))))
       (?h
-       (require 'org-e-html)
        (org-e-html-export-to-html
 	(memq 'subtree optns) (memq 'visible optns) (memq 'body optns)))
       (?b
-       (require 'org-e-html)
        (org-open-file
 	(org-e-html-export-to-html
 	 (memq 'subtree optns) (memq 'visible optns) (memq 'body optns))))
       ;; Export with `e-odt' back-end.
       (?o
-       (require 'org-e-odt)
        (org-e-odt-export-to-odt
 	(memq 'subtree optns) (memq 'visible optns) (memq 'body optns)))
       (?O
-       (require 'org-e-odt)
        (org-open-file
 	(org-e-odt-export-to-odt
 	 (memq 'subtree optns) (memq 'visible optns) (memq 'body optns))))
       ;; Publishing facilities
       (?F
-       (require 'org-e-publish)
        (org-e-publish-current-file (memq 'force optns)))
       (?P
-       (require 'org-e-publish)
        (org-e-publish-current-project (memq 'force optns)))
       (?X
-       (require 'org-e-publish)
        (let ((project
 	      (assoc (org-icompleting-read
 		      "Publish project: " org-e-publish-project-alist nil t)
 		     org-e-publish-project-alist)))
 	 (org-e-publish project (memq 'force optns))))
       (?E
-       (require 'org-e-publish)
        (org-e-publish-all (memq 'force optns)))
       ;; Undefined command.
       (t (error "No command associated with key %s"
