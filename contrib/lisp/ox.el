@@ -1,4 +1,4 @@
-;;; org-x.el --- working with Org data in a modular awy
+;;; org-x.el --- working with Org data in a modular way
 
 ;; Copyright (C) 2011 Free Software Foundation, Inc.
 
