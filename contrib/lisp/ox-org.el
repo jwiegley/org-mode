@@ -16,7 +16,7 @@
 
 ;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
@@ -25,7 +25,7 @@
 ;;; Code:
 
 (require 'org)
-(require 'org-x)
+(require 'ox)
 
 (eval-when-compile
   (require 'cl))
@@ -305,6 +305,14 @@
   (format-time-string (substring (org-time-stamp-format long inactive) 1 -1)
 		      time))
 
+(defun org-x-times-to-string (times &optional repeat)
+  (insert "SCHEDULED: <" (time-to-org-timestamp scheduled))
+  (if scheduled-time
+      (insert " " scheduled-time))
+  (if scheduled-repeat
+      (insert " " scheduled-repeat))
+  (insert ">"))
+
 (defun org-x-insert-entry (entry)
   (let ((depth (or (org-x-depth entry)
 		   (org-current-level))))
@@ -340,13 +348,9 @@
 	(if org-adapt-indentation
 	    (insert (make-string (1+ depth) ? )))
 
-	(when scheduled
-	  (insert "SCHEDULED: <" (time-to-org-timestamp scheduled))
-	  (if scheduled-time
-	      (insert " " scheduled-time))
-	  (if scheduled-repeat
-	      (insert " " scheduled-repeat))
-	  (insert ">"))
+	(if scheduled
+	    (insert "SCHEDULED: "
+		    (org-x-times-to-string scheduled-time scheduled-repeat)))
 
 	(when deadline
 	  (if scheduled
@@ -400,7 +404,7 @@
 			(let ((depth (if org-adapt-indentation depth -1)))
 			  (insert (make-string (+ 3 depth) ? ) line ?\n))))
 		  (insert ?\n)))))))
-       
+
        ((eq element-type 'body)
 	(let ((body (org-x-body entry)))
 	  (if body

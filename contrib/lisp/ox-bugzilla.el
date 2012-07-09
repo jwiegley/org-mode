@@ -16,7 +16,7 @@
 
 ;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
@@ -24,7 +24,7 @@
 
 ;;; Code:
 
-(require 'org-x)
+(require 'ox)
 
 (eval-when-compile
   (require 'cl))
@@ -60,11 +60,11 @@
   :group 'org-x-bugzilla)
 
 (defcustom org-x-bugzilla-statuses
-  '(("TODO"     . ("CONFIRMED"   . 1))
-    ("STARTED"  . ("IN_PROGRESS" . 2))
-    ("WAITING"  . ("REVIEW"      . 4))
-    ("DONE"     . ("RESOLVED"      . 5))
-    ("CANCELED" . ("RESOLVED"    . "WONTFIX")))
+  '(("TODO"	. ("CONFIRMED"	 . 1))
+    ("STARTED"	. ("IN_PROGRESS" . 2))
+    ("WAITING"	. ("REVIEW"	 . 4))
+    ("DONE"	. ("RESOLVED"	   . 5))
+    ("CANCELED" . ("RESOLVED"	 . "WONTFIX")))
   "An alist of all the statuses on the Bugzilla installation.
 These are keyed by the related Org mode state."
   :type '(alist :key-type string :value-type integer)
@@ -84,7 +84,7 @@ following be placed in your Org file:
 		 (function :tag "Use a custom function"))
   :group 'org-x-bugzilla)
 
-(defcustom org-x-bugzilla-title-prefix-match-function nil 
+(defcustom org-x-bugzilla-title-prefix-match-function nil
   "If non-nil, a function matching Bugzilla identifiers in Org titles.
 The function takes title string, and must return either nil or an
 integer.
@@ -178,14 +178,14 @@ See `org-x-bugzilla-title-prefix-function'."
 
 (defun org-x-bugzilla-convert-timestamp (stamp &optional with-hm inactive)
   (when (string-match (concat "\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\)"
-                              "T\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\)-.+")
-                      stamp)
+			      "T\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\)-.+")
+		      stamp)
     (let ((year (string-to-number (match-string 1 stamp)))
-          (mon  (string-to-number (match-string 2 stamp)))
-          (day  (string-to-number (match-string 3 stamp)))
-          (hour (string-to-number (match-string 4 stamp)))
-          (min  (string-to-number (match-string 5 stamp)))
-          ;;(sec  (string-to-number (match-string 6 stamp)))
+	  (mon	(string-to-number (match-string 2 stamp)))
+	  (day	(string-to-number (match-string 3 stamp)))
+	  (hour (string-to-number (match-string 4 stamp)))
+	  (min	(string-to-number (match-string 5 stamp)))
+	  ;;(sec  (string-to-number (match-string 6 stamp)))
 	  )
       (encode-time 0 min hour day mon year))))
 
@@ -204,9 +204,9 @@ See `org-x-bugzilla-title-prefix-function'."
 
        ((eq 'status (car elem))
 	(let ((stat (cdr (assq 'name (cadr elem)))))
-          (dolist (status org-x-bugzilla-statuses)
-            (if (string= stat (cadr status))
-                (setq stat (car status))))
+	  (dolist (status org-x-bugzilla-statuses)
+	    (if (string= stat (cadr status))
+		(setq stat (car status))))
 	  (org-x-set-state entry stat)))
 
        ((eq 'priority (car elem))
@@ -223,9 +223,9 @@ See `org-x-bugzilla-title-prefix-function'."
 	 (org-x-bugzilla-convert-timestamp (nth 2 elem) t t)))
 
        ((eq 'journals (car elem))
-        (dolist (journal (nthcdr 2 elem))
-          (let* ((body (nth 2 (assq 'notes journal)))
-                 (timestamp (org-x-bugzilla-convert-timestamp
+	(dolist (journal (nthcdr 2 elem))
+	  (let* ((body (nth 2 (assq 'notes journal)))
+		 (timestamp (org-x-bugzilla-convert-timestamp
 			     (nth 2 (assq 'created_on journal)) t))
 		 (name (cdr (assq 'name (cadr (assq 'user journal))))))
 	    ;; jww (2011-08-04): Distinguish notes from state changes
@@ -267,8 +267,8 @@ See `org-x-bugzilla-title-prefix-function'."
 	  (replace-regexp-in-string "\\[\\[bugzilla:.+?\\]\\[.+?\\]\\]\\s-*" ""
 				    (org-x-title entry)))
 	 (result
-          (org-x-bugzilla-rest-api
-           (if issue-id "PUT" "POST")
+	  (org-x-bugzilla-rest-api
+	   (if issue-id "PUT" "POST")
 	   root-url (if issue-id
 			(format "issues/%d.xml"
 				(string-to-number issue-id))
@@ -299,9 +299,9 @@ See `org-x-bugzilla-title-prefix-function'."
 			       (xml-escape-string (org-x-body entry))
 			       "</description>")
 		     ""))))
-         (id (nth 2 (assq 'id result))))
+	 (id (nth 2 (assq 'id result))))
     (if id
-        (org-x-set-property entry "Bugzilla_Id" (string-to-number id))
+	(org-x-set-property entry "Bugzilla_Id" (string-to-number id))
       (error "Failed to push Org-X entry to Bugzilla project %s" project))))
 
 (defun org-x-bugzilla-add-log-entry (entry timestamp body is-note

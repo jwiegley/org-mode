@@ -16,7 +16,7 @@
 
 ;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
@@ -24,7 +24,7 @@
 
 ;;; Code:
 
-(require 'org-x)
+(require 'ox)
 
 (eval-when-compile
   (require 'cl))
@@ -58,20 +58,20 @@
   :group 'org-x-redmine)
 
 (defcustom org-x-redmine-priorities '(("Immediate" . 1)
-				      ("Urgent"    . 1)
-				      ("High"      . 1)
-				      ("Normal"    . 2)
-				      ("Low"       . 3))
+				      ("Urgent"	   . 1)
+				      ("High"	   . 1)
+				      ("Normal"	   . 2)
+				      ("Low"	   . 3))
   "An alist of all the priorities on the Redmine installation."
   :type '(alist :key-type string :value-type integer)
   :group 'org-x-redmine)
 
-(defcustom org-x-redmine-statuses '(("TODO"     . ("New"         . 1))
-				    ("STARTED"  . ("In Progress" . 2))
-				    ("DONE"     . ("Resolved"    . 3))
-				    ("WAITING"  . ("Feedback"    . 4))
-				    ("DONE"     . ("Closed"      . 5))
-				    ("CANCELED" . ("Rejected"    . 6)))
+(defcustom org-x-redmine-statuses '(("TODO"	. ("New"	 . 1))
+				    ("STARTED"	. ("In Progress" . 2))
+				    ("DONE"	. ("Resolved"	 . 3))
+				    ("WAITING"	. ("Feedback"	 . 4))
+				    ("DONE"	. ("Closed"	 . 5))
+				    ("CANCELED" . ("Rejected"	 . 6)))
   "An alist of all the statuses on the Redmine installation.
 These are keyed by the related Org mode state."
   :type '(alist :key-type string :value-type integer)
@@ -91,7 +91,7 @@ following be placed in your Org file:
 		 (function :tag "Use a custom function"))
   :group 'org-x-redmine)
 
-(defcustom org-x-redmine-title-prefix-match-function nil 
+(defcustom org-x-redmine-title-prefix-match-function nil
   "If non-nil, a function matching Redmine identifiers in Org titles.
 The function takes title string, and must return either nil or an
 integer.
@@ -185,14 +185,14 @@ See `org-x-redmine-title-prefix-function'."
 
 (defun org-x-redmine-convert-timestamp (stamp &optional with-hm inactive)
   (when (string-match (concat "\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\)"
-                              "T\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\)-.+")
-                      stamp)
+			      "T\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\)-.+")
+		      stamp)
     (let ((year (string-to-number (match-string 1 stamp)))
-          (mon  (string-to-number (match-string 2 stamp)))
-          (day  (string-to-number (match-string 3 stamp)))
-          (hour (string-to-number (match-string 4 stamp)))
-          (min  (string-to-number (match-string 5 stamp)))
-          ;;(sec  (string-to-number (match-string 6 stamp)))
+	  (mon	(string-to-number (match-string 2 stamp)))
+	  (day	(string-to-number (match-string 3 stamp)))
+	  (hour (string-to-number (match-string 4 stamp)))
+	  (min	(string-to-number (match-string 5 stamp)))
+	  ;;(sec  (string-to-number (match-string 6 stamp)))
 	  )
       (encode-time 0 min hour day mon year))))
 
@@ -211,9 +211,9 @@ See `org-x-redmine-title-prefix-function'."
 
        ((eq 'status (car elem))
 	(let ((stat (cdr (assq 'name (cadr elem)))))
-          (dolist (status org-x-redmine-statuses)
-            (if (string= stat (cadr status))
-                (setq stat (car status))))
+	  (dolist (status org-x-redmine-statuses)
+	    (if (string= stat (cadr status))
+		(setq stat (car status))))
 	  (org-x-set-state entry stat)))
 
        ((eq 'priority (car elem))
@@ -227,9 +227,9 @@ See `org-x-redmine-title-prefix-function'."
 	 (org-x-redmine-convert-timestamp (nth 2 elem) t t)))
 
        ((eq 'journals (car elem))
-        (dolist (journal (nthcdr 2 elem))
-          (let* ((body (nth 2 (assq 'notes journal)))
-                 (timestamp (org-x-redmine-convert-timestamp
+	(dolist (journal (nthcdr 2 elem))
+	  (let* ((body (nth 2 (assq 'notes journal)))
+		 (timestamp (org-x-redmine-convert-timestamp
 			     (nth 2 (assq 'created_on journal)) t))
 		 (name (cdr (assq 'name (cadr (assq 'user journal))))))
 	    ;; jww (2011-08-04): Distinguish notes from state changes
@@ -271,8 +271,8 @@ See `org-x-redmine-title-prefix-function'."
 	  (replace-regexp-in-string "\\[\\[redmine:.+?\\]\\[.+?\\]\\]\\s-*" ""
 				    (org-x-title entry)))
 	 (result
-          (org-x-redmine-rest-api
-           (if issue-id "PUT" "POST")
+	  (org-x-redmine-rest-api
+	   (if issue-id "PUT" "POST")
 	   root-url (if issue-id
 			(format "issues/%d.xml"
 				(string-to-number issue-id))
@@ -303,9 +303,9 @@ See `org-x-redmine-title-prefix-function'."
 			       (xml-escape-string (org-x-body entry))
 			       "</description>")
 		     ""))))
-         (id (nth 2 (assq 'id result))))
+	 (id (nth 2 (assq 'id result))))
     (if id
-        (org-x-set-property entry "Redmine_Id" (string-to-number id))
+	(org-x-set-property entry "Redmine_Id" (string-to-number id))
       (error "Failed to push Org-X entry to Redmine project %s" project))))
 
 (defun org-x-redmine-add-log-entry (entry timestamp body is-note

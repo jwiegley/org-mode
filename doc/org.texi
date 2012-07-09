@@ -328,7 +328,7 @@ with contributions by David O'Toole, Bastien Guerry, Philip Rooke, Dan Davison, 
 * Exporting::                   Sharing and publishing of notes
 * Publishing::                  Create a web site of linked Org files
 * Working With Source Code::    Export, evaluate, and tangle code blocks
-* External Data::               
+* Org-X External Data::         Working with Org data using Emacs Lisp
 * Miscellaneous::               All the rest which did not fit elsewhere
 * Hacking::                     How to hack your way around
 * MobileOrg::                   Viewing and capture on a mobile device
@@ -560,7 +560,7 @@ Embedded @LaTeX{}
 
 * Special symbols::             Greek letters and other symbols
 * Subscripts and superscripts::  Simple syntax for raising/lowering text
-* @LaTeX{} fragments::             Complex formulas made easy
+* @LaTeX{} fragments::          Complex formulas made easy
 * Previewing @LaTeX{} fragments::  What will this snippet look like?
 * CDLaTeX mode::                Speed up entering of formulas
 
@@ -721,9 +721,16 @@ Specific header arguments
 * eval::                        Limit evaluation of specific code blocks
 * wrap::                        Mark source block evaluation results
 
-Org-X: External Data
+Org-X External Data
 
-* Extending Org-X::             
+* Entry Points::                Creating, parsing and writing Org-X entries
+* Accessors and Setters::       Querying and manipulating an entry
+* Org-X Properties::            Working with Org-X properties
+* Org-X Tags::                  Working with Org-X tags
+* Org-X Log Entries::           Adding, removing, query log entries
+* Org-X Logbook Entries::       Working with LOGBOOK records
+* Org-X Backends::              Different Org-X backends
+* Synchronization::             Synchronization data between backends
 
 Miscellaneous
 
@@ -9385,7 +9392,7 @@ readily processed to produce pretty output for a number of export backends.
 @menu
 * Special symbols::             Greek letters and other symbols
 * Subscripts and superscripts::  Simple syntax for raising/lowering text
-* @LaTeX{} fragments::             Complex formulas made easy
+* @LaTeX{} fragments::          Complex formulas made easy
 * Previewing @LaTeX{} fragments::  What will this snippet look like?
 * CDLaTeX mode::                Speed up entering of formulas
 @end menu
@@ -12581,7 +12588,7 @@ This may be necessary in particular if files include other files via
 @comment  node-name,  next,  previous,  up
 @comment Working With Source Code, Miscellaneous, Publishing, Top
 
-@node Working With Source Code, External Data, Publishing, Top
+@node Working With Source Code, Org-X External Data, Publishing, Top
 @chapter Working with source code
 @cindex Schulte, Eric
 @cindex Davison, Dan
@@ -14411,46 +14418,247 @@ emacs -Q --batch -l $ORGINSTALL \
        (kill-buffer)) '($FILES)))" 2>&1 |grep tangled
 @end example
 
-@node External Data, Miscellaneous, Working With Source Code, Top
-@chapter Org-X: External Data
+@node Org-X External Data, Miscellaneous, Working With Source Code, Top
+@chapter Org-X External Data
 
-Sometimes, there is data on external systems that you'd like to associate
-with Org-mode, so that you only have to consider one set of data.  For
-instance, if you work on a project whose issues are in Bugzilla, it would be
-nice to see those issue in your Agenda, and have them updated with the latest
-comments when you're ready to start working on one.  Then, after you mark the
-task as DONE in Org-mode, it would set the corresponding Bugzilla issue to
-Resolved.  This is what the @code{org-x} module does.
-
-In addition to providing several association modules for systems like
-Bugzilla, @code{org-x} also provides a simple API library to make it easy to
-add new external data sources of any type.  For example:
-
-@itemize @bullet
-@item Bug-trackers, such as Bugzilla, Trac, Redmine, Fogbugz
-@item Lines marked TODO in a set of source code files
-@item Ticked files in your Gnus INBOX
-@item Files in your downloads directory
-@end itemize
+The Org-X library, or Org External, is for helping Emacs Lisp programmers
+work with Org data, typically with a view to importing and exporting that
+data in conjunction with various external systems.  It can also be used to
+generate Org entries programmatically with ease, or for using your Org data
+as easily accessible, persistent data store.
 
 @menu
-* Extending Org-X::             
+* Entry Points::                Creating, parsing and writing Org-X entries
+* Accessors and Setters::       Querying and manipulating an entry
+* Org-X Properties::            Working with Org-X properties
+* Org-X Tags::                  Working with Org-X tags
+* Org-X Log Entries::           Adding, removing, query log entries
+* Org-X Logbook Entries::       Working with LOGBOOK records
+* Org-X Backends::              Different Org-X backends
+* Synchronization::             Synchronization data between backends
 @end menu
 
-@node Extending Org-X,  , External Data, External Data
-@section Extending Org-X
+@node Entry Points, Accessors and Setters, Org-X External Data, Org-X External Data
+@section Entry Points
 
-The idea behind Org-X is to work with data in an abstract, Lisp-y format,
-then render it or communicate it to a given system through a ``backend''.
-The reference backend is for Org-mode itself, and it knows how to parse Org
-entries and how to write them out again.
+The top-level interface for Org-X is quite simple.  To create a new Org-X
+entry, use @code{org-x-create-entry}:
 
-One thing Org-X tries to do is provide all data to the programmer in the most
-natural Emacs form possible.  For example, all dates are Emacs dates.  It is
-the job of each backend to render this date in the form appropriate for that
-system.
+@defun org-x-create-entry
+Create an empty Org-X entry object.  If written out in its empty form it
+will simply insert a @samp{*} followed by a space.
+@end defun
 
-@node Miscellaneous, Hacking, External Data, Top
+Such an entry has little value, however, until its data members have been
+set.  More likely, you'll be using Org-X in conjunction with an existing Org
+file.  With point residing anywhere inside an existing Org entry, you have
+these functions available:
+
+@defun org-x-parse-entry
+Parse the current Org entry in its textual form, and return a Lisp data
+sturcture that can be queried/modified by the Org-X library.
+@end defun
+@defun org-x-delete-entry
+Delete the textual Org entry containing point.
+@end defun
+@defun org-x-insert-entry entry
+If ENTRY is a Lisp data structure of the form returned by
+@code{org-x-create-entry} or @code{org-x-parse-entry}, insert its textual Org
+representation at point.
+@end defun
+@defun org-x-replace-entry entry
+Replace the textual Org entry containing point with the Org-X entry
+represented by ENTRY.
+@end defun
+@defun org-x-normalize-entry
+This helper function is equivalent to calling @code{org-x-replace-entry}
+immediately after @code{org-x-parse-entry}.  Its effect is to replace the Org
+entry at point with a ``normalized'' version that has been parsed and
+rewritten with Org-X.
+@end defun
+@defun org-x-normalize-all-entries
+Call @code{org-x-normalize-entry} for every Org entry in the current buffer.
+This is never @emph{necessary}, unless you want all your entries to conform
+the same general pattern (perhaps for version control purposes?).
+
+Do always check the results afterwards, to ensure nothing was adversely
+affected by possible bugs in Org-X.
+@end defun
+
+@node Accessors and Setters, Org-X Properties, Entry Points, Org-X External Data
+@section Accessors and Setters
+
+Org-X accessor and setter functions follow a specific pattern.  The general
+scheme is:
+
+@defun org-x-<field> entry
+Get the value of the given FIELD for ENTRY.
+@end defun
+@defun org-x-set-<field> entry <value>
+Set the given FIELD for ENTRY to VALUE.
+@end defun
+@defun org-x-clear-<field> entry
+Remove the given FIELD for ENTRY.
+@end defun
+
+The possible fields and their value types are:
+
+@table @code
+@item title
+String representing the title, or Org headline.
+@item body
+String representing the textual body of the entry.
+@item depth
+Integer depth of the entry.  This is the number of ``stars''.
+@item state
+Current entry state, as a string.  Must be a member of @code{org-x-states}.
+@item priority
+Entry priority, as an integer.  Note that 1 maps to ``A'', and 3 to ``C''.
+@item scheduled
+Returns non-nil if the entry has a @samp{SCHEDULED} header.
+@item scheduled-time
+The time string of the @samp{SCHEDULED} header, or nil if none.
+@item scheduled-repeat
+The repeat string of the @samp{SCHEDULED} header, or nil if none.
+@item deadline
+Returns non-nil if the entry has a @samp{DEADLINE} header.
+@item deadline-time
+The time string of the @samp{DEADLINE} header, or nil if none.
+@item deadline-repeat
+The repeat string of the @samp{DEADLINE} header, or nil if none.
+@end table
+
+@node Org-X Properties, Org-X Tags, Accessors and Setters, Org-X External Data
+@section Org-X Properties
+
+@defun org-x-properties entry
+@end defun
+@defun org-x-parent-properties entry
+@end defun
+@defun org-x-set-parent-property entry name value
+@end defun
+@defun org-x-set-property entry name value
+@end defun
+@defun org-x-remove-property entry name
+@end defun
+
+@node Org-X Tags, Org-X Log Entries, Org-X Properties, Org-X External Data
+@section Org-X Tags
+
+@defun org-x-tags entry
+@end defun
+@defun org-x-add-tag entry name
+@end defun
+@defun org-x-remove-tag entry name
+@end defun
+
+@node Org-X Log Entries, Org-X Logbook Entries, Org-X Tags, Org-X External Data
+@section Org-X Log Entries
+
+@defun org-x-add-log-entry entry timestamp body &optional is-note to-state
+@end defun
+@defun org-x-remove-log-entry entry timestamp
+@end defun
+
+@defun org-x-log-body log-entry
+@end defun
+@defun org-x-log-set-body log-entry body
+@end defun
+@defun org-x-log-clear-body log-entry
+@end defun
+@defun org-x-log-set-body-by-timestamp
+@end defun
+@defun org-x-log-clear-body-by-timestamp entry timestamp
+@end defun
+@defun org-x-log-from-state log-entry
+@end defun
+@defun org-x-log-set-from-state
+@end defun
+@defun org-x-log-clear-from-state log-entry
+@end defun
+@defun org-x-log-set-from-state-by-timestamp
+@end defun
+@defun org-x-log-clear-from-state-by-timestamp
+@end defun
+@defun org-x-log-to-state log-entry
+@end defun
+@defun org-x-log-set-to-state
+@end defun
+@defun org-x-log-clear-to-state log-entry
+@end defun
+@defun org-x-log-set-to-state-by-timestamp
+@end defun
+@defun org-x-log-clear-to-state-by-timestamp
+@end defun
+@defun org-x-log-clear-is-note log-entry
+@end defun
+@defun org-x-log-clear-is-note-by-timestamp
+@end defun
+
+@defun org-x-log-entries entry
+@end defun
+@defun org-x-add-whole-log-entry entry log
+@end defun
+
+@node Org-X Logbook Entries, Org-X Backends, Org-X Log Entries, Org-X External Data
+@section Org-X Logbook Entries
+
+@defun org-x-add-logbook-entry entry begin &optional end duration
+@end defun
+@defun org-x-remove-logbook-entry entry begin
+@end defun
+
+@defun org-x-logbook-begin logbook-entry
+@end defun
+@defun org-x-logbook-set-begin logbook-entry begin
+@end defun
+@defun org-x-logbook-clear-begin logbook-entry
+@end defun
+@defun org-x-logbook-end logbook-entry
+@end defun
+@defun org-x-logbook-set-end logbook-entry end
+@end defun
+@defun org-x-logbook-clear-end logbook-entry
+@end defun
+@defun org-x-logbook-duration logbook-entry
+@end defun
+@defun org-x-logbook-set-duration logbook-entry duration
+@end defun
+@defun org-x-logbook-clear-duration logbook-entry
+@end defun
+
+@defun org-x-logbook-entries entry
+@end defun
+@defun org-x-add-whole-logbook-entry entry logbook
+@end defun
+
+@node Org-X Backends, Synchronization, Org-X Logbook Entries, Org-X External Data
+@section Org-X Backends
+
+@defun org-x-set-backends var value
+@end defun
+@defun org-x-backends entry-or-pos
+@end defun
+@defun org-x-dispatch backend symbol &rest args
+@end defun
+@defun org-x-applicable-backend backend entry-or-pos
+@end defun
+
+@node Synchronization,  , Org-X Backends, Org-X External Data
+@section Synchronization
+
+@defun org-x-compare-entries l r &optional ignore-deletions ignore-changes
+@end defun
+@defun org-x-apply-changes backend entry changes
+@end defun
+@defun org-x-pull &optional changes-too position backends
+@end defun
+@defun org-x-push &optional changes-too position backends
+@end defun
+@defun org-x-sync &optional changes-too position
+@end defun
+
+@node Miscellaneous, Hacking, Org-X External Data, Top
 @chapter Miscellaneous
 
 @menu

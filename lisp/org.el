@@ -330,7 +330,6 @@ to add the symbol `xyz', and the package must have a call to
 	(const :tag "   vm:                Links to VM folders/messages" org-vm)
 	(const :tag "   wl:                Links to Wanderlust folders/messages" org-wl)
 	(const :tag "   w3m:               Special cut/paste from w3m to Org-mode." org-w3m)
-	(const :tag "   x:                 The Org Exchange, for syncing with external systems" org-x)
 	(const :tag "   mouse:             Additional mouse support" org-mouse)
 	(const :tag "   TaskJuggler:       Export tasks to a TaskJuggler project" org-taskjuggler)
 
@@ -370,6 +369,7 @@ to add the symbol `xyz', and the package must have a call to
 	(const :tag "C  track:             Keep up with Org-mode development" org-track)
 	(const :tag "C  velocity           Something like Notational Velocity for Org" org-velocity)
 	(const :tag "C  wikinodes:         CamelCase wiki-like links" org-wikinodes)
+	(const :tag "C  x:                 Org-External, for syncing with external systems" ox)
 	(repeat :tag "External packages" :inline t (symbol :tag "Package"))))
 
 (defcustom org-support-shift-select nil
