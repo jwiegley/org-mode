@@ -24,10 +24,9 @@
 
 ;;; Code:
 
-(require 'ox-plugin)
-
 (eval-when-compile
-  (require 'cl))
+  (require 'cl)
+  (require 'ert))
 
 (defgroup org-x nil
   "Org-X, the Org-mode Exchange."
@@ -155,6 +154,19 @@ the majority of dispatch API functions.")
   (list (cons 'entry t)
 	(cons 'depth 1)
 	(cons 'title "")))
+
+(defsubst org-x-entry-p (entry)
+  (and (listp entry)
+       (cdr (assq 'entry entry))))
+
+(ert-deftest oxt-new-entry ()
+  (should (equal t (org-x-entry-p (org-x-create-entry)))))
+(ert-deftest oxt-new-entry-depth ()
+  (should (equal 1 (org-x-depth (org-x-create-entry)))))
+(ert-deftest oxt-new-entry-title-string ()
+  (should (stringp (org-x-title (org-x-create-entry)))))
+(ert-deftest oxt-new-entry-title-empty ()
+  (should (equal 0 (length (org-x-title (org-x-create-entry))))))
 
 ;;; Entry generic getter and setter:
 
@@ -200,36 +212,67 @@ the majority of dispatch API functions.")
       priority)))
 
 (defsubst org-x-scheduled (entry) (cdr (assq 'scheduled entry)))
-
-(defun org-x-scheduled-time (entry)
-  (let ((time (cdr (assq 'scheduled-time entry))))
-    (if (null time)
-	nil
-      (assert (consp time) nil "Org-X log scheduled time must be a cons")
-      time)))
-
-(defun org-x-scheduled-repeat (entry)
-  (let ((repeat (cdr (assq 'scheduled-repeat entry))))
-    (if (null repeat)
-	nil
-      (assert (listp repeat) nil "Org-X log scheduled repeat must be a list")
-      repeat)))
-
 (defsubst org-x-deadline (entry) (cdr (assq 'deadline entry)))
 
-(defun org-x-deadline-time (entry)
-  (let ((time (cdr (assq 'deadline-time entry))))
-    (if (null time)
+(defun org-x-timestamp-times (timestamp)
+  (let ((times (cdr (assq 'times timestamp))))
+    (if (null times)
 	nil
-      (assert (stringp time) nil "Org-X log deadline time must be a string")
-      time)))
+      (assert (consp times) nil "Org-X timestamp times must be a cons")
+      times)))
 
-(defun org-x-deadline-repeat (entry)
-  (let ((repeat (cdr (assq 'deadline-repeat entry))))
+(defun org-x-timestamp-repeat (timestamp)
+  (let ((repeat (cdr (assq 'repeat timestamp))))
     (if (null repeat)
 	nil
-      (assert (stringp repeat) nil "Org-X log deadline repeat must be a string")
+      (assert (listp repeat) nil "Org-X timestamp repeat must be a list")
       repeat)))
+
+(defsubst org-x-scheduled-times (entry)
+  (org-x-timestamp-times (org-x-scheduled entry)))
+(defsubst org-x-deadline-times (entry)
+  (org-x-timestamp-times (org-x-deadline entry)))
+
+(defsubst org-x-timestamp-start-time (timestamp)
+  (car (org-x-timestamp-times timestamp)))
+(defsubst org-x-timestamp-end-time (timestamp)
+  (cdr (org-x-timestamp-times timestamp)))
+
+(defsubst org-x-scheduled-start-time (entry)
+  (org-x-timestamp-start-time (org-x-scheduled-times entry)))
+(defsubst org-x-scheduled-end-time (entry)
+  (org-x-timestamp-end-time (org-x-scheduled-times entry)))
+(defsubst org-x-deadline-start-time (entry)
+  (org-x-timestamp-start-time (org-x-deadline-times entry)))
+(defsubst org-x-deadline-end-time (entry)
+  (org-x-timestamp-end-time (org-x-deadline-times entry)))
+
+(defsubst org-x-date-p (time-value)
+  (eq 'date (car time-value)))
+(defsubst org-x-datetime-p (time-value)
+  (eq 'datetime (car time-value)))
+(defsubst org-x-time-value (time-value)
+  (cdr time-value))
+
+(defsubst org-x-timestamp-repeat-prefix (timestamp)
+  (nth 0 (org-x-timestamp-repeat timestamp)))
+(defsubst org-x-timestamp-repeat-length (timestamp)
+  (nth 1 (org-x-timestamp-repeat timestamp)))
+(defsubst org-x-timestamp-repeat-longest (timestamp)
+  (nth 2 (org-x-timestamp-repeat timestamp)))
+
+(defsubst org-x-scheduled-repeat-prefix (entry)
+  (org-x-timestamp-repeat-prefix (org-x-scheduled-times entry)))
+(defsubst org-x-scheduled-repeat-length (entry)
+  (org-x-timestamp-repeat-prefix (org-x-scheduled-times entry)))
+(defsubst org-x-scheduled-repeat-longest (entry)
+  (org-x-timestamp-repeat-prefix (org-x-scheduled-times entry)))
+(defsubst org-x-deadline-repeat-prefix (entry)
+  (org-x-timestamp-repeat-prefix (org-x-deadline-times entry)))
+(defsubst org-x-deadline-repeat-length (entry)
+  (org-x-timestamp-repeat-prefix (org-x-deadline-times entry)))
+(defsubst org-x-deadline-repeat-longest (entry)
+  (org-x-timestamp-repeat-prefix (org-x-deadline-times entry)))
 
 ;;; Entry property getters:
 
@@ -370,11 +413,10 @@ the majority of dispatch API functions.")
 		       data))
   data)
 
-(defun org-x-eraser (entry symbol &optional no-overwrite propagate)
+(defun org-x-eraser (entry symbol &optional propagate)
   (let ((cell (assq symbol entry)))
-    (unless (and (cdr cell) no-overwrite)
-      (if cell
-	  (setcdr entry (delq cell (cdr entry))))))
+    (if cell
+	(setcdr entry (delq cell (cdr entry)))))
   (if propagate
       (org-x-propagate entry
 		       (intern (concat "clear-" (symbol-name symbol)))
@@ -412,44 +454,120 @@ the majority of dispatch API functions.")
   (org-x-setter entry 'priority priority no-overwrite propagate))
 (defun org-x-clear-priority (entry &optional propagate)
   (org-x-eraser entry 'priority propagate))
+
+;;; Scheduled and deadline timestamps:
 
 (defun org-x-set-scheduled (entry scheduled &optional no-overwrite propagate)
   (org-x-setter entry 'scheduled scheduled no-overwrite propagate))
 (defun org-x-clear-scheduled (entry &optional propagate)
   (org-x-eraser entry 'scheduled propagate))
 
-(defun org-x-set-scheduled-time
-  (entry time &optional no-overwrite propagate)
-  (assert (consp time) nil "Org-X log scheduled time must be a cons")
-  (org-x-setter entry 'scheduled-time time no-overwrite propagate))
-(defun org-x-clear-scheduled-time (entry &optional propagate)
-  (org-x-eraser entry 'scheduled-time propagate))
-
-(defun org-x-set-scheduled-repeat
-  (entry repeat &optional no-overwrite propagate)
-  (assert (listp repeat) nil "Org-X log scheduled repeat must be a list")
-  (org-x-setter entry 'scheduled-repeat repeat no-overwrite propagate))
-(defun org-x-clear-scheduled-repeat (entry &optional propagate)
-  (org-x-eraser entry 'scheduled-repeat propagate))
-
 (defun org-x-set-deadline (entry deadline &optional no-overwrite propagate)
   (org-x-setter entry 'deadline deadline no-overwrite propagate))
 (defun org-x-clear-deadline (entry &optional propagate)
   (org-x-eraser entry 'deadline propagate))
 
-(defun org-x-set-deadline-time
-  (entry time &optional no-overwrite propagate)
-  (assert (stringp time) nil "Org-X log deadline time must be a string")
-  (org-x-setter entry 'deadline-time time no-overwrite propagate))
-(defun org-x-clear-deadline-time (entry &optional propagate)
-  (org-x-eraser entry 'deadline-time propagate))
+(defun org-x-timestamp-setter
+  (timestamp symbol data &optional no-overwrite propagate)
+  (let ((cell (assq symbol timestamp)))
+    (if cell
+	(unless (and (cdr cell) no-overwrite)
+	  (setcdr cell data))
+      (if timestamp
+	  (nconc timestamp (list (cons symbol data)))
+	(setq timestamp (list (cons symbol data))))))
+  timestamp)
+(defun org-x-timestamp-eraser
+  (timestamp symbol &optional no-overwrite propagate)
+  (setq timestamp (delq (assq symbol timestamp) timestamp))
+  timestamp)
 
-(defun org-x-set-deadline-repeat
+(defun org-x-scheduled-set-times
+  (entry times &optional no-overwrite propagate)
+  (assert (consp times) nil "Org-X scheduled times must be a cons")
+  (org-x-set-scheduled
+   entry
+   (org-x-timestamp-setter (org-x-scheduled entry)
+			   'times times no-overwrite propagate)))
+(defun org-x-scheduled-clear-times (entry &optional propagate)
+  (org-x-set-scheduled
+   entry
+   (org-x-timestamp-eraser (org-x-scheduled entry) 'times propagate)))
+
+(defun org-x-scheduled-set-start-time
+  (entry time &optional no-overwrite propagate)
+  (assert (consp time) nil "Org-X timestamp start time must be a cons")
+  (let ((times (org-x-scheduled-times entry)))
+    (if times
+	(setcar times time)
+      (org-x-scheduled-set-times (cons time nil) no-overwrite propagate))))
+(defun org-x-scheduled-clear-start-time (entry &optional propagate)
+  (let ((times (org-x-scheduled-times entry)))
+    (if times
+	(setcar times nil))))
+
+(defun org-x-scheduled-set-end-time
+  (entry time &optional no-overwrite propagate)
+  (assert (consp time) nil "Org-X timestamp end time must be a cons")
+  (let ((times (org-x-scheduled-times entry)))
+    (if times
+	(setcdr times time)
+      (org-x-scheduled-set-times (cons nil time) no-overwrite propagate))))
+(defun org-x-scheduled-clear-end-time (entry &optional propagate)
+  (let ((times (org-x-scheduled-times entry)))
+    (if times
+	(setcdr times nil))))
+
+(defun org-x-scheduled-set-repeat
   (entry repeat &optional no-overwrite propagate)
-  (assert (stringp repeat) nil "Org-X log deadline repeat must be a string")
-  (org-x-setter entry 'deadline-repeat repeat no-overwrite propagate))
-(defun org-x-clear-deadline-repeat (entry &optional propagate)
-  (org-x-eraser entry 'deadline-repeat propagate))
+  (assert (consp repeat) nil "Org-X scheduled repeat must be a list")
+  (org-x-set-scheduled
+   entry
+   (org-x-timestamp-setter (org-x-scheduled entry)
+			   'repeat repeat no-overwrite propagate)))
+(defun org-x-scheduled-clear-repeat (entry &optional propagate)
+  (org-x-set-scheduled
+   entry
+   (org-x-timestamp-eraser (org-x-scheduled entry) 'repeat propagate)))
+
+(defun org-x-scheduled-set-repeat-prefix
+  (entry prefix &optional no-overwrite propagate)
+  (assert (stringp prefix) nil "Org-X repeat prefix must be a string")
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 0 repeat) prefix)
+      (org-x-scheduled-set-repeat entry (list repeat nil nil)
+				  no-overwrite propagate))))
+(defun org-x-scheduled-clear-repeat-prefix (entry &optional propagate)
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 0 repeat) nil))))
+
+(defun org-x-scheduled-set-repeat-length
+  (entry length &optional no-overwrite propagate)
+  (assert (consp length) nil "Org-X repeat length must be a cons")
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 1 repeat) length)
+      (org-x-scheduled-set-repeat entry (list repeat nil nil)
+				  no-overwrite propagate))))
+(defun org-x-scheduled-clear-repeat-length (entry &optional propagate)
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 1 repeat) nil))))
+
+(defun org-x-scheduled-set-repeat-longest
+  (entry longest &optional no-overwrite propagate)
+  (assert (consp longest) nil "Org-X repeat longest must be a cons")
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 2 repeat) longest)
+      (org-x-scheduled-set-repeat entry (list repeat nil nil)
+				  no-overwrite propagate))))
+(defun org-x-scheduled-clear-repeat-longest (entry &optional propagate)
+  (let ((repeat (org-x-scheduled-repeat entry)))
+    (if repeat
+	(setcar (nthcdr 2 repeat) nil))))
 
 ;;; Entry property setters:
 
@@ -559,11 +677,10 @@ the majority of dispatch API functions.")
 		       (intern (concat "log-set-" (symbol-name symbol)))
 		       data)))
 
-(defun org-x-log-eraser (log-entry symbol &optional no-overwrite propagate)
+(defun org-x-log-eraser (log-entry symbol &optional propagate)
   (let ((cell (assq symbol log-entry)))
-    (unless (and (cdr cell) no-overwrite)
-      (if cell
-	  (setcdr log-entry (delq cell (cdr log-entry))))))
+    (if cell
+	(setcdr log-entry (delq cell (cdr log-entry)))))
   (if propagate
       ;; jww (2011-08-07): Should I propagate log-entry changes?
       (org-x-propagate log-entry
@@ -682,12 +799,10 @@ the majority of dispatch API functions.")
 		       (intern (concat "logbook-set-" (symbol-name symbol)))
 		       data)))
 
-(defun org-x-logbook-eraser (logbook-entry symbol
-					   &optional no-overwrite propagate)
+(defun org-x-logbook-eraser (logbook-entry symbol &optional propagate)
   (let ((cell (assq symbol logbook-entry)))
-    (unless (and (cdr cell) no-overwrite)
-      (if cell
-	  (setcdr logbook-entry (delq cell (cdr logbook-entry))))))
+    (if cell
+	(setcdr logbook-entry (delq cell (cdr logbook-entry)))))
   (if propagate
       ;; jww (2011-08-07): Should I propagate logbook-entry changes?
       (org-x-propagate logbook-entry

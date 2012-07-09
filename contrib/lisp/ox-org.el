@@ -89,9 +89,114 @@
 
 ;;; Org parser:
 
-(defvar org-x-org-repeat-regexp
-  (concat "<\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [A-Za-z]+\\)"
-	  "\\s-*\\(\\.?[-+]?[0-9]+[dwmy]\\(/[0-9]+[dwmy]\\)?\\)?"))
+(defvar org-x-org-time-regexp
+  (concat
+   "\\([[<]\\)\\([0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9] [A-Za-z]+\\)"
+   "\\(?:\\s-*\\([09:]+-\\)\\(?:-\\([0-9:]+\\)\\)?\\)?"
+   "\\(?:\\s-*\\(\\.?[-+]\\)\\([0-9]+[dwmy]\\)\\(/[0-9]+[dwmy]\\)?\\)?[]>]"))
+
+(defconst org-x-time-re-kind	     1)
+(defconst org-x-time-re-date	     2)
+(defconst org-x-time-re-start-time   3)
+(defconst org-x-time-re-end-time     4)
+(defconst org-x-time-re-repeat-type  5)
+(defconst org-x-time-re-repeat-first 6)
+(defconst org-x-time-re-repeat-rest  7)
+
+(defvar org-x-repeat-increments
+  '(("h" . hour) ("d" . day) ("m" . month) ("y" . year)))
+
+(defun org-x-parse-repeater (repeater)
+  (if (and repeater
+	   (string-match "\\([0-9]+\\)\\([hdwmy]\\)" repeater))
+      (cons (string-to-number (match-string 1 repeater))
+	    (cdr (assoc (match-string 2 repeater)
+			org-x-repeat-increments)))))
+
+(defun org-x-parse-timestamp ()
+  "Parse a timestamp, such as <2012-07-12 Thu .+1m>.
+This function expects point to be at the opening <, and will move
+point beyond the end of the while timestamp."
+  (let (kind begin end repeat)
+    (when (looking-at org-x-org-time-regexp)
+      (goto-char (match-end 0))
+      (let ((date
+	     (match-string-no-properties org-x-time-re-date))
+	    (start-time
+	     (match-string-no-properties org-x-time-re-start-time))
+	    (end-time
+	     (match-string-no-properties org-x-time-re-end-time))
+	    (repeat-type
+	     (match-string-no-properties org-x-time-re-repeat-type))
+	    (repeat-first
+	     (match-string-no-properties org-x-time-re-repeat-first))
+	    (repeat-rest
+	     (match-string-no-properties org-x-time-re-repeat-rest)))
+
+	(setq kind (if (string= "<" (match-string org-x-time-re-kind))
+		       'active 'inactive)
+	      begin
+	      (if start-time
+		  (cons 'datetime
+			(org-parse-time-string (concat date " " start-time)))
+		(cons 'date (org-parse-time-string date))))
+
+	(if end-time
+	    (setq end
+		  (cons 'datetime
+			(org-parse-time-string (concat date " " end-time)))))
+
+	(setq repeat (list repeat-type
+			   (org-x-parse-repeater repeat-first)
+			   (org-x-parse-repeater repeat-rest)))))
+
+    (when (looking-at "--")
+      (forward-char 2)
+
+      (when (looking-at org-x-org-time-regexp)
+	(goto-char (match-end 0))
+	(let ((date
+	       (match-string-no-properties org-x-time-re-date))
+	      (start-time
+	       (match-string-no-properties org-x-time-re-start-time))
+	      (end-time
+	       (match-string-no-properties org-x-time-re-end-time))
+	      ;; (repeat-type
+	      ;;  (match-string-no-properties org-x-time-re-repeat-type))
+	      ;; (repeat-first
+	      ;;  (match-string-no-properties org-x-time-re-repeat-first))
+	      ;; (repeat-rest
+	      ;;  (match-string-no-properties org-x-time-re-repeat-rest)))
+	      )
+	  (setq end
+		(if (or end-time start-time)
+		    (cons 'datetime
+			  (org-parse-time-string
+			   (concat date " " (or end-time start-time))))
+		  (cons 'date (org-parse-time-string date)))))))
+
+    (list begin end repeat)))
+
+(ert-deftest oxt-parse-times ()
+  ;; <2012-07-09 Mon>
+  ;; <2012-07-09 Mon 12:00>
+  ;; <2012-07-09 Mon 12:00-14:00>
+  ;; <2012-07-09 Mon +1d>
+  ;; <2012-07-09 Mon 12:00 +1d>
+  ;; <2012-07-09 Mon 12:00-14:00 +1d>
+  ;; <2012-07-09 Mon -1d>
+  ;; <2012-07-09 Mon 12:00 -1d>
+  ;; <2012-07-09 Mon 12:00-14:00 -1d>
+  ;; <2012-07-09 Mon .+1d>
+  ;; <2012-07-09 Mon 12:00 .+1d>
+  ;; <2012-07-09 Mon 12:00-14:00 .+1d>
+  ;; <2012-07-09 Mon +1d/3d>
+  ;; <2012-07-09 Mon 12:00 +1d/3d>
+  ;; <2012-07-09 Mon 12:00-14:00 +1d/3d>
+  ;; <2012-07-09 Mon .+1d/3d>
+  ;; <2012-07-09 Mon 12:00 .+1d/3d>
+  ;; <2012-07-09 Mon 12:00-14:00 .+1d/3d>
+  (should (equal t t)))
 
 (defsubst org-x-narrow-to-entry ()
   (outline-back-to-heading)
@@ -206,25 +311,26 @@
 	     (t
 	      (let (skip-line)
 		(goto-char (line-beginning-position))
-		(when (re-search-forward (concat "SCHEDULED:\\s-*"
-						 org-x-org-repeat-regexp)
+		(when (re-search-forward "SCHEDULED:\\s-*"
 					 (line-end-position) t)
-		  (org-x-set-scheduled entry
-				       (apply 'encode-time
-					      (save-match-data
-						(org-parse-time-string
-						 (match-string 1)))))
-		  (if (match-string 2)
-		      (org-x-set-scheduled-time
-		       entry (substring (match-string-no-properties 2) 1)))
-		  (if (match-string 3)
-		      (org-x-set-scheduled-repeat
-		       entry (substring (match-string-no-properties 3) 1)))
-		  (setq skip-line t))
+		  (destructuring-bind (begin end repeat)
+		      (org-x-parse-timestamp)
+		    (org-x-set-scheduled entry
+					 (apply 'encode-time
+						(save-match-data
+						  (org-parse-time-string
+						   (match-string 1)))))
+		    (if (match-string 2)
+			(org-x-set-scheduled-time
+			 entry (substring (match-string-no-properties 2) 1)))
+		    (if (match-string 3)
+			(org-x-set-scheduled-repeat
+			 entry (substring (match-string-no-properties 3) 1)))
+		    (setq skip-line t)))
 
 		(goto-char (line-beginning-position))
 		(when (re-search-forward (concat "DEADLINE:\\s-*"
-						 org-x-org-repeat-regexp)
+						 org-x-org-time-regexp)
 					 (line-end-position) t)
 		  (org-x-set-deadline entry
 				      (apply 'encode-time
@@ -306,12 +412,15 @@
 		      time))
 
 (defun org-x-times-to-string (times &optional repeat)
-  (insert "SCHEDULED: <" (time-to-org-timestamp scheduled))
-  (if scheduled-time
-      (insert " " scheduled-time))
-  (if scheduled-repeat
-      (insert " " scheduled-repeat))
-  (insert ">"))
+  (with-temp-buffer
+    (let ((beg (car times))
+	  (end (cdr times)))
+      (insert "<" (time-to-org-timestamp beg))
+      (if scheduled-time
+	  (insert " " scheduled-time))
+      (if scheduled-repeat
+	  (insert " " scheduled-repeat))
+      (insert ">"))))
 
 (defun org-x-insert-entry (entry)
   (let ((depth (or (org-x-depth entry)
@@ -352,15 +461,9 @@
 	    (insert "SCHEDULED: "
 		    (org-x-times-to-string scheduled-time scheduled-repeat)))
 
-	(when deadline
-	  (if scheduled
-	      (insert ? ))
-	  (insert "DEADLINE: <" (time-to-org-timestamp deadline))
-	  (if deadline-time
-	      (insert " " deadline-time))
-	  (if deadline-repeat
-	      (insert " " deadline-repeat))
-	  (insert ">"))
+	(if deadline
+	    (insert (if scheduled " " "") "DEADLINE: "
+		    (org-x-times-to-string deadline-time deadline-repeat)))
 
 	(insert ?\n)))
 
