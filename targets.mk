@@ -24,12 +24,15 @@ endif
 
 .PHONY:	all oldorg update update2 up0 up1 up2 compile $(SUBDIRS) \
 	check test install info html pdf card doc docs $(INSTSUB) \
-	autoloads cleanall clean cleancontrib cleanutils cleanrel clean-install \
-	cleanelc cleandirs cleanlisp cleandoc cleandocs cleantest \
+	autoloads cleanall clean \
+	cleancontrib cleantesting cleanutils
+	cleanrel clean-install cleanelc cleandirs \
+	cleanlisp cleandoc cleandocs cleantest \
 	compile compile-dirty uncompiled \
 	config config-test config-exe config-all config-eol
 
-CONF_BASE = EMACS lispdir infodir datadir testdir
+CONF_BASE = EMACS DESTDIR
+CONF_DEST = lispdir infodir datadir testdir
 CONF_TEST = BTEST_PRE BTEST_POST BTEST_OB_LANGUAGES BTEST_EXTRA
 CONF_EXEC = CP MKDIR RM RMR FIND SUDO PDFTEX TEXI2PDF TEXI2HTML MAKEINFO INSTALL_INFO
 CONF_CALL = BATCH BATCHL ELCDIR BTEST MAKE_LOCAL_MK MAKE_ORG_INSTALL MAKE_ORG_VERSION
@@ -39,6 +42,7 @@ config config-all::
 	$(info )
 	$(info ========= Emacs executable and Installation paths)
 	$(foreach var,$(CONF_BASE),$(info $(var)	= $($(var))$(EOL)))
+	$(foreach var,$(CONF_DEST),$(info $(var)	= $(DESTDIR)$($(var))$(EOL)))
 config-test config-all::
 	$(info )
 	$(info ========= Test configuration)
@@ -114,11 +118,14 @@ clean:	cleanrel
 	$(MAKE) -C lisp clean
 	$(MAKE) -C doc clean
 
-cleanall: cleandirs cleantest cleancontrib cleanutils
+cleanall: cleandirs cleantest cleancontrib cleantesting cleanutils
 	-$(FIND) . -name \*~ -o -name \*# -o -name .#\* -exec $(RM) {} \;
 
 cleancontrib:
 	-$(FIND) contrib -name \*~ -o -name \*.elc -exec $(RM) {} \;
+
+cleantesting:
+	-$(FIND) testing -name \*~ -o -name \*.elc -exec $(RM) {} \;
 
 cleanutils:
 	-$(FIND) UTILITIES -name \*~ -o -name \*.elc -exec $(RM) {} \;

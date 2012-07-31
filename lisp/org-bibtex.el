@@ -309,14 +309,15 @@ This variable is relevant only if `org-bibtex-export-tags-as-keywords` is t."
 
 (defun org-bibtex-headline ()
   "Return a bibtex entry of the given headline as a string."
-  (flet ((val (key lst) (cdr (assoc key lst)))
-         (to (string) (intern (concat ":" string)))
-         (from (key) (substring (symbol-name key) 1))
-         (flatten (&rest lsts)
-                  (apply #'append (mapcar
-                                   (lambda (e)
-                                     (if (listp e) (apply #'flatten e) (list e)))
-                                   lsts))))
+  (org-labels
+   ((val (key lst) (cdr (assoc key lst)))
+    (to (string) (intern (concat ":" string)))
+    (from (key) (substring (symbol-name key) 1))
+    (flatten (&rest lsts)
+	     (apply #'append (mapcar
+			      (lambda (e)
+				(if (listp e) (apply #'flatten e) (list e)))
+			      lsts))))
     (let ((notes (buffer-string))
           (id (org-bibtex-get org-bibtex-key-property))
           (type (org-bibtex-get org-bibtex-type-property-name))
@@ -385,7 +386,7 @@ This variable is relevant only if `org-bibtex-export-tags-as-keywords` is t."
        (read-from-minibuffer (format "%s: " name))))))
 
 (defun org-bibtex-autokey ()
-  "Generate an autokey for the current headline"
+  "Generate an autokey for the current headline."
   (org-bibtex-put org-bibtex-key-property
                   (if org-bibtex-autogen-keys
                       (let* ((entry (org-bibtex-headline))
@@ -406,7 +407,7 @@ This variable is relevant only if `org-bibtex-export-tags-as-keywords` is t."
 (defun org-bibtex-fleshout (type &optional optional)
   "Fleshout the current heading, ensuring that all required fields are present.
 With optional argument OPTIONAL, also prompt for optional fields."
-  (flet ((val (key lst) (cdr (assoc key lst)))
+  (org-flet ((val (key lst) (cdr (assoc key lst)))
 	 (keyword (name) (intern (concat ":" (downcase name))))
          (name (keyword) (substring (symbol-name keyword) 1)))
     (dolist (field (append
@@ -600,7 +601,7 @@ With a prefix arg, query for optional fields."
   "Read a bibtex entry and save to `org-bibtex-entries'.
 This uses `bibtex-parse-entry'."
   (interactive)
-  (flet ((keyword (str) (intern (concat ":" (downcase str))))
+  (org-flet ((keyword (str) (intern (concat ":" (downcase str))))
          (clean-space (str) (replace-regexp-in-string
                              "[[:space:]\n\r]+" " " str))
          (strip-delim (str)	     ; strip enclosing "..." and {...}
@@ -626,7 +627,7 @@ This uses `bibtex-parse-entry'."
     (error "No entries in `org-bibtex-entries'."))
   (let ((entry (pop org-bibtex-entries))
 	(org-special-properties nil)) ; avoids errors with `org-entry-put'
-    (flet ((val (field) (cdr (assoc field entry)))
+    (org-flet ((val (field) (cdr (assoc field entry)))
 	   (togtag (tag) (org-toggle-tag tag 'on)))
       (org-insert-heading)
       (insert (val :title))

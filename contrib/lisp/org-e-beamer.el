@@ -256,6 +256,7 @@ brackets.  Return overlay specification, as a string, or nil."
 ;;; Define Back-End
 
 (org-export-define-derived-backend e-beamer e-latex
+  :export-block "BEAMER"
   :options-alist
   ((:beamer-theme "BEAMER_THEME" nil org-e-beamer-theme)
    (:beamer-color-theme "BEAMER_COLOR_THEME" nil nil t)
@@ -312,7 +313,7 @@ channel."
     (cond ((eq backend 'e-latex) value)
 	  ;; Ignore "e-beamer" snippets specifying overlays.
 	  ((and (eq backend 'e-beamer)
-		(or (org-export-get-previous-element export-snippet)
+		(or (org-export-get-previous-element export-snippet info)
 		    (not (string-match "\\`<.*>\\'" value))))
 	   value))))
 
@@ -456,18 +457,18 @@ used as a communication channel."
 	 ;; a BEAMER_column property.
 	 (start-columns-p
 	  (and column-width
-	       (or (org-export-first-sibling-p headline)
+	       (or (org-export-first-sibling-p headline info)
 		   (not (org-element-property
 			 :beamer-col
-			 (org-export-get-previous-element headline))))))
+			 (org-export-get-previous-element headline info))))))
 	 ;; Ends a columns environment when there is no next headline
 	 ;; or the next headline do not have a BEAMER_column property.
 	 (end-columns-p
 	  (and column-width
-	       (or (org-export-last-sibling-p headline)
+	       (or (org-export-last-sibling-p headline info)
 		   (not (org-element-property
 			 :beamer-col
-			 (org-export-get-next-element headline)))))))
+			 (org-export-get-next-element headline info)))))))
     (concat
      (when start-columns-p "\\begin{columns}\n")
      (when column-width
@@ -894,7 +895,7 @@ value."
 ;;;###autoload
 (defun org-e-beamer-export-as-latex
   (&optional subtreep visible-only body-only ext-plist)
-  "Export current buffer as a Beamer presentation.
+  "Export current buffer as a Beamer buffer.
 
 If narrowing is active in the current buffer, only export its
 narrowed part.
@@ -915,9 +916,9 @@ EXT-PLIST, when provided, is a property list with external
 parameters overriding Org default settings, but still inferior to
 file-local settings.
 
-Export is done in a buffer named \"*Org E-BEAMER Export*\".  It
-will be displayed if `org-export-show-temporary-export-buffer' is
-non-nil."
+Export is done in a buffer named \"*Org E-BEAMER Export*\", which
+will be displayed when `org-export-show-temporary-export-buffer'
+is non-nil."
   (interactive)
   (let ((outbuf (org-export-to-buffer
 		 'e-beamer "*Org E-BEAMER Export*"
@@ -962,7 +963,7 @@ Return output file's name."
 ;;;###autoload
 (defun org-e-beamer-export-to-pdf
   (&optional subtreep visible-only body-only ext-plist pub-dir)
-  "Export current buffer as a BEAMER presentation (pdf).
+  "Export current buffer as a Beamer presentation (PDF).
 
 If narrowing is active in the current buffer, only export its
 narrowed part.
@@ -1018,7 +1019,7 @@ aid, but the tag does not have any semantic meaning."
     (org-set-tags)
     (let ((tags (or (ignore-errors (org-get-tags-string)) "")))
       (cond
-       ((equal org-last-tag-selection-key ?|)
+       ((eq org-last-tag-selection-key ?|)
 	(if (string-match ":BMCOL:" tags)
 	    (org-set-property "BEAMER_col" (read-string "Column width: "))
 	  (org-delete-property "BEAMER_col")))

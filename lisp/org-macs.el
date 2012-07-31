@@ -58,7 +58,8 @@
      (if (or (> emacs-major-version 23)
 	     (and (>= emacs-major-version 23)
 		  (>= emacs-minor-version 2)))
-	 `(with-no-warnings (called-interactively-p ,kind)) ;; defined with no argument in <=23.1
+	 ;; defined with no argument in <=23.1
+	 `(with-no-warnings (called-interactively-p ,kind))
        `(interactive-p))))
 (def-edebug-spec org-called-interactively-p (&optional ("quote" symbolp)))
 
@@ -375,7 +376,7 @@ point nowhere."
   `(let* ((org-called-with-limited-levels t)
 	  (org-outline-regexp (org-get-limited-outline-regexp))
 	  (outline-regexp org-outline-regexp)
-	  (org-outline-regexp-at-bol (concat "^" org-outline-regexp)))
+	  (org-outline-regexp-bol (concat "^" org-outline-regexp)))
      ,@body))
 (def-edebug-spec org-with-limited-levels (body))
 
@@ -392,7 +393,7 @@ The number of levels is controlled by `org-inlinetask-min-level'"
       (format "\\*\\{1,%d\\} " nstars))))
 
 (defun org-format-seconds (string seconds)
-  "Compatibility function replacing format-seconds"
+  "Compatibility function replacing format-seconds."
   (if (fboundp 'format-seconds)
       (format-seconds string seconds)
     (format-time-string string (seconds-to-time seconds))))

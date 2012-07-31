@@ -91,7 +91,9 @@ The return value is a string naming the thing at point."
 	   (save-excursion
 	     (move-beginning-of-line 1)
 	     (skip-chars-backward "[ \t\n]")
-	     (or (looking-back org-drawer-regexp)
+	     ;; org-drawer-regexp matches a whole line but while
+	     ;; looking-back, we just ignore trailing whitespaces
+	     (or (looking-back (substring org-drawer-regexp 0 -1))
 		 (looking-back org-property-re))))
       (cons "prop" nil))
      ((and (equal (char-before beg1) ?:)
@@ -148,14 +150,8 @@ When completing for #+STARTUP, for example, this function returns
 	      (if (= ?: (aref x (1- (length x))))
 		  (concat x " ")
 		x))
-	    (delq nil
-		  (pcomplete-uniqify-list
-		   (append
-		    (mapcar (lambda (x)
-			      (if (string-match "^#\\+\\([A-Z_]+:?\\)" x)
-				  (match-string 1 x)))
-			    (org-split-string (org-get-current-options) "\n"))
-		    (copy-sequence org-additional-option-like-keywords))))))
+	    (append org-options-keywords
+		    org-additional-option-like-keywords)))
    (substring pcomplete-stub 2)))
 
 (defvar org-startup-options)
@@ -173,7 +169,7 @@ When completing for #+STARTUP, for example, this function returns
 	    opts))))
 
 (defun pcomplete/org-mode/file-option/bind ()
-  "Complete arguments for the #+BIND file option, which are variable names"
+  "Complete arguments for the #+BIND file option, which are variable names."
   (let (vars)
     (mapatoms
      (lambda (a) (if (boundp a) (setq vars (cons (symbol-name a) vars)))))
@@ -286,7 +282,7 @@ Complete a language in the first field, the header arguments and switches."
 	    ":session" ":shebang" ":tangle" ":var"))))
 
 (defun pcomplete/org-mode/block-option/clocktable ()
-  "Complete keywords in a clocktable line"
+  "Complete keywords in a clocktable line."
   (while (pcomplete-here '(":maxlevel" ":scope"
 			   ":tstart" ":tend" ":block" ":step"
 			   ":stepskip0" ":fileskip0"

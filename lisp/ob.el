@@ -28,6 +28,10 @@
 (require 'ob-eval)
 (require 'org-macs)
 
+(defconst org-babel-exeext
+  (if (memq system-type '(windows-nt cygwin))
+      ".exe"
+    nil))
 (defvar org-babel-call-process-region-original)
 (defvar org-src-lang-modes)
 (defvar org-babel-library-of-babel)
@@ -285,15 +289,18 @@ of potentially harmful code."
   (let* ((eval (or (cdr (assoc :eval (nth 2 info)))
 		   (when (assoc :noeval (nth 2 info)) "no")))
          (query (cond ((equal eval "query") t)
-		      ((and org-current-export-file
+		      ((and (boundp 'org-current-export-file)
+			    org-current-export-file
 			    (equal eval "query-export")) t)
                       ((functionp org-confirm-babel-evaluate)
                        (funcall org-confirm-babel-evaluate
                                 (nth 0 info) (nth 1 info)))
                       (t org-confirm-babel-evaluate))))
     (if (or (equal eval "never") (equal eval "no")
-	    (and org-current-export-file (or (equal eval "no-export")
-					     (equal eval "never-export")))
+	    (and (boundp 'org-current-export-file)
+		 org-current-export-file
+		 (or (equal eval "no-export")
+		     (equal eval "never-export")))
 	    (and query
 		 (not (yes-or-no-p
 		       (format "Evaluate this%scode block%son your system? "
@@ -337,7 +344,7 @@ This includes header arguments, language and name, and is largely
 a window into the `org-babel-get-src-block-info' function."
   (interactive)
   (let ((info (org-babel-get-src-block-info 'light)))
-    (flet ((full (it) (> (length it) 0))
+    (org-flet ((full (it) (> (length it) 0))
 	   (printf (fmt &rest args) (princ (apply #'format fmt args))))
       (when info
 	(with-help-window (help-buffer)
@@ -533,9 +540,9 @@ block."
 	     (indent (car (last info)))
 	     result cmd)
 	(unwind-protect
-	    (flet ((call-process-region (&rest args)
+	    (org-flet ((call-process-region (&rest args)
 		    (apply 'org-babel-tramp-handle-call-process-region args)))
-	      (flet ((lang-check (f)
+	      (org-flet ((lang-check (f)
 		       (let ((f (intern (concat "org-babel-execute:" f))))
 			 (when (fboundp f) f))))
 		(setq cmd
@@ -613,9 +620,9 @@ arguments and pop open the results in a preview buffer."
   "Return the edit (levenshtein) distance between strings S1 S2."
   (let* ((l1 (length s1))
 	 (l2 (length s2))
-	 (dist (map 'vector (lambda (_) (make-vector (1+ l2) nil))
-		    (number-sequence 1 (1+ l1)))))
-    (flet ((in (i j) (aref (aref dist i) j))
+	 (dist (vconcat (mapcar (lambda (_) (make-vector (1+ l2) nil))
+				(number-sequence 1 (1+ l1))))))
+    (org-flet ((in (i j) (aref (aref dist i) j))
 	   (mmin (&rest lst) (apply #'min (remove nil lst))))
       (setf (aref (aref dist 0) 0) 0)
       (dolist (i (number-sequence 1 l1))
@@ -786,7 +793,7 @@ with a prefix argument then this is passed on to
 (defun org-babel-switch-to-session-with-code (&optional arg info)
   "Switch to code buffer and display session."
   (interactive "P")
-  (flet ((swap-windows
+  (org-flet ((swap-windows
 	  ()
 	  (let ((other-window-buffer (window-buffer (next-window))))
 	    (set-window-buffer (next-window) (current-buffer))
@@ -814,9 +821,9 @@ Return t if a code block was found at point, nil otherwise."
 (defun org-babel-do-key-sequence-in-edit-buffer (key)
   "Read key sequence and execute the command in edit buffer.
 Enter a key sequence to be executed in the language major-mode
-edit buffer. For example, TAB will alter the contents of the
+edit buffer.  For example, TAB will alter the contents of the
 Org-mode code block according to the effect of TAB in the
-language major-mode buffer. For languages that support
+language major-mode buffer.  For languages that support
 interactive sessions, this can be used to send code from the Org
 buffer to the session for evaluation using the native major-mode
 evaluation mechanisms."
@@ -1014,7 +1021,7 @@ the current subtree."
     (setf (nth 2 info)
 	  (sort (copy-sequence (nth 2 info))
 		(lambda (a b) (string< (car a) (car b)))))
-    (labels ((rm (lst)
+    (org-labels ((rm (lst)
 		 (dolist (p '("replace" "silent" "append" "prepend"))
 		   (setq lst (remove p lst)))
 		 lst)
@@ -1261,7 +1268,7 @@ ALTS is a cons of two character options where each option may be
 either the numeric code of a single character or a list of
 character alternatives.  For example to split on balanced
 instances of \"[ \t]:\" set ALTS to '((32 9) . 58)."
-  (flet ((matches (ch spec) (if (listp spec) (member ch spec) (equal spec ch)))
+  (org-flet ((matches (ch spec) (if (listp spec) (member ch spec) (equal spec ch)))
 	 (matched (ch last)
 		  (if (consp alts)
 		      (and (matches ch (cdr alts))
@@ -1289,7 +1296,7 @@ instances of \"[ \t]:\" set ALTS to '((32 9) . 58)."
 
 (defun org-babel-join-splits-near-ch (ch list)
   "Join splits where \"=\" is on either end of the split."
-  (flet ((last= (str) (= ch (aref str (1- (length str)))))
+  (org-flet ((last= (str) (= ch (aref str (1- (length str)))))
          (first= (str) (= ch (aref str 0))))
     (reverse
      (org-reduce (lambda (acc el)
@@ -1386,7 +1393,7 @@ names."
 Return a cons cell, the `car' of which contains the TABLE less
 colnames, and the `cdr' of which contains a list of the column
 names.  Note: this function removes any hlines in TABLE."
-  (flet ((trans (table) (apply #'mapcar* #'list table)))
+  (org-flet ((trans (table) (apply #'mapcar* #'list table)))
     (let* ((width (apply 'max
 			 (mapcar (lambda (el) (if (listp el) (length el) 0)) table)))
            (table (trans (mapcar (lambda (row)
@@ -1629,7 +1636,7 @@ With optional prefix argument ARG, jump backward ARG many source blocks."
 
 ;;;###autoload
 (defun org-babel-mark-block ()
-  "Mark current src block"
+  "Mark current src block."
   (interactive)
   ((lambda (head)
      (when head
@@ -1823,7 +1830,7 @@ If the path of the link is a file path it is expanded using
 
 (defun org-babel-format-result (result &optional sep)
   "Format RESULT for writing to file."
-  (flet ((echo-res (result)
+  (org-flet ((echo-res (result)
 		   (if (stringp result) result (format "%S" result))))
     (if (listp result)
 	;; table result
@@ -1930,7 +1937,7 @@ code ---- the results are extracted in the syntax of the source
 	   ((member "prepend" result-params)))) ; already there
 	(setq results-switches
 	      (if results-switches (concat " " results-switches) ""))
-	(flet ((wrap (start finish)
+	(org-flet ((wrap (start finish)
 		     (goto-char end) (insert (concat finish "\n"))
 		     (goto-char beg) (insert (concat start "\n"))
 		     (goto-char end) (goto-char (point-at-eol))
@@ -2014,7 +2021,7 @@ code ---- the results are extracted in the syntax of the source
         (delete-region start (org-babel-result-end))))))
 
 (defun org-babel-result-end ()
-  "Return the point at the end of the current set of results"
+  "Return the point at the end of the current set of results."
   (save-excursion
     (cond
      ((org-at-table-p) (progn (goto-char (org-table-end)) (point)))
@@ -2055,7 +2062,7 @@ file's directory then expand relative links."
 (defun org-babel-examplize-region (beg end &optional results-switches)
   "Comment out region using the inline '==' or ': ' org example quote."
   (interactive "*r")
-  (flet ((chars-between (b e)
+  (org-flet ((chars-between (b e)
 			(not (string-match "^[\\s]*$" (buffer-substring b e))))
 	 (maybe-cap (str) (if org-babel-capitalize-examplize-region-markers
 			      (upcase str) str)))
@@ -2103,7 +2110,7 @@ parameters when merging lists."
 		 (cdr (assoc 'exports org-babel-common-header-args-w-values))))
 	(variable-index 0)
 	params results exports tangle noweb cache vars shebang comments padline)
-    (flet ((e-merge (exclusive-groups &rest result-params)
+    (org-flet ((e-merge (exclusive-groups &rest result-params)
              ;; maintain exclusivity of mutually exclusive parameters
              (let (output)
                (mapc (lambda (new-params)
@@ -2215,11 +2222,11 @@ header argument from buffer or subtree wide properties.")
 (defun org-babel-noweb-p (params context)
   "Check if PARAMS require expansion in CONTEXT.
 CONTEXT may be one of :tangle, :export or :eval."
-  (flet ((intersect (as bs)
-		       (when as
-			 (if (member (car as) bs)
-			     (car as)
-			   (intersect (cdr as) bs)))))
+  (org-labels ((intersect (as bs)
+			  (when as
+			    (if (member (car as) bs)
+				(car as)
+			      (intersect (cdr as) bs)))))
     (intersect (case context
                     (:tangle '("yes" "tangle" "no-export" "strip-export"))
                     (:eval   '("yes" "no-export" "strip-export" "eval"))
@@ -2264,7 +2271,7 @@ block but are passed literally to the \"example-block\"."
 	 (rx-prefix (concat "\\(" org-babel-src-name-regexp "\\|"
 			    ":noweb-ref[ \t]+" "\\)"))
          (new-body "") index source-name evaluate prefix blocks-in-buffer)
-    (flet ((nb-add (text) (setq new-body (concat new-body text)))
+    (org-flet ((nb-add (text) (setq new-body (concat new-body text)))
 	   (c-wrap (text)
 		   (with-temp-buffer
 		     (funcall (intern (concat lang "-mode")))

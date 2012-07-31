@@ -28,18 +28,14 @@ syntax."
 	      (dolist (type (append org-element-all-elements
 				    org-element-all-objects)
 			    transcode-table)
-		(push (cons type (intern (format "org-%s-%s" backend type)))
-		      transcode-table)))))
-     (flet ,(let (transcoders)
-	      (dolist (type (append org-element-all-elements
-				    org-element-all-objects)
-			    transcoders)
-		(push `(,(intern (format "org-%s-%s" backend type))
-			(obj contents info)
-			(,(intern (format "org-element-%s-interpreter" type))
-			 obj contents))
-		      transcoders)))
-       ,@body)))
+		(push
+		 (cons type
+		       (lambda (obj contents info)
+			 (funcall
+			  (intern (format "org-element-%s-interpreter" type))
+			  obj contents)))
+		 transcode-table)))))
+     (progn ,@body)))
 
 (defmacro org-test-with-parsed-data (data &rest body)
   "Execute body with parsed data available.
@@ -67,7 +63,7 @@ already filled in `info'."
   "Test reading all standard #+OPTIONS: items."
   (should
    (equal
-    (org-export-parse-option-keyword
+    (org-export--parse-option-keyword
      "H:1 num:t \\n:t timestamp:t arch:t author:t creator:t d:t email:t
  *:t e:t ::t f:t pri:t -:t ^:t toc:t |:t tags:t tasks:t <:t todo:t")
     '(:headline-levels
@@ -80,7 +76,7 @@ already filled in `info'."
   ;; Test some special values.
   (should
    (equal
-    (org-export-parse-option-keyword
+    (org-export--parse-option-keyword
      "arch:headline creator:comment d:(\"TEST\")
  ^:{} toc:1 tags:not-in-toc tasks:todo num:2 <:active")
     '( :section-numbers
@@ -105,7 +101,7 @@ already filled in `info'."
 #+SELECT_TAGS: export
 #+TITLE: Some title
 #+TITLE: with spaces"
-      (org-export-get-inbuffer-options))
+      (org-export--get-inbuffer-options))
     '(:author
       ("Me, Myself and I") :creator "Idem" :date ("Today")
       :description "Testing\nwith two lines" :email "some@email.org"
@@ -136,7 +132,7 @@ Paragraph"
     (forward-line)
     (should
      (= 2 (plist-get (org-export-get-environment nil t) :headline-levels))))
-  ;; EXPORT DATE.
+  ;; EXPORT_DATE.
   (org-test-with-temp-text "#+DATE: today
 * Headline
   :PROPERTIES:
@@ -144,6 +140,14 @@ Paragraph"
   :END:
 Paragraph"
     (forward-line)
+    (should (equal (plist-get (org-export-get-environment nil t) :date)
+		   '("29-03-2012"))))
+  ;; Export properties are case-insensitive.
+  (org-test-with-temp-text "* Headline
+  :PROPERTIES:
+  :EXPORT_Date: 29-03-2012
+  :END:
+Paragraph"
     (should (equal (plist-get (org-export-get-environment nil t) :date)
 		   '("29-03-2012")))))
 
@@ -392,22 +396,6 @@ body\n")))
 		    (delete-region (point) (progn (forward-line) (point)))))))))
 	(should (equal (org-export-as 'test) "Body 1\nBody 2\n"))))))
 
-(ert-deftest test-org-export/set-element ()
-  "Test `org-export-set-element' specifications."
-  (org-test-with-parsed-data "* Headline\n*a*"
-    (org-export-set-element
-     (org-element-map tree 'bold 'identity nil t)
-     '(italic nil "b"))
-    ;; Check if object is correctly replaced.
-    (should (org-element-map tree 'italic 'identity))
-    (should-not (org-element-map tree 'bold 'identity))
-    ;; Check if new object's parent is correctly set.
-    (should
-     (equal
-      (org-element-property :parent
-			    (org-element-map tree 'italic 'identity nil t))
-      (org-element-map tree 'paragraph 'identity nil t)))))
-
 
 
 ;;; Affiliated Keywords
@@ -420,13 +408,13 @@ body\n")))
     (org-export-read-attribute
      :attr_html
      (org-test-with-temp-text "#+ATTR_HTML: :a 1 :b 2\nParagraph"
-       (org-element-current-element)))
+       (org-element-at-point)))
     '(:a 1 :b 2)))
   ;; Return nil on empty attribute.
   (should-not
    (org-export-read-attribute
     :attr_html
-    (org-test-with-temp-text "Paragraph" (org-element-current-element)))))
+    (org-test-with-temp-text "Paragraph" (org-element-at-point)))))
 
 
 
@@ -436,10 +424,12 @@ body\n")))
   "Test export snippets transcoding."
   (org-test-with-temp-text "@@test:A@@@@t:B@@"
     (org-test-with-backend test
-      (flet ((org-test-export-snippet
-	      (snippet contents info)
-	      (when (eq (org-export-snippet-backend snippet) 'test)
-		(org-element-property :value snippet))))
+      (let ((org-test-translate-alist
+	     (cons (cons 'export-snippet
+			 (lambda (snippet contents info)
+			   (when (eq (org-export-snippet-backend snippet) 'test)
+			     (org-element-property :value snippet))))
+		   org-test-translate-alist)))
 	(let ((org-export-snippet-translation-alist nil))
 	  (should (equal (org-export-as 'test) "A\n")))
 	(let ((org-export-snippet-translation-alist '(("t" . "test"))))
@@ -454,11 +444,11 @@ body\n")))
   (let ((org-footnote-section nil)
 	(org-export-with-footnotes t))
     ;; 1. Read every type of footnote.
-    (org-test-with-parsed-data
-	"Text[fn:1] [1] [fn:label:C] [fn::D]\n\n[fn:1] A\n\n[1] B"
-      (should
-       (equal
-	'((1 . "A") (2 . "B") (3 . "C") (4 . "D"))
+    (should
+     (equal
+      '((1 . "A\n") (2 . "B") (3 . "C") (4 . "D"))
+      (org-test-with-parsed-data
+	  "Text[fn:1] [1] [fn:label:C] [fn::D]\n\n[fn:1] A\n\n[1] B"
 	(org-element-map
 	 tree 'footnote-reference
 	 (lambda (ref)
@@ -506,10 +496,12 @@ body\n")))
 * Title
 Paragraph[fn:1]"
       (org-test-with-backend test
-	(flet ((org-test-footnote-reference
-		(fn-ref contents info)
-		(org-element-interpret-data
-		 (org-export-get-footnote-definition fn-ref info))))
+	(let ((org-test-translate-alist
+	       (cons (cons 'footnote-reference
+			   (lambda (fn contents info)
+			     (org-element-interpret-data
+			      (org-export-get-footnote-definition fn info))))
+		     org-test-translate-alist)))
 	  (forward-line)
 	  (should (equal "ParagraphOut of scope\n"
 			 (org-export-as 'test 'subtree))))))))
@@ -642,23 +634,47 @@ Paragraph[fn:1]"
 
 (ert-deftest test-org-export/first-sibling-p ()
   "Test `org-export-first-sibling-p' specifications."
+  ;; Standard test.
   (should
    (equal
     '(yes yes no)
-    (org-test-with-temp-text "* Headline\n** Headline 2\n** Headline 3"
+    (org-test-with-parsed-data "* Headline\n** Headline 2\n** Headline 3"
       (org-element-map
-       (org-element-parse-buffer) 'headline
-       (lambda (h) (if (org-export-first-sibling-p h) 'yes 'no)))))))
+       tree 'headline
+       (lambda (h) (if (org-export-first-sibling-p h info) 'yes 'no))
+       info))))
+  ;; Ignore headlines not exported.
+  (should
+   (equal
+    '(yes)
+    (let ((org-export-exclude-tags '("ignore")))
+      (org-test-with-parsed-data "* Headline :ignore:\n* Headline 2"
+	(org-element-map
+	 tree 'headline
+	 (lambda (h) (if (org-export-first-sibling-p h info) 'yes 'no))
+	 info))))))
 
 (ert-deftest test-org-export/last-sibling-p ()
   "Test `org-export-last-sibling-p' specifications."
+  ;; Standard test.
   (should
    (equal
     '(yes no yes)
-    (org-test-with-temp-text "* Headline\n** Headline 2\n** Headline 3"
+    (org-test-with-parsed-data "* Headline\n** Headline 2\n** Headline 3"
       (org-element-map
-       (org-element-parse-buffer) 'headline
-       (lambda (h) (if (org-export-last-sibling-p h) 'yes 'no)))))))
+       tree 'headline
+       (lambda (h) (if (org-export-last-sibling-p h info) 'yes 'no))
+       info))))
+  ;; Ignore headlines not exported.
+  (should
+   (equal
+    '(yes)
+    (let ((org-export-exclude-tags '("ignore")))
+      (org-test-with-parsed-data "* Headline\n* Headline 2 :ignore:"
+	(org-element-map
+	 tree 'headline
+	 (lambda (h) (if (org-export-last-sibling-p h info) 'yes 'no))
+	 info))))))
 
 
 
@@ -939,28 +955,28 @@ Another text. (ref:text)
   "Try defining various Org macro using in-buffer #+MACRO: keyword."
   ;; Parsed macro.
   (should (equal (org-test-with-temp-text "#+MACRO: one 1"
-		   (org-export-get-inbuffer-options))
+		   (org-export--get-inbuffer-options))
 		 '(:macro-one ("1"))))
   ;; Evaled macro.
   (should (equal (org-test-with-temp-text "#+MACRO: two (eval (+ 1 1))"
-		   (org-export-get-inbuffer-options))
+		   (org-export--get-inbuffer-options))
 		 '(:macro-two ("(eval (+ 1 1))"))))
   ;; Incomplete macro.
   (should-not (org-test-with-temp-text "#+MACRO: three"
-		(org-export-get-inbuffer-options)))
+		(org-export--get-inbuffer-options)))
   ;; Macro with newline character.
   (should (equal (org-test-with-temp-text "#+MACRO: four a\\nb"
-		   (org-export-get-inbuffer-options))
+		   (org-export--get-inbuffer-options))
 		 '(:macro-four ("a\nb"))))
   ;; Macro with protected newline character.
   (should (equal (org-test-with-temp-text "#+MACRO: five a\\\\nb"
-		   (org-export-get-inbuffer-options))
+		   (org-export--get-inbuffer-options))
 		 '(:macro-five ("a\\nb"))))
   ;; Recursive macro.
   (org-test-with-temp-text "#+MACRO: six 6\n#+MACRO: seven 1 + {{{six}}}"
     (should
      (equal
-      (org-export-get-inbuffer-options)
+      (org-export--get-inbuffer-options)
       '(:macro-six
 	("6")
 	:macro-seven
@@ -1012,17 +1028,17 @@ Another text. (ref:text)
   (let ((org-coderef-label-format "(ref:%s)"))
     ;; 1. Code without reference.
     (org-test-with-temp-text "#+BEGIN_EXAMPLE\n(+ 1 1)\n#+END_EXAMPLE"
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("(+ 1 1)\n"))))
     ;; 2. Code with reference.
     (org-test-with-temp-text
 	"#+BEGIN_EXAMPLE\n(+ 1 1) (ref:test)\n#+END_EXAMPLE"
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("(+ 1 1)\n" (1 . "test")))))
     ;; 3. Code with user-defined reference.
     (org-test-with-temp-text
 	"#+BEGIN_EXAMPLE -l \"[ref:%s]\"\n(+ 1 1) [ref:test]\n#+END_EXAMPLE"
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("(+ 1 1)\n" (1 . "test")))))
     ;; 4. Code references keys are relative to the current block.
     (org-test-with-temp-text "
@@ -1034,20 +1050,20 @@ Another text. (ref:text)
 \(+ 3 3) (ref:one)
 #+END_EXAMPLE"
       (goto-line 5)
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("(+ 2 2)\n(+ 3 3)\n" (2 . "one")))))
     ;; 5. Free up comma-protected lines.
     ;;
     ;; 5.1. In an Org source block, every line is protected.
     (org-test-with-temp-text
 	"#+BEGIN_SRC org\n,* Test\n,# comment\n,Text\n#+END_SRC"
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("* Test\n# comment\nText\n"))))
     ;; 5.2. In other blocks, only headlines, comments and keywords are
     ;;      protected.
     (org-test-with-temp-text
 	"#+BEGIN_EXAMPLE\n,* Headline\n, * Not headline\n,Keep\n#+END_EXAMPLE"
-      (should (equal (org-export-unravel-code (org-element-current-element))
+      (should (equal (org-export-unravel-code (org-element-at-point))
 		     '("* Headline\n, * Not headline\n,Keep\n"))))))
 
 
@@ -1591,6 +1607,50 @@ Another text. (ref:text)
      (org-export-table-row-ends-header-p
       (org-element-map tree 'table-row 'identity info 'first-match)
       info))))
+
+
+
+;;; Topology
+
+(ert-deftest test-org-export/get-next-element ()
+  "Test `org-export-get-next-element' specifications."
+  ;; Standard test.
+  (should
+   (equal "b"
+	  (org-test-with-parsed-data "* Headline\n*a* b"
+	    (org-export-get-next-element
+	     (org-element-map tree 'bold 'identity info t) info))))
+  ;; Return nil when no previous element.
+  (should-not
+   (org-test-with-parsed-data "* Headline\na *b*"
+     (org-export-get-next-element
+      (org-element-map tree 'bold 'identity info t) info)))
+  ;; Non-exportable elements are ignored.
+  (should-not
+   (let ((org-export-with-timestamps nil))
+     (org-test-with-parsed-data "\alpha <2012-03-29 Thu>"
+       (org-export-get-next-element
+	(org-element-map tree 'entity 'identity info t) info)))))
+
+(ert-deftest test-org-export/get-previous-element ()
+  "Test `org-export-get-previous-element' specifications."
+  ;; Standard test.
+  (should
+   (equal "a "
+	  (org-test-with-parsed-data "* Headline\na *b*"
+	    (org-export-get-previous-element
+	     (org-element-map tree 'bold 'identity info t) info))))
+  ;; Return nil when no previous element.
+  (should-not
+   (org-test-with-parsed-data "* Headline\n*a* b"
+     (org-export-get-previous-element
+      (org-element-map tree 'bold 'identity info t) info)))
+  ;; Non-exportable elements are ignored.
+  (should-not
+   (let ((org-export-with-timestamps nil))
+     (org-test-with-parsed-data "<2012-03-29 Thu> \alpha"
+       (org-export-get-previous-element
+	(org-element-map tree 'entity 'identity info t) info)))))
 
 
 (provide 'test-org-export)

@@ -235,7 +235,7 @@ are written as utf8 files."
   "Alist of LaTeX expressions to convert emphasis fontifiers.
 Each element of the list is a list of three elements.
 The first element is the character used as a marker for fontification.
-The second element is a formatting string to wrap fontified text with.
+The second element is a format string to wrap fontified text with.
 If it is \"\\verb\", Org will automatically select a delimiter
 character that is not in the string.  \"\\protectedtexttt\" will use \\texttt
 to typeset and try to protect special characters.
@@ -247,7 +247,7 @@ conversions."
 (defcustom org-export-latex-title-command "\\maketitle"
   "The command used to insert the title just after \\begin{document}.
 If this string contains the formatting specification \"%s\" then
-it will be used as a formatting string, passing the title as an
+it will be used as a format string, passing the title as an
 argument."
   :group 'org-export-latex
   :type 'string)
@@ -320,6 +320,18 @@ will be filled with the link, the second with its description."
   :group 'org-export-latex
   :version "24.1"
   :type 'string)
+
+(defcustom org-export-latex-hyperref-options-format
+  "\\hypersetup{\n  pdfkeywords={%s},\n  pdfsubject={%s},\n  pdfcreator={Emacs Org-mode version %s}}\n"
+  "A format string for hyperref options.
+When non-nil, it must contain three %s format specifications
+which will respectively be replaced by the document's keywords,
+its description and the Org's version number, as a string.  Set
+this option to the empty string if you don't want to include
+hyperref options altogether."
+  :type 'string
+  :version "24.2"
+  :group 'org-export-latex)
 
 (defcustom org-export-latex-footnote-separator "\\textsuperscript{,}\\,"
   "Text used to separate footnotes."
@@ -1524,11 +1536,10 @@ OPT-PLIST is the options plist for current buffer."
 	      (or (plist-get opt-plist :date)
 		  org-export-latex-date-format)))
      ;; add some hyperref options
-     ;; FIXME: let's have a defcustom for this?
-     (format "\\hypersetup{\n  pdfkeywords={%s},\n  pdfsubject={%s},\n  pdfcreator={%s}}\n"
+     (format org-export-latex-hyperref-options-format
          (org-export-latex-fontify-headline keywords)
          (org-export-latex-fontify-headline description)
-	 (concat "Emacs Org-mode version " (org-version)))
+	 (org-version))
      ;; beginning of the document
      "\n\\begin{document}\n\n"
      ;; insert the title command
@@ -2022,7 +2033,7 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
             (when org-table-clean-did-remove-column
 	      (pop org-table-last-alignment)
 	      (pop org-table-last-column-widths))
-            ;; make a formatting string to reflect alignment
+            ;; make a format string to reflect alignment
             (setq olines lines)
             (while (and (not line-fmt) (setq line (pop olines)))
               (unless (string-match "^[ \t]*|-" line)

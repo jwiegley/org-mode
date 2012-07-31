@@ -190,7 +190,7 @@ This option can also be set with the +OPTIONS line, e.g. \"-:nil\"."
     ("eo"  "A&#365;toro"      "Dato" "Enhavo" "Piednotoj")
     ("es" "Autor"      "Fecha" "&Iacute;ndice" "Pies de p&aacute;gina")
     ("fi" "Tekij&auml;"     "P&auml;iv&auml;m&auml;&auml;r&auml;"   "Sis&auml;llysluettelo"  "Alaviitteet")
-    ("fr" "Auteur"     "Date"  "Table des mati&egrave;res" "Notes de bas de page")
+    ("fr" "Auteur"     "Date"  "Sommaire" "Notes de bas de page")
     ("hu" "Szerz&otilde;" "D&aacute;tum" "Tartalomjegyz&eacute;k" "L&aacute;bjegyzet")
     ("is" "H&ouml;fundur" "Dagsetning" "Efnisyfirlit" "Aftanm&aacute;lsgreinar")
     ("it" "Autore"     "Data"  "Indice" "Note a pi&egrave; di pagina")
@@ -2579,7 +2579,7 @@ in the list) and remove property and value from the list in LISTVAR."
 (defvar org-export-latex-minted-options) ;; defined in org-latex.el
 
 (defun org-remove-formatting-on-newlines-in-region (beg end)
-  "Remove formatting on newline characters"
+  "Remove formatting on newline characters."
   (interactive "r")
   (save-excursion
     (goto-char beg)
@@ -2734,7 +2734,7 @@ INDENT was the original indentation of the block."
 	      (setq rtn (org-export-number-lines rtn 0 0 num cont rpllbl fmt))
 	      (cond
 	       ((and lang org-export-latex-listings)
-		(flet ((make-option-string
+		(org-flet ((make-option-string
 			(pair)
 			(concat (first pair)
 				(if (> (length (second pair)) 0)
@@ -3233,8 +3233,7 @@ Does include HTML export options as well as TODO and CATEGORY stuff."
 		  (or org-tag-alist (org-get-buffer-tags)) " ") "")
    (mapconcat 'identity org-file-tags " ")
    org-archive-location
-   "org file:~/org/%s.org"
-   ))
+   "org file:~/org/%s.org"))
 
 ;;;###autoload
 (defun org-insert-export-options-template ()

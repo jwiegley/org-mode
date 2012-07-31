@@ -110,6 +110,16 @@ any other entries, and any resulting duplicates will be removed entirely."
 	    t))
       t)))
 
+
+;;; cl macros no longer available in the trunk
+(defalias 'org-flet (if (org-version-check "24.1.50" "cl" :predicate)
+			'cl-flet*
+		      'flet))
+
+(defalias 'org-labels (if (org-version-check "24.1.50" "cl" :predicate)
+			  'cl-labels
+			'labels))
+
 ;;;; Emacs/XEmacs compatibility
 
 ;; Keys
@@ -428,7 +438,7 @@ With two arguments, return floor and remainder of their quotient."
   (let ((q (floor x y)))
     (list q (- x (if y (* y q) q)))))
 
-;; `pop-to-buffer-same-window' has been introduced with Emacs 24.1.
+;; `pop-to-buffer-same-window' has been introduced in Emacs 24.1.
 (defun org-pop-to-buffer-same-window
   (&optional buffer-or-name norecord label)
   "Pop to buffer specified by BUFFER-OR-NAME in the selected window."
@@ -436,6 +446,32 @@ With two arguments, return floor and remainder of their quotient."
       (funcall
        'pop-to-buffer-same-window buffer-or-name norecord)
     (funcall 'switch-to-buffer buffer-or-name norecord)))
+
+;; `condition-case-unless-debug' has been introduced in Emacs 24.1
+;; `condition-case-no-debug' has been introduced in Emacs 23.1
+(defalias 'org-condition-case-unless-debug
+  (or (and (fboundp 'condition-case-unless-debug)
+	   'condition-case-unless-debug)
+      (and (fboundp 'condition-case-no-debug)
+	   'condition-case-no-debug)
+      'condition-case))
+
+(defmacro org-check-version ()
+  "Try very hard to provide sensible version strings."
+  (let* ((org-dir        (org-find-library-dir "org"))
+	 (org-version.el (concat org-dir "org-version.el"))
+	 (org-fixup.el   (concat org-dir "../UTILITIES/org-fixup.el")))
+    (if (require 'org-version org-version.el 'noerror)
+	'(progn
+	   (autoload 'org-release     "org-version.el")
+	   (autoload 'org-git-version "org-version.el"))
+      (if (require 'org-fixup org-fixup.el 'noerror)
+	  '(org-fixup)
+	;; provide fallback definitions and complain
+	(warn "Could not define org version correctly.  Check installation!")
+	'(progn
+	   (defun org-release () "N/A")
+	   (defun org-git-version () "N/A !!check installation!!"))))))
 
 (provide 'org-compat)
 

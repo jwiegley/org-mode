@@ -26,7 +26,6 @@
 
 ;; This file contains the time clocking code for Org-mode
 
-(require 'org)
 (require 'org-exp)
 ;;; Code:
 
@@ -248,26 +247,26 @@ string as argument."
   :group 'org-clock)
 
 (defcustom org-clocktable-defaults
-  `(list
-    :maxlevel 2
-    :lang ,org-export-default-language
-    :scope 'file
-    :block nil
-    :tstart nil
-    :tend nil
-    :step nil
-    :stepskip0 nil
-    :fileskip0 nil
-    :tags nil
-    :emphasize nil
-    :link nil
-    :narrow '40!
-    :indent t
-    :formula nil
-    :timestamp nil
-    :level nil
-    :tcolumns nil
-    :formatter nil)
+  (list
+   :maxlevel 2
+   :lang org-export-default-language
+   :scope 'file
+   :block nil
+   :tstart nil
+   :tend nil
+   :step nil
+   :stepskip0 nil
+   :fileskip0 nil
+   :tags nil
+   :emphasize nil
+   :link nil
+   :narrow '40!
+   :indent t
+   :formula nil
+   :timestamp nil
+   :level nil
+   :tcolumns nil
+   :formatter nil)
   "Default properties for clock tables."
   :group 'org-clock
   :version "24.1"
@@ -324,6 +323,12 @@ play with them."
   :group 'org-clock
   :version "24.1"
   :type 'boolean)
+
+(defcustom org-clock-continuously nil
+  "Non-nil means to start clocking from the last clock-out time, if any."
+  :type 'boolean
+  :version "24.1"
+  :group 'org-clock)
 
 (defcustom org-clock-total-time-cell-format "*%s*"
   "Format string for the total time cells."
@@ -994,6 +999,12 @@ If `only-dangling-p' is non-nil, only ask to resolve dangling
   "Return the current Mac idle time in seconds."
   (string-to-number (shell-command-to-string "ioreg -c IOHIDSystem | perl -ane 'if (/Idle/) {$idle=(pop @F)/1000000000; print $idle; last}'")))
 
+(defvar org-x11idle-exists-p
+  ;; Check that x11idle exists
+  (and (eq (call-process-shell-command "command" nil nil nil "-v" "x11idle") 0)
+       ;; Check that x11idle can retrieve the idle time
+       (eq (call-process-shell-command "x11idle" nil nil nil) 0)))
+
 (defun org-x11-idle-seconds ()
   "Return the current X11 idle time in seconds."
   (/ (string-to-number (shell-command-to-string "x11idle")) 1000))
@@ -1004,7 +1015,7 @@ This routine returns a floating point number."
   (cond
    ((eq system-type 'darwin)
     (org-mac-idle-seconds))
-   ((eq window-system 'x)
+   ((and (eq window-system 'x) org-x11idle-exists-p)
     (org-x11-idle-seconds))
    (t
     (org-emacs-idle-seconds))))
@@ -1046,6 +1057,7 @@ so long."
   "Reset `org-clock-current-task' to nil."
   (setq org-clock-current-task nil))
 
+(defvar org-clock-out-time nil) ; store the time of the last clock-out
 (defun org-clock-in (&optional select start-time)
   "Start the clock on the current item.
 If necessary, clock-out of the currently active clock.
@@ -1054,7 +1066,10 @@ recently clocked tasks to
 clock into.  When SELECT is \\[universal-argument] \\[universal-argument], \
 clock into the current task and mark
 it as the default task, a special task that will always be offered in
-the clocking selection, associated with the letter `d'."
+the clocking selection, associated with the letter `d'.
+When SELECT is \\[universal-argument] \\[universal-argument] \\[universal-argument], \
+clock in by using the last clock-out time as the start time
+\(see `org-clock-continuously' to make this the default behavior.)"
   (interactive "P")
   (setq org-clock-notification-was-shown nil)
   (catch 'abort
@@ -1072,6 +1087,11 @@ the clocking selection, associated with the letter `d'."
 	(setq org-clock-leftover-time nil)
 	(let ((org-clock-clocking-in t))
 	  (org-resolve-clocks)))	; check if any clocks are dangling
+
+      (when (equal select '(64))
+	;; Set start-time to `org-clock-out-time'
+	(let ((org-clock-continuously t))
+	  (org-clock-in nil org-clock-out-time)))
 
       (when (equal select '(4))
 	(setq selected-task (org-clock-select-task "Clock-in on task: "))
@@ -1126,7 +1146,12 @@ the clocking selection, associated with the letter `d'."
 	    (goto-char target-pos)
 	    (org-back-to-heading t)
 	    (or interrupting (move-marker org-clock-interrupted-task nil))
-	    (org-clock-history-push)
+	    (save-excursion
+	      (forward-char) ;; make sure the marker is not at the
+			     ;; beginning of the heading, since the
+			     ;; user is liking to insert stuff here
+			     ;; manually
+	      (org-clock-history-push))
 	    (org-clock-set-current)
 	    (cond ((functionp org-clock-in-switch-to-state)
 		   (looking-at org-complex-heading-regexp)
@@ -1180,7 +1205,7 @@ the clocking selection, associated with the letter `d'."
 	     (t
 	      (insert-before-markers "\n")
 	      (backward-char 1)
-	      (org-indent-line-function)
+	      (org-indent-line)
 	      (when (and (save-excursion
 			   (end-of-line 0)
 			   (org-in-item-p)))
@@ -1191,7 +1216,8 @@ the clocking selection, associated with the letter `d'."
 	      (setq org-clock-total-time (org-clock-sum-current-item
 					  (org-clock-get-sum-start)))
 	      (setq org-clock-start-time
-		    (or (and leftover
+		    (or (and org-clock-continuously org-clock-out-time)
+			(and leftover
 			     (y-or-n-p
 			      (format
 			       "You stopped another clock %d mins ago; start this one from then? "
@@ -1238,13 +1264,22 @@ the clocking selection, associated with the letter `d'."
 ;;;###autoload
 (defun org-clock-in-last (&optional arg)
   "Clock in the last closed clocked item.
-When already clocking in, send an warning."
+When already clocking in, send an warning.
+With a universal prefix argument, select the task you want to
+clock in from the last clocked in tasks.
+With two universal prefix arguments, start clocking using the
+last clock-out time, if any."
   (interactive "P")
-  (if arg (org-clock-select-task)
-    (org-clock-clock-in (cons (car org-clock-history) (current-time)))
-    (message "Now clocking in: %s (in %s)"
-	     org-clock-current-task
-	     (buffer-name (marker-buffer org-clock-marker)))))
+  (if (equal arg '(4)) (org-clock-in (org-clock-select-task))
+    (let ((start-time (if (or org-clock-continuously (equal arg '(16)))
+			  (or org-clock-out-time (current-time))
+			(current-time))))
+      (if (null org-clock-history)
+	  (message "No last clock")
+	(org-clock-clock-in (list (car org-clock-history)) nil start-time)
+	(message "Clocking back: %s (in %s)"
+		 org-clock-current-task
+		 (buffer-name (marker-buffer org-clock-marker)))))))
 
 (defun org-clock-mark-default-task ()
   "Mark current task as default task."
@@ -1348,7 +1383,7 @@ line and position cursor in that line."
 	(goto-char first)
 	(insert ":" drawer ":\n")
 	(beginning-of-line 0)
-	(org-indent-line-function)
+	(org-indent-line)
 	(org-flag-drawer t)
 	(beginning-of-line 2)
 	(or org-log-states-order-reversed
@@ -1368,10 +1403,10 @@ line and position cursor in that line."
 		     (< org-clock-into-drawer 2)))
 	(insert ":" drawer ":\n:END:\n")
 	(beginning-of-line -1)
-	(org-indent-line-function)
+	(org-indent-line)
 	(org-flag-drawer t)
 	(beginning-of-line 2)
-	(org-indent-line-function)
+	(org-indent-line)
 	(beginning-of-line)
 	(or org-log-states-order-reversed
 	    (and (re-search-forward org-property-end-re nil t)
@@ -1379,7 +1414,7 @@ line and position cursor in that line."
 
 (defun org-clock-out (&optional fail-quietly at-time)
   "Stop the currently running clock.
-If there is no running clock, throw an error, unless FAIL-QUIETLY is set."
+Throw an error if there is no running clock and FAIL-QUIETLY is nil."
   (interactive)
   (catch 'exit
     (when (not (org-clocking-p))
@@ -1388,7 +1423,8 @@ If there is no running clock, throw an error, unless FAIL-QUIETLY is set."
       (setq frame-title-format org-frame-title-format-backup)
       (force-mode-line-update)
       (if fail-quietly (throw 'exit t) (error "No active clock")))
-    (let (ts te s h m remove)
+    (let ((now (current-time)) ts te s h m remove)
+      (setq org-clock-out-time now)
       (save-excursion ; Do not replace this with `with-current-buffer'.
 	(org-no-warnings (set-buffer (org-clocking-buffer)))
 	(save-restriction
@@ -1402,8 +1438,7 @@ If there is no running clock, throw an error, unless FAIL-QUIETLY is set."
 	  (goto-char (match-end 0))
 	  (delete-region (point) (point-at-eol))
 	  (insert "--")
-	  (setq te (org-insert-time-stamp (or at-time (current-time))
-					  'with-hm 'inactive))
+	  (setq te (org-insert-time-stamp (or at-time now) 'with-hm 'inactive))
 	  (setq s (- (org-float-time (apply 'encode-time (org-parse-time-string te)))
 		     (org-float-time (apply 'encode-time (org-parse-time-string ts))))
 		h (floor (/ s 3600))
@@ -1465,7 +1500,8 @@ If there is no running clock, throw an error, unless FAIL-QUIETLY is set."
     (when clock-drawer
       (save-excursion
 	(org-back-to-heading t)
-	(while (search-forward clock-drawer end t)
+	(while (and (< (point) end)
+		    (search-forward clock-drawer end t))
 	  (goto-char (match-beginning 0))
 	  (org-remove-empty-drawer-at clock-drawer (point))
 	  (forward-line 1))))))
@@ -1536,9 +1572,11 @@ UPDOWN tells whether to change 'up or 'down."
   (save-excursion ; Do not replace this with `with-current-buffer'.
     (org-no-warnings (set-buffer (org-clocking-buffer)))
     (goto-char org-clock-marker)
-    (delete-region (1- (point-at-bol)) (point-at-eol))
-    ;; Just in case, remove any empty LOGBOOK left over
-    (org-remove-empty-drawer-at "LOGBOOK" (point)))
+    (if (looking-back (concat "^[ \t]*" org-clock-string ".*"))
+	(progn (delete-region (1- (point-at-bol)) (point-at-eol))
+	       (org-remove-empty-drawer-at "LOGBOOK" (point)))
+      (message "Clock gone, cancel the timer anyway")
+      (sit-for 2)))
   (move-marker org-clock-marker nil)
   (move-marker org-clock-hd-marker nil)
   (setq global-mode-string
@@ -1998,7 +2036,7 @@ the returned times will be formatted strings."
      ((memq key '(year thisyear))
       (setq txt (format-time-string "the year %Y" ts)))
      ((memq key '(quarter thisq))
-      (setq txt (concatenate 'string (org-count-quarter shiftedq) " quarter of " (number-to-string shiftedy))))
+      (setq txt (concat (org-count-quarter shiftedq) " quarter of " (number-to-string shiftedy))))
      )
     (if as-strings
 	(list (format-time-string fm ts) (format-time-string fm te) txt)
@@ -2076,7 +2114,7 @@ the currently selected interval size."
            (setq date (calendar-gregorian-from-absolute
 		       (calendar-absolute-from-iso (org-quarter-to-date (+ mw n) y))))
            (setq ins (format-time-string
-                      (concatenate 'string (number-to-string y) "-Q" (number-to-string (+ mw n)))
+                      (concat (number-to-string y) "-Q" (number-to-string (+ mw n)))
                       (encode-time 0 0 0 (nth 1 date) (car date) (nth 2 date)))))
           (mw
            (setq ins (format-time-string

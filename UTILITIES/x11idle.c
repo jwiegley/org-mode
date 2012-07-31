@@ -9,13 +9,20 @@
  */
 main() {
     XScreenSaverInfo *info = XScreenSaverAllocInfo();
+    //open the display specified by the DISPLAY environment variable
     Display *display = XOpenDisplay(0);
 
-    //check that X11 is running or else you get a segafult/coredump
-    if (display != NULL) {
-	XScreenSaverQueryInfo(display, DefaultRootWindow(display), info);
+    //display could be null if there is no X server running
+    if (info == NULL || display == NULL) {
+    return -1;
     }
-    XScreenSaverQueryInfo(display, DefaultRootWindow(display), info);
-    printf("%u\n", info->idle);
+
+    //X11 is running, try to retrieve info
+    if (XScreenSaverQueryInfo(display, DefaultRootWindow(display), info) == 0) {
+	return -1;
+    }
+
+    //info was retrieved successfully, print idle time
+    printf("%lu\n", info->idle);
     return 0;
 }

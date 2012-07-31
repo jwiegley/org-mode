@@ -88,7 +88,7 @@ code."
            (time-ind (or (plist-get params :timeind)
                          (when timefmt 1)))
            output)
-      (flet ((add-to-body (text)
+      (org-flet ((add-to-body (text)
                           (setq body (concat text "\n" body))))
         ;; append header argument settings to body
         (when title (add-to-body (format "set title '%s'" title))) ;; title
@@ -183,7 +183,7 @@ This function is called by `org-babel-execute-src-block'."
       buffer)))
 
 (defun org-babel-variable-assignments:gnuplot (params)
-  "Return list of gnuplot statements assigning the block's variables"
+  "Return list of gnuplot statements assigning the block's variables."
   (mapcar
    (lambda (pair) (format "%s = \"%s\"" (car pair) (cdr pair)))
    (org-babel-gnuplot-process-vars params)))
