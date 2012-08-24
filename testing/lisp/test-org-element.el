@@ -128,34 +128,25 @@ Some other text
 			      (org-element-map tree 'italic 'identity nil t))
 	(org-element-map tree 'paragraph 'identity nil t))))))
 
-(ert-deftest test-org-element/adopt-element ()
-  "Test `org-element-adopt-element' specifications."
+(ert-deftest test-org-element/adopt-elements ()
+  "Test `org-element-adopt-elements' specifications."
   ;; Adopt an element.
   (should
-   (equal '(italic plain-text)
+   (equal '(plain-text italic)
 	  (org-test-with-temp-text "* Headline\n *a*"
 	    (let ((tree (org-element-parse-buffer)))
-	      (org-element-adopt-element
+	      (org-element-adopt-elements
 	       (org-element-map tree 'bold 'identity nil t) '(italic nil "a"))
 	      (mapcar (lambda (blob) (org-element-type blob))
 		      (org-element-contents
 		       (org-element-map tree 'bold 'identity nil t)))))))
   ;; Adopt a string.
   (should
-   (equal '("b" "a")
-	  (org-test-with-temp-text "* Headline\n *a*"
-	    (let ((tree (org-element-parse-buffer)))
-	      (org-element-adopt-element
-	       (org-element-map tree 'bold 'identity nil t) "b")
-	      (org-element-contents
-	       (org-element-map tree 'bold 'identity nil t))))))
-  ;; Test APPEND optional argument.
-  (should
    (equal '("a" "b")
 	  (org-test-with-temp-text "* Headline\n *a*"
 	    (let ((tree (org-element-parse-buffer)))
-	      (org-element-adopt-element
-	       (org-element-map tree 'bold 'identity nil t) "b" t)
+	      (org-element-adopt-elements
+	       (org-element-map tree 'bold 'identity nil t) "b")
 	      (org-element-contents
 	       (org-element-map tree 'bold 'identity nil t)))))))
 
@@ -279,28 +270,37 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
      (org-element-map (org-element-parse-buffer) 'comment 'identity)))
   ;; Inline comment.
   (should
-   (org-test-with-temp-text "#+ Comment"
+   (org-test-with-temp-text "  # Comment"
      (org-element-map (org-element-parse-buffer) 'comment 'identity)))
   ;; Preserve indentation.
   (should
    (equal
     (org-element-property
      :value
-     (org-test-with-temp-text "#+ No blank\n#+  One blank"
+     (org-test-with-temp-text "# No blank\n#  One blank"
        (org-element-map (org-element-parse-buffer) 'comment 'identity nil t)))
-     "No blank\n One blank"))
+    "No blank\n One blank"))
   ;; Comment with blank lines.
   (should
    (equal
     (org-element-property
      :value
-     (org-test-with-temp-text "#+ First part\n#+ \n#+\n#+ Second part"
+     (org-test-with-temp-text "# First part\n# \n#\n# Second part"
        (org-element-map (org-element-parse-buffer) 'comment 'identity nil t)))
     "First part\n\n\nSecond part"))
-  ;; Keywords without colons are treated as comments.
+  ;; Do not mix comments and keywords.
   (should
-   (org-test-with-temp-text "#+wrong_keyword something"
-     (org-element-map (org-element-parse-buffer) 'comment 'identity))))
+   (eq 1
+       (org-test-with-temp-text "#+keyword: value\n# comment\n#+keyword: value"
+	 (length (org-element-map
+		  (org-element-parse-buffer) 'comment 'identity)))))
+  (should
+   (equal "comment"
+	  (org-test-with-temp-text "#+keyword: value\n# comment\n#+keyword: value"
+	    (org-element-property
+	     :value
+	     (org-element-map
+	      (org-element-parse-buffer) 'comment 'identity nil t))))))
 
 
 ;;;; Comment Block
@@ -890,6 +890,12 @@ DEADLINE: <2012-03-29 thu.>"
      :tag
      (org-test-with-temp-text "- tag :: description"
        (org-element-map (org-element-parse-buffer) 'item 'identity nil t)))))
+  ;; No tags in ordered lists.
+  (should-not
+   (org-element-property
+    :tag
+    (org-test-with-temp-text "1. tag :: description"
+      (org-element-map (org-element-parse-buffer) 'item 'identity nil t))))
   ;; Check-boxes
   (should
    (equal
@@ -1134,7 +1140,35 @@ e^{i\\pi}+1=0
 	 (org-element-map
 	  (org-element-parse-buffer) 'paragraph
 	  (lambda (p) (char-after (org-element-property :end p)))
-	  nil t)))))
+	  nil t))))
+  ;; Include ill-formed Keywords.
+  (should
+   (org-test-with-temp-text "#+wrong_keyword something"
+     (org-element-map (org-element-parse-buffer) 'paragraph 'identity)))
+  ;; Include incomplete-drawers.
+  (should
+   (let ((org-drawers '("TEST")))
+     (org-test-with-temp-text ":TEST:\nParagraph"
+       (let ((elem (org-element-at-point)))
+	 (and (eq (org-element-type elem) 'paragraph)
+	      (= (point-max) (org-element-property :end elem)))))))
+  ;; Include non-existent drawers.
+  (should
+   (let ((org-drawers '("TEST")))
+     (org-test-with-temp-text ":NONAME:"
+       (org-element-map (org-element-parse-buffer) 'paragraph 'identity))))
+  ;; Include incomplete blocks.
+  (should
+   (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph"
+     (let ((elem (org-element-at-point)))
+       (and (eq (org-element-type elem) 'paragraph)
+	    (= (point-max) (org-element-property :end elem))))))
+  ;; Include incomplete dynamic blocks.
+  (should
+   (org-test-with-temp-text "#+BEGIN: \nParagraph"
+     (let ((elem (org-element-at-point)))
+       (and (eq (org-element-type elem) 'paragraph)
+	    (= (point-max) (org-element-property :end elem)))))))
 
 
 ;;;; Plain List
@@ -1763,13 +1797,13 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"))
 (ert-deftest test-org-element/comment-interpreter ()
   "Test comment interpreter."
   ;; Regular comment.
-  (should (equal (org-test-parse-and-interpret "#Comment") "#+ Comment\n"))
+  (should (equal (org-test-parse-and-interpret "# Comment") "# Comment\n"))
   ;; Inline comment.
-  (should (equal (org-test-parse-and-interpret "  #+ Comment")
-		 "#+ Comment\n"))
+  (should (equal (org-test-parse-and-interpret "  # Comment")
+		 "# Comment\n"))
   ;; Preserve indentation.
-  (should (equal (org-test-parse-and-interpret "  #+ No blank\n#+  One blank")
-		 "#+ No blank\n#+  One blank\n")))
+  (should (equal (org-test-parse-and-interpret "  # No blank\n#  One blank")
+		 "# No blank\n#  One blank\n")))
 
 (ert-deftest test-org-element/comment-block-interpreter ()
   "Test comment block interpreter."
@@ -2250,6 +2284,29 @@ Paragraph \\alpha."
    (eq 'plain-list
        (org-test-with-temp-text "- item"
 	 (org-element-type (org-element-at-point)))))
+  ;; Special case: at the closing line of a greater element, be sure
+  ;; to return it instead of the last element in its contents.
+  (should
+   (eq 'center-block
+       (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph\n#+END_CENTER"
+	 (progn (forward-line 2)
+		(org-element-type (org-element-at-point))))))
+  ;; Special case: at a blank line between two items, be sure to
+  ;; return item above instead of the last element of its contents.
+  (should
+   (eq 'item
+       (org-test-with-temp-text "- Para1\n\n- Para2"
+	 (progn (forward-line)
+		(org-element-type
+		 (let ((org-empty-line-terminates-plain-lists nil))
+		   (org-element-at-point)))))))
+  ;; Special case: at the last blank line in a plain list, return it
+  ;; instead of the last item.
+  (should
+   (eq 'plain-list
+       (org-test-with-temp-text "- Para1\n- Para2\n\nPara3"
+	 (progn (forward-line 2)
+		(org-element-type (org-element-at-point))))))
   ;; With an optional argument, return trail.
   (should
    (equal '(paragraph center-block)
@@ -2278,319 +2335,6 @@ Paragraph \\alpha."
 	 (progn (search-forward "bold")
 		(org-element-type
 		 (org-element-property :parent (org-element-context))))))))
-
-(ert-deftest test-org-element/forward ()
-  "Test `org-element-forward' specifications."
-  ;; 1. At EOB: should error.
-  (org-test-with-temp-text "Some text\n"
-    (goto-char (point-max))
-    (should-error (org-element-forward)))
-  ;; 2. Standard move: expected to ignore blank lines.
-  (org-test-with-temp-text "First paragraph.\n\n\nSecond paragraph."
-    (org-element-forward)
-    (should (looking-at "Second paragraph.")))
-  ;; 3. Headline tests.
-  (org-test-with-temp-text "
-* Head 1
-** Head 1.1
-*** Head 1.1.1
-** Head 1.2"
-    ;; 3.1. At an headline beginning: move to next headline at the
-    ;;      same level.
-    (goto-line 3)
-    (org-element-forward)
-    (should (looking-at "** Head 1.2"))
-    ;; 3.2. At an headline beginning: move to parent headline if no
-    ;;      headline at the same level.
-    (goto-line 3)
-    (org-element-forward)
-    (should (looking-at "** Head 1.2")))
-  ;; 4. Greater element tests.
-  (org-test-with-temp-text
-      "#+BEGIN_CENTER\nInside.\n#+END_CENTER\n\nOutside."
-    ;; 4.1. At a greater element: expected to skip contents.
-    (org-element-forward)
-    (should (looking-at "Outside."))
-    ;; 4.2. At the end of greater element contents: expected to skip
-    ;;      to the end of the greater element.
-    (goto-line 2)
-    (org-element-forward)
-    (should (looking-at "Outside.")))
-  ;; 5. List tests.
-  (org-test-with-temp-text "
-- item1
-
-  - sub1
-
-  - sub2
-
-  - sub3
-
-  Inner paragraph.
-
-- item2
-
-Outside."
-    ;; 5.1. At list top point: expected to move to the element after
-    ;;      the list.
-    (goto-line 2)
-    (org-element-forward)
-    (should (looking-at "Outside."))
-    ;; 5.2. Special case: at the first line of a sub-list, but not at
-    ;;      beginning of line, move to next item.
-    (goto-line 2)
-    (forward-char)
-    (org-element-forward)
-    (should (looking-at "- item2"))
-    (goto-line 4)
-    (forward-char)
-    (org-element-forward)
-    (should (looking-at "  - sub2"))
-    ;; 5.3 At sub-list beginning: expected to move after the sub-list.
-    (goto-line 4)
-    (org-element-forward)
-    (should (looking-at "  Inner paragraph."))
-    ;; 5.4. At sub-list end: expected to move outside the sub-list.
-    (goto-line 8)
-    (org-element-forward)
-    (should (looking-at "  Inner paragraph."))
-    ;; 5.5. At an item: expected to move to next item, if any.
-    (goto-line 6)
-    (org-element-forward)
-    (should (looking-at "  - sub3"))))
-
-(ert-deftest test-org-element/backward ()
-  "Test `org-element-backward' specifications."
-  ;; 1. At BOB (modulo some white spaces): should error.
-  (org-test-with-temp-text "    \nParagraph."
-    (org-skip-whitespace)
-    (should-error (org-element-backward)))
-  ;; 2. Not at the beginning of an element: move at its beginning.
-  (org-test-with-temp-text "Paragraph1.\n\nParagraph2."
-    (goto-line 3)
-    (end-of-line)
-    (org-element-backward)
-    (should (looking-at "Paragraph2.")))
-  ;; 3. Headline tests.
-  (org-test-with-temp-text "
-* Head 1
-** Head 1.1
-*** Head 1.1.1
-** Head 1.2"
-    ;; 3.1. At an headline beginning: move to previous headline at the
-    ;;      same level.
-    (goto-line 5)
-    (org-element-backward)
-    (should (looking-at "** Head 1.1"))
-    ;; 3.2. At an headline beginning: move to parent headline if no
-    ;;      headline at the same level.
-    (goto-line 3)
-    (org-element-backward)
-    (should (looking-at "* Head 1"))
-    ;; 3.3. At the first top-level headline: should error.
-    (goto-line 2)
-    (should-error (org-element-backward)))
-  ;; 4. At beginning of first element inside a greater element:
-  ;;    expected to move to greater element's beginning.
-  (org-test-with-temp-text "Before.\n#+BEGIN_CENTER\nInside.\n#+END_CENTER."
-    (goto-line 3)
-    (org-element-backward)
-    (should (looking-at "#\\+BEGIN_CENTER")))
-  ;; 5. List tests.
-  (org-test-with-temp-text "
-- item1
-
-  - sub1
-
-  - sub2
-
-  - sub3
-
-  Inner paragraph.
-
-- item2
-
-
-Outside."
-    ;; 5.1. At beginning of sub-list: expected to move to the
-    ;;      paragraph before it.
-    (goto-line 4)
-    (org-element-backward)
-    (should (looking-at "item1"))
-    ;; 5.2. At an item in a list: expected to move at previous item.
-    (goto-line 8)
-    (org-element-backward)
-    (should (looking-at "  - sub2"))
-    (goto-line 12)
-    (org-element-backward)
-    (should (looking-at "- item1"))
-    ;; 5.3. At end of list/sub-list: expected to move to list/sub-list
-    ;;      beginning.
-    (goto-line 10)
-    (org-element-backward)
-    (should (looking-at "  - sub1"))
-    (goto-line 15)
-    (org-element-backward)
-    (should (looking-at "- item1"))
-    ;; 5.4. At blank-lines before list end: expected to move to top
-    ;; item.
-    (goto-line 14)
-    (org-element-backward)
-    (should (looking-at "- item1"))))
-
-(ert-deftest test-org-element/up ()
-  "Test `org-element-up' specifications."
-  ;; 1. At BOB or with no surrounding element: should error.
-  (org-test-with-temp-text "Paragraph."
-    (should-error (org-element-up)))
-  (org-test-with-temp-text "* Head1\n* Head2"
-    (goto-line 2)
-    (should-error (org-element-up)))
-  (org-test-with-temp-text "Paragraph1.\n\nParagraph2."
-    (goto-line 3)
-    (should-error (org-element-up)))
-  ;; 2. At an headline: move to parent headline.
-  (org-test-with-temp-text "* Head1\n** Sub-Head1\n** Sub-Head2"
-    (goto-line 3)
-    (org-element-up)
-    (should (looking-at "\\* Head1")))
-  ;; 3. Inside a greater element: move to greater element beginning.
-  (org-test-with-temp-text
-      "Before.\n#+BEGIN_CENTER\nParagraph1\nParagraph2\n#+END_CENTER\n"
-    (goto-line 3)
-    (org-element-up)
-    (should (looking-at "#\\+BEGIN_CENTER")))
-  ;; 4. List tests.
-  (org-test-with-temp-text "* Top
-- item1
-
-  - sub1
-
-  - sub2
-
-    Paragraph within sub2.
-
-- item2"
-    ;; 4.1. Within an item: move to the item beginning.
-    (goto-line 8)
-    (org-element-up)
-    (should (looking-at "  - sub2"))
-    ;; 4.2. At an item in a sub-list: move to parent item.
-    (goto-line 4)
-    (org-element-up)
-    (should (looking-at "- item1"))
-    ;; 4.3. At an item in top list: move to beginning of whole list.
-    (goto-line 10)
-    (org-element-up)
-    (should (looking-at "- item1"))
-    ;; 4.4. Special case.  At very top point: should move to parent of
-    ;;      list.
-    (goto-line 2)
-    (org-element-up)
-    (should (looking-at "\\* Top"))))
-
-(ert-deftest test-org-element/down ()
-  "Test `org-element-down' specifications."
-  ;; Error when the element hasn't got a recursive type.
-  (org-test-with-temp-text "Paragraph."
-    (should-error (org-element-down)))
-  ;; Error when the element has no contents
-  (org-test-with-temp-text "* Headline"
-    (should-error (org-element-down)))
-  ;; When at a plain-list, move to first item.
-  (org-test-with-temp-text "- Item 1\n  - Item 1.1\n  - Item 2.2"
-    (goto-line 2)
-    (org-element-down)
-    (should (looking-at " - Item 1.1")))
-  (org-test-with-temp-text "#+NAME: list\n- Item 1"
-    (org-element-down)
-    (should (looking-at " Item 1")))
-  ;; When at a table, move to first row
-  (org-test-with-temp-text "#+NAME: table\n| a | b |"
-    (org-element-down)
-    (should (looking-at " a | b |")))
-  ;; Otherwise, move inside the greater element.
-  (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph.\n#+END_CENTER"
-    (org-element-down)
-    (should (looking-at "Paragraph"))))
-
-(ert-deftest test-org-element/drag-backward ()
-  "Test `org-element-drag-backward' specifications."
-  ;; 1. Error when trying to move first element of buffer.
-  (org-test-with-temp-text "Paragraph 1.\n\nParagraph 2."
-    (should-error (org-element-drag-backward)))
-  ;; 2. Error when trying to swap nested elements.
-  (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
-    (forward-line)
-    (should-error (org-element-drag-backward)))
-  ;; 3. Error when trying to swap an headline element and
-  ;;    a non-headline element.
-  (org-test-with-temp-text "Test.\n* Head 1"
-    (forward-line)
-    (should-error (org-element-drag-backward)))
-  ;; 4. Otherwise, swap elements, preserving column and blank lines
-  ;;    between elements.
-  (org-test-with-temp-text "Para1\n\n\nParagraph 2\n\nPara3"
-    (search-forward "graph")
-    (org-element-drag-backward)
-    (should (equal (buffer-string) "Paragraph 2\n\n\nPara1\n\nPara3"))
-    (should (looking-at " 2")))
-  ;; 5. Preserve visibility of elements and their contents.
-  (org-test-with-temp-text "
-#+BEGIN_CENTER
-Text.
-#+END_CENTER
-- item 1
-  #+BEGIN_QUOTE
-  Text.
-  #+END_QUOTE"
-    (while (search-forward "BEGIN_" nil t) (org-cycle))
-    (search-backward "- item 1")
-    (org-element-drag-backward)
-    (should
-     (equal
-      '((63 . 82) (26 . 48))
-      (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
-	      (overlays-in (point-min) (point-max)))))))
-
-(ert-deftest test-org-element/drag-forward ()
-  "Test `org-element-drag-forward' specifications."
-  ;; 1. Error when trying to move first element of buffer.
-  (org-test-with-temp-text "Paragraph 1.\n\nParagraph 2."
-    (goto-line 3)
-    (should-error (org-element-drag-forward)))
-  ;; 2. Error when trying to swap nested elements.
-  (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
-    (forward-line)
-    (should-error (org-element-drag-forward)))
-  ;; 3. Error when trying to swap a non-headline element and an
-  ;;    headline.
-  (org-test-with-temp-text "Test.\n* Head 1"
-    (should-error (org-element-drag-forward)))
-  ;; 4. Otherwise, swap elements, preserving column and blank lines
-  ;;    between elements.
-  (org-test-with-temp-text "Paragraph 1\n\n\nPara2\n\nPara3"
-    (search-forward "graph")
-    (org-element-drag-forward)
-    (should (equal (buffer-string) "Para2\n\n\nParagraph 1\n\nPara3"))
-    (should (looking-at " 1")))
-  ;; 5. Preserve visibility of elements and their contents.
-  (org-test-with-temp-text "
-#+BEGIN_CENTER
-Text.
-#+END_CENTER
-- item 1
-  #+BEGIN_QUOTE
-  Text.
-  #+END_QUOTE"
-    (while (search-forward "BEGIN_" nil t) (org-cycle))
-    (search-backward "#+BEGIN_CENTER")
-    (org-element-drag-forward)
-    (should
-     (equal
-      '((63 . 82) (26 . 48))
-      (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
-	      (overlays-in (point-min) (point-max)))))))
 
 
 (provide 'test-org-element)

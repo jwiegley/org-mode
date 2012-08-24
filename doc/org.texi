@@ -1,4 +1,3 @@
-
 \input texinfo
 @c %**start of header
 @setfilename ../../info/org
@@ -495,6 +494,7 @@ Capture templates
 
 * Template elements::           What is needed for a complete template entry
 * Template expansion::          Filling in information about time and context
+* Templates in contexts::       Only show a template in a specific context
 
 Archiving
 
@@ -1787,19 +1787,16 @@ state of the checkbox.  In any case, verify bullets and indentation
 consistency in the whole list.
 @kindex C-c -
 @vindex org-plain-list-ordered-item-terminator
-@vindex org-list-automatic-rules
 @item C-c -
 Cycle the entire list level through the different itemize/enumerate bullets
 (@samp{-}, @samp{+}, @samp{*}, @samp{1.}, @samp{1)}) or a subset of them,
 depending on @code{org-plain-list-ordered-item-terminator}, the type of list,
-and its position@footnote{See @code{bullet} rule in
-@code{org-list-automatic-rules} for more information.}.  With a numeric
-prefix argument N, select the Nth bullet from this list.  If there is an
-active region when calling this, selected text will be changed into an item.
-With a prefix argument, all lines will be converted to list items.  If the
-first line already was a list item, any item marker will be removed from the
-list.  Finally, even without an active region, a normal line will be
-converted into a list item.
+and its indentation.  With a numeric prefix argument N, select the Nth bullet
+from this list.  If there is an active region when calling this, selected
+text will be changed into an item.  With a prefix argument, all lines will be
+converted to list items.  If the first line already was a list item, any item
+marker will be removed from the list.  Finally, even without an active
+region, a normal line will be converted into a list item.
 @kindex C-c *
 @item C-c *
 Turn a plain list item into a headline (so that it becomes a subheading at
@@ -2659,23 +2656,28 @@ durations computations @ref{Durations and time values}.
 @subsection Emacs Lisp forms as formulas
 @cindex Lisp forms, as table formulas
 
-It is also possible to write a formula in Emacs Lisp; this can be useful for
-string manipulation and control structures, if Calc's functionality is not
-enough.  If a formula starts with a single-quote followed by an opening
-parenthesis, then it is evaluated as a Lisp form.  The evaluation should
-return either a string or a number.  Just as with @file{calc} formulas, you
-can specify modes and a printf format after a semicolon.  With Emacs Lisp
-forms, you need to be conscious about the way field references are
-interpolated into the form.  By default, a reference will be interpolated as
-a Lisp string (in double-quotes) containing the field.  If you provide the
-@samp{N} mode switch, all referenced elements will be numbers (non-number
-fields will be zero) and interpolated as Lisp numbers, without quotes.  If
-you provide the @samp{L} flag, all fields will be interpolated literally,
-without quotes.  I.e., if you want a reference to be interpreted as a string
-by the Lisp form, enclose the reference operator itself in double-quotes,
-like @code{"$3"}.  Ranges are inserted as space-separated fields, so you can
-embed them in list or vector syntax.  Here are a few examples---note how the
-@samp{N} mode is used when we do computations in Lisp:
+It is also possible to write a formula in Emacs Lisp.  This can be useful
+for string manipulation and control structures, if Calc's functionality is 
+not enough.  
+
+If a formula starts with a single-quote followed by an opening parenthesis,
+then it is evaluated as a Lisp form.  The evaluation should return either a
+string or a number.  Just as with @file{calc} formulas, you can specify modes
+and a printf format after a semicolon.  
+
+With Emacs Lisp forms, you need to be conscious about the way field
+references are interpolated into the form.  By default, a reference will be
+interpolated as a Lisp string (in double-quotes) containing the field.  If
+you provide the @samp{N} mode switch, all referenced elements will be numbers
+(non-number fields will be zero) and interpolated as Lisp numbers, without
+quotes.  If you provide the @samp{L} flag, all fields will be interpolated
+literally, without quotes.  I.e., if you want a reference to be interpreted
+as a string by the Lisp form, enclose the reference operator itself in
+double-quotes, like @code{"$3"}.  Ranges are inserted as space-separated
+fields, so you can embed them in list or vector syntax.
+
+Here are a few examples---note how the @samp{N} mode is used when we do
+computations in Lisp:
 
 @example
 @r{Swap the first two characters of the content of column 1}
@@ -2780,10 +2782,13 @@ Named field, see @ref{Advanced features}.
 When you assign a formula to a simple column reference like @code{$3=}, the
 same formula will be used in all fields of that column, with the following
 very convenient exceptions: (i) If the table contains horizontal separator
-hlines, everything before the first such line is considered part of the table
-@emph{header} and will not be modified by column formulas.  (ii) Fields that
-already get a value from a field/range formula will be left alone by column
-formulas.  These conditions make column formulas very easy to use.
+hlines with rows above and below, everything before the first such hline is
+considered part of the table @emph{header} and will not be modified by column
+formulas.  Therefore a header is mandatory when you use column formulas and
+want to add hlines to group rows, like for example to separate a total row at
+the bottom from the summand rows above.  (ii) Fields that already get a value
+from a field/range formula will be left alone by column formulas.  These
+conditions make column formulas very easy to use.
 
 To assign a formula to a column, type it directly into any field in the
 column, preceded by an equal sign, like @samp{=$1+$2}.  When you press
@@ -2981,7 +2986,7 @@ makes use of these features:
 | # | Peter   |     10 |      8 |     23 |    41 |  8.2 |
 | # | Sam     |      2 |      4 |      3 |     9 |  1.8 |
 |---+---------+--------+--------+--------+-------+------|
-|   | Average |        |        |        |  29.7 |      |
+|   | Average |        |        |        |  25.0 |      |
 | ^ |         |        |        |        |    at |      |
 | $ | max=50  |        |        |        |       |      |
 |---+---------+--------+--------+--------+-------+------|
@@ -3937,9 +3942,9 @@ from @code{DONE} to @code{REPORT} in the example above.  See also
 
 If you would like to quickly change an entry to an arbitrary TODO state
 instead of cycling through the states, you can set up keys for single-letter
-access to the states.  This is done by adding the selection
-letter@footnote{Only alphabetical letters are allowed for fast TODO selection
-keys.} after each keyword, in parentheses.  For example:
+access to the states.  This is done by adding the selection character after
+each keyword, in parentheses@footnote{All characters are allowed except
+@code{@@^!}, which have a special meaning here.}.  For example:
 
 @lisp
 (setq org-todo-keywords
@@ -5011,6 +5016,7 @@ used as keys in the properties drawer:
 @cindex property, special, TIMESTAMP
 @cindex property, special, TIMESTAMP_IA
 @cindex property, special, CLOCKSUM
+@cindex property, special, CLOCKSUM_T
 @cindex property, special, BLOCKED
 @c guessing that ITEM is needed in this area; also, should this list be sorted?
 @cindex property, special, ITEM
@@ -5030,6 +5036,9 @@ TIMESTAMP    @r{The first keyword-less timestamp in the entry.}
 TIMESTAMP_IA @r{The first inactive timestamp in the entry.}
 CLOCKSUM     @r{The sum of CLOCK intervals in the subtree.  @code{org-clock-sum}}
              @r{must be run first to compute the values in the current buffer.}
+CLOCKSUM_T   @r{The sum of CLOCK intervals in the subtree for today.}
+             @r{@code{org-clock-sum-today} must be run first to compute the}
+             @r{values in the current buffer.}
 BLOCKED      @r{"t" if task is currently blocked by children or siblings}
 ITEM         @r{The headline of the entry.}
 FILE         @r{The filename the entry is located in.}
@@ -5247,7 +5256,7 @@ values.
 
 @example
 :COLUMNS:  %25ITEM %9Approved(Approved?)@{X@} %Owner %11Status \@footnote{Please note that the COLUMNS definition must be on a single line---it is wrapped here only because of formatting constraints.}
-                   %10Time_Estimate@{:@} %CLOCKSUM
+                   %10Time_Estimate@{:@} %CLOCKSUM %CLOCKSUM_T
 :Owner_ALL:    Tammy Mark Karl Lisa Don
 :Status_ALL:   "In progress" "Not started yet" "Finished" ""
 :Approved_ALL: "[ ]" "[X]"
@@ -5266,8 +5275,9 @@ modified title (@samp{Approved?}, with a question mark).  Summaries will
 be created for the @samp{Time_Estimate} column by adding time duration
 expressions like HH:MM, and for the @samp{Approved} column, by providing
 an @samp{[X]} status if all children have been checked.  The
-@samp{CLOCKSUM} column is special, it lists the sum of CLOCK intervals
-in the subtree.
+@samp{CLOCKSUM} and @samp{CLOCKSUM_T} columns are special, they lists the
+sums of CLOCK intervals in the subtree, either for all clocks or just for
+today.
 
 @node Using column view, Capturing column view, Defining columns, Column view
 @subsection Using column view
@@ -6281,7 +6291,7 @@ as 10 or 15, Emacs can alert you when you get back to your computer after
 being idle for that many minutes@footnote{On computers using Mac OS X,
 idleness is based on actual user idleness, not just Emacs' idle time.  For
 X11, you can install a utility program @file{x11idle.c}, available in the
-UTILITIES directory of the Org git distribution, to get the same general
+@code{utils} directory of the Org git distribution, to get the same general
 treatment of idleness.  On other systems, idle time refers to Emacs idle time
 only.}, and ask what you want to do with the idle time.  There will be a
 question waiting for you when you get back, indicating how much idle time has
@@ -6636,6 +6646,7 @@ like this:
 @menu
 * Template elements::           What is needed for a complete template entry
 * Template expansion::          Filling in information about time and context
+* Templates in contexts::       Only show a template in a specific context
 @end menu
 
 @node Template elements, Template expansion, Capture templates, Capture templates
@@ -6779,7 +6790,7 @@ buffer again after capture is completed.
 @end table
 @end table
 
-@node Template expansion,  , Template elements, Capture templates
+@node Template expansion, Templates in contexts, Template elements, Capture templates
 @subsubsection Template expansion
 
 In the template itself, special @kbd{%}-escapes@footnote{If you need one of
@@ -6794,11 +6805,12 @@ dynamic insertion of content.  The templates are expanded in the order given her
 %t          @r{Timestamp, date only.}
 %T          @r{Timestamp, with date and time.}
 %u, %U      @r{Like the above, but inactive timestamps.}
-%a          @r{Annotation, normally the link created with @code{org-store-link}.}
 %i          @r{Initial content, the region when capture is called while the}
             @r{region is active.}
             @r{The entire text will be indented like @code{%i} itself.}
+%a          @r{Annotation, normally the link created with @code{org-store-link}.}
 %A          @r{Like @code{%a}, but prompt for the description part.}
+%l          @r{Like %a, but only insert the literal link.}
 %c          @r{Current kill ring head.}
 %x          @r{Content of the X clipboard.}
 %k          @r{Title of the currently clocked task.}
@@ -6856,6 +6868,29 @@ To place the cursor after template expansion use:
 %?          @r{After completing the template, position cursor here.}
 @end smallexample
 
+@node Templates in contexts,  , Template expansion, Capture templates
+@subsubsection Templates in contexts
+
+@vindex org-capture-templates-contexts
+To control whether a capture template should be accessible from a specific
+context, you can customize @var{org-capture-templates-contexts}.  Let's say
+for example that you have a capture template @code{"p"} for storing Gnus
+emails containing patches.  Then you would configure this option like this:
+
+@example
+(setq org-capture-templates-contexts
+      '(("p" (in-mode . "message-mode"))))
+@end example
+
+You can also tell that the command key @code{"p"} should refer to another
+template.  In that case, add this command key like this:
+
+@example
+(setq org-capture-templates-contexts
+      '(("p" "q" (in-mode . "message-mode"))))
+@end example
+
+See the docstring of the variable for more information.
 
 @node Attachments, RSS Feeds, Capture, Capture - Refile - Archive
 @section Attachments
@@ -7532,11 +7567,13 @@ in an Org or Diary file.
 @cindex appointment
 @cindex reminders
 
-Org can interact with Emacs appointments notification facility.  To add all
-the appointments of your agenda files, use the command
-@code{org-agenda-to-appt}.  This command also lets you filter through the
-list of your appointments and add only those belonging to a specific category
-or matching a regular expression.  See the docstring for details.
+Org can interact with Emacs appointments notification facility.  To add the
+appointments of your agenda files, use the command @code{org-agenda-to-appt}.
+This command lets you filter through the list of your appointments and add
+only those belonging to a specific category or matching a regular expression.
+It also reads a @code{APPT_WARNTIME} property which will then override the
+value of @code{appt-message-warning-time} for this appointment.  See the
+docstring for details.
 
 @node Global TODO list, Matching tags and properties, Weekly/daily agenda, Built-in agenda views
 @subsection The global TODO list
@@ -8592,11 +8629,12 @@ buffer, or a sparse tree (the latter covering of course only the current
 buffer).
 @kindex C-c a C
 @vindex org-agenda-custom-commands
+
 Custom commands are configured in the variable
 @code{org-agenda-custom-commands}.  You can customize this variable, for
-example by pressing @kbd{C-c a C}.  You can also directly set it with
-Emacs Lisp in @file{.emacs}.  The following example contains all valid
-search types:
+example by pressing @kbd{C-c a C}.  You can also directly set it with Emacs
+Lisp in @file{.emacs}.  The following example contains all valid search
+types:
 
 @lisp
 @group
@@ -8756,6 +8794,27 @@ this interface, the @emph{values} are just Lisp expressions.  So if the
 value is a string, you need to add the double-quotes around the value
 yourself.
 
+@vindex org-agenda-custom-commands-contexts
+To control whether an agenda command should be accessible from a specific
+context, you can customize @var{org-agenda-custom-commands-contexts}.  Let's
+say for example that you have an agenda commands @code{"o"} displaying a view
+that you only need when reading emails.  Then you would configure this option
+like this:
+
+@example
+(setq org-agenda-custom-commands-contexts
+      '(("o" (in-mode . "message-mode"))))
+@end example
+
+You can also tell that the command key @code{"o"} should refer to another
+command key @code{"r"}.  In that case, add this command key like this:
+
+@example
+(setq org-agenda-custom-commands-contexts
+      '(("o" "r" (in-mode . "message-mode"))))
+@end example
+
+See the docstring of the variable for more information.
 
 @node Exporting Agenda Views, Agenda column view, Custom agenda views, Agenda Views
 @section Exporting Agenda Views
@@ -8949,6 +9008,14 @@ a column listing the planned total effort for a task---one of the major
 applications for column view in the agenda.  If you want information about
 clocked time in the displayed period use clock table mode (press @kbd{R} in
 the agenda).
+
+@item
+@cindex property, special, CLOCKSUM_T
+When the column view in the agenda shows the @code{CLOCKSUM_T}, that is
+always today's clocked time for this item.  So even in the weekly agenda,
+the clocksum listed in column view only originates from today.  This lets
+you compare the time you spent on a task for today, with the time already
+spent (via @code{CLOCKSUM}) and with the planned total effort for it.
 @end enumerate
 
 
@@ -9160,11 +9227,11 @@ a horizontal line (@samp{<hr/>} in HTML and @code{\hrule} in @LaTeX{}).
 @cindex exporting, not
 @cindex #+BEGIN_COMMENT
 
-Lines starting with @samp{#} in column zero are treated as comments and will
-never be exported.  If you want an indented line to be treated as a comment,
-start it with @samp{#+ }.  Also entire subtrees starting with the word
-@samp{COMMENT} will never be exported.  Finally, regions surrounded by
-@samp{#+BEGIN_COMMENT} ... @samp{#+END_COMMENT} will not be exported.
+Lines starting with zero or more whitespace characters followed by @samp{#}
+are treated as comments and will never be exported.  Also entire subtrees
+starting with the word @samp{COMMENT} will never be exported.  Finally,
+regions surrounded by @samp{#+BEGIN_COMMENT} ... @samp{#+END_COMMENT} will
+not be exported.
 
 @table @kbd
 @kindex C-c ;
@@ -9252,23 +9319,14 @@ look like the fontified Emacs buffer@footnote{This works automatically for
 the HTML backend (it requires version 1.34 of the @file{htmlize.el} package,
 which is distributed with Org).  Fontified code chunks in @LaTeX{} can be
 achieved using either the listings or the
-@url{http://code.google.com/p/minted, minted,} package.  To use listings, turn
-on the variable @code{org-export-latex-listings} and ensure that the listings
-package is included by the @LaTeX{} header (e.g.@: by configuring
-@code{org-export-latex-packages-alist}).  See the listings documentation for
-configuration options, including obtaining colored output.  For minted it is
-necessary to install the program @url{http://pygments.org, pygments}, in
-addition to setting @code{org-export-latex-minted}, ensuring that the minted
-package is included by the @LaTeX{} header, and ensuring that the
-@code{-shell-escape} option is passed to @file{pdflatex} (see
-@code{org-latex-to-pdf-process}).  See the documentation of the variables
-@code{org-export-latex-listings} and @code{org-export-latex-minted} for
-further details.}.  This is done with the @samp{src} block, where you also
-need to specify the name of the major mode that should be used to fontify the
-example@footnote{Code in @samp{src} blocks may also be evaluated either
-interactively or on export.  See @pxref{Working With Source Code} for more
-information on evaluating code blocks.}, see @ref{Easy Templates} for
-shortcuts to easily insert code blocks.
+@url{http://code.google.com/p/minted, minted,} package.  Refer to
+@code{org-export-latex-listings} documentation for details.}.  This is done
+with the @samp{src} block, where you also need to specify the name of the
+major mode that should be used to fontify the example@footnote{Code in
+@samp{src} blocks may also be evaluated either interactively or on export.
+See @pxref{Working With Source Code} for more information on evaluating code
+blocks.}, see @ref{Easy Templates} for shortcuts to easily insert code
+blocks.
 @cindex #+BEGIN_SRC
 
 @example
@@ -17062,7 +17120,6 @@ work on a tty.
 @item
 @i{Piotr Zielinski} wrote @file{org-mouse.el}, proposed agenda blocks
 and contributed various ideas and code snippets.
-@item
 @end itemize
 
 

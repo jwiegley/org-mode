@@ -7,17 +7,46 @@ endif
 LISPV = org-version.el
 LISPI = org-install.el
 LISPA = $(LISPV) $(LISPI)
-LISPF = $(filter-out $(LISPA),$(wildcard *.el))
+LISPF = $(filter-out $(LISPA),$(sort $(wildcard *.el)))
 LISPC = $(filter-out $(LISPN:%el=%elc),$(LISPF:%el=%elc))
+_ORGCM_ = dirall single source slint1 slint2
+-include local.mk
 
 .PHONY:	all compile compile-dirty \
-		autoloads \
-		install clean cleanauto cleanall clean-install
+	$(_ORGCM_) $(_ORGCM_:%=compile-%) \
+	autoloads \
+	install clean cleanauto cleanall cleanelc clean-install
 
 # do not clean here, done in toplevel make
-all compile::	autoloads
-all compile compile-dirty::	 $(LISPI) $(LISPV)
-	$(ELCDIR)
+all compile compile-dirty::	 autoloads
+ifeq ($(filter-out $(_ORGCM_),$(ORGCM)),)
+	$(MAKE) compile-$(ORGCM)
+else
+	$(error ORGCM has illegal value $(ORGCM) (valid: $(_ORGCM_)))
+endif
+
+compile-dirall:	dirall
+compile-single: single $(LISPC)
+compile-source:	source dirall
+compile-slint1:	dirall slint1
+compile-slint2:	source dirall slint1
+
+# internal
+dirall:
+	@$(info ==================== $@ ====================)
+	@$(ELCDIR)
+single:
+	@$(info ==================== $@ ====================)
+source: cleanelc
+	@$(info ==================== $@ ====================)
+	@$(foreach elc,$(LISPC),$(MAKE) $(elc) && $(RM) $(elc);)
+slint1:
+	@$(info ==================== $@ ====================)
+	@$(foreach elc,$(LISPC),$(RM) $(elc); $(MAKE) $(elc);)
+
+%.elc:	%.el
+	@$(info Compiling single $(abspath $<)...)
+	-@$(ELC) $<
 
 autoloads:	cleanauto $(LISPI) $(LISPV)
 
@@ -39,7 +68,7 @@ install:	$(LISPF) compile
 
 cleanauto clean cleanall::
 	$(RM) $(LISPA) $(LISPA:%el=%elc)
-clean cleanall::
+clean cleanall cleanelc::
 	$(RM) *.elc
 
 clean-install:

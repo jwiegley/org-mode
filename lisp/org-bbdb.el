@@ -109,7 +109,7 @@
 (declare-function bbdb-record-getprop "ext:bbdb" (record property))
 (declare-function bbdb-record-name "ext:bbdb" (record))
 (declare-function bbdb-records "ext:bbdb"
-          (&optional dont-check-disk already-in-db-buffer))
+		  (&optional dont-check-disk already-in-db-buffer))
 (declare-function bbdb-split "ext:bbdb" (string separators))
 (declare-function bbdb-string-trim "ext:bbdb" (string))
 (declare-function bbdb-record-get-field "ext:bbdb" (record field))
@@ -207,7 +207,7 @@ date year)."
 	   (company (if (fboundp 'bbdb-record-getprop)
                         (bbdb-record-getprop rec 'company)
                       (car (bbdb-record-get-field rec 'organization))))
-	   (link (org-make-link "bbdb:" name)))
+	   (link (concat "bbdb:" name)))
       (org-store-link-props :type "bbdb" :name name :company company
 			    :link link :description name)
       link)))

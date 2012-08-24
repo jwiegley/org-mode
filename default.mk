@@ -22,6 +22,10 @@ infodir = $(prefix)/info
 # Define if you only need info documentation, the default includes html and pdf
 #ORG_MAKE_DOC = info # html pdf
 
+# Define if you want to include some (or all) files from contrib/lisp
+# just the filename please (no path prefix, no .el suffix), maybe with globbing
+#ORG_ADD_CONTRIB = org-e-* org-md org-export # e.g. the new exporter
+
 # Where to create temporary files for the testsuite
 # respect TMPDIR if it is already defined in the environment
 TMPDIR ?= /tmp
@@ -67,7 +71,7 @@ BATCH	= $(EMACS) -batch -Q
 MAKE_LOCAL_MK = $(BATCH) \
 	  --eval '(add-to-list '"'"'load-path "./lisp")' \
 	  --eval '(load "org-compat.el")' \
-	  --eval '(load "../UTILITIES/org-fixup.el")' \
+	  --eval '(load "../utils/org-fixup.el")' \
 	  --eval '(org-make-local-mk)'
 
 # Emacs must be started in lisp directory
@@ -77,18 +81,22 @@ BATCHL	= $(BATCH) \
 # How to generate org-install.el
 MAKE_ORG_INSTALL = $(BATCHL) \
 	  --eval '(load "org-compat.el")' \
-	  --eval '(load "../UTILITIES/org-fixup.el")' \
+	  --eval '(load "../utils/org-fixup.el")' \
 	  --eval '(org-make-org-install)'
 
 # How to generate org-version.el
 MAKE_ORG_VERSION = $(BATCHL) \
 	  --eval '(load "org-compat.el")' \
-	  --eval '(load "../UTILITIES/org-fixup.el")' \
+	  --eval '(load "../utils/org-fixup.el")' \
 	  --eval '(org-make-org-version "$(ORGVERSION)" "$(GITVERSION)" "$(datadir)")'
 
 # How to byte-compile the whole source directory
 ELCDIR	= $(BATCHL) \
 	  --eval '(batch-byte-recompile-directory 0)'
+
+# How to byte-compile a single file
+ELC	= $(BATCHL) \
+	  --eval '(batch-byte-compile)'
 
 # How to make a pdf file from a texinfo file
 TEXI2PDF = texi2pdf --batch --clean
@@ -127,3 +135,11 @@ SUDO	= sudo
 # Name of the program to install info files
 # INSTALL_INFO = ginstall-info # Debian: avoid harmless warning message
 INSTALL_INFO = install-info
+
+# target method for 'compile'
+ORGCM	= dirall
+# ORGCM	= dirall #   1x slowdown compared to default compilation method
+# ORGCM	= single #   4x one Emacs process per compilation
+# ORGCM	= source #   5x ditto, but remove compiled file immediately
+# ORGCM	= slint1 #   3x possibly elicit more warnings
+# ORGCM	= slint2 #   7x possibly elicit even more warnings

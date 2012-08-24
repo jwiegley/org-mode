@@ -236,8 +236,7 @@ Otherwise, two of them will be necessary."
   :group 'org-plain-lists
   :type 'boolean)
 
-(defcustom org-list-automatic-rules '((bullet . t)
-				      (checkbox . t)
+(defcustom org-list-automatic-rules '((checkbox . t)
 				      (indent . t))
   "Non-nil means apply set of rules when acting on lists.
 By default, automatic actions are taken when using
@@ -247,25 +246,21 @@ By default, automatic actions are taken when using
  \\[org-insert-todo-heading].  You can disable individually these
  rules by setting them to nil.  Valid rules are:
 
-bullet    when non-nil, cycling bullet do not allow lists at
-          column 0 to have * as a bullet and descriptions lists
-          to be numbered.
 checkbox  when non-nil, checkbox statistics is updated each time
           you either insert a new checkbox or toggle a checkbox.
 indent    when non-nil, indenting or outdenting list top-item
           with its subtree will move the whole list and
           outdenting a list whose bullet is * to column 0 will
           change that bullet to \"-\"."
-   :group 'org-plain-lists
-   :version "24.1"
-   :type '(alist :tag "Sets of rules"
-		 :key-type
-		 (choice
-		  (const :tag "Bullet" bullet)
-		  (const :tag "Checkbox" checkbox)
-		  (const :tag "Indent" indent))
-		 :value-type
-		 (boolean :tag "Activate" :value t)))
+  :group 'org-plain-lists
+  :version "24.1"
+  :type '(alist :tag "Sets of rules"
+		:key-type
+		(choice
+		 (const :tag "Checkbox" checkbox)
+		 (const :tag "Indent" indent))
+		:value-type
+		(boolean :tag "Activate" :value t)))
 
 (defcustom org-list-use-circular-motion nil
   "Non-nil means commands implying motion in lists should be cyclic.
@@ -626,12 +621,15 @@ Assume point is at an item."
 	     ;; Return association at point.
 	     (lambda (ind)
 	       (looking-at org-list-full-item-re)
-	       (list (point)
-		     ind
-		     (match-string-no-properties 1)	; bullet
-		     (match-string-no-properties 2)	; counter
-		     (match-string-no-properties 3)	; checkbox
-		     (match-string-no-properties 4)))))	; description tag
+	       (let ((bullet (match-string-no-properties 1)))
+		 (list (point)
+		       ind
+		       bullet
+		       (match-string-no-properties 2) ; counter
+		       (match-string-no-properties 3) ; checkbox
+		       ;; Description tag.
+		       (and (save-match-data (string-match "[-+*]" bullet))
+			    (match-string-no-properties 4)))))))
 	   (end-before-blank
 	    (function
 	     ;; Ensure list ends at the first blank line.
@@ -692,7 +690,7 @@ Assume point is at an item."
 		(forward-line -1))
 	       ((looking-at "^[ \t]*$")
 		(forward-line -1))
-	       ;; From there, point is not at an item. Interpret
+	       ;; From there, point is not at an item.  Interpret
 	       ;; line's indentation:
 	       ;; - text at column 0 is necessarily out of any list.
 	       ;;   Dismiss data recorded above BEG-CELL.  Jump to
@@ -1013,8 +1011,8 @@ Possible types are `descriptive', `ordered' and `unordered'.  The
 type is determined by the first item of the list."
   (let ((first (org-list-get-list-begin item struct prevs)))
     (cond
-     ((org-list-get-tag first struct) 'descriptive)
      ((string-match "[[:alnum:]]" (org-list-get-bullet first struct)) 'ordered)
+     ((org-list-get-tag first struct) 'descriptive)
      (t 'unordered))))
 
 (defun org-list-get-item-number (item struct prevs parents)
@@ -1258,8 +1256,15 @@ This function modifies STRUCT."
     (let* ((item (progn (goto-char pos) (goto-char (org-list-get-item-begin))))
 	   (item-end (org-list-get-item-end item struct))
 	   (item-end-no-blank (org-list-get-item-end-before-blank item struct))
-	   (beforep (and (looking-at org-list-full-item-re)
-			 (<= pos (match-end 0))))
+	   (beforep
+	    (progn
+	      (looking-at org-list-full-item-re)
+	      ;; Do not count tag in a non-descriptive list.
+	      (<= pos (if (and (match-beginning 4)
+			       (save-match-data
+				 (string-match "[.)]" (match-string 1))))
+			  (match-beginning 4)
+			(match-end 0)))))
 	   (split-line-p (org-get-alist-option org-M-RET-may-split-line 'item))
 	   (blank-nb (org-list-separating-blank-lines-number
 		      pos struct prevs))
@@ -1623,7 +1628,7 @@ as returned by `org-list-prevs-alist'."
 	       (if (> ascii 90)
 		   (throw 'exit nil)
 		 (setq item (org-list-get-next-item item struct prevs)))))
-	   ;; All items checked. All good.
+	   ;; All items checked.  All good.
 	   t))))
 
 (defun org-list-inc-bullet-maybe (bullet)
@@ -1873,10 +1878,10 @@ Initial position of cursor is restored after the changes."
 		    (old-bul (org-list-get-bullet item old-struct))
 		    (new-box (org-list-get-checkbox item struct)))
 	       (looking-at org-list-full-item-re)
-	       ;; a. Replace bullet
+	       ;; a.  Replace bullet
 	       (unless (equal old-bul new-bul)
 		 (replace-match new-bul nil nil nil 1))
-	       ;; b. Replace checkbox.
+	       ;; b.  Replace checkbox.
 	       (cond
 		((equal (match-string 3) new-box))
 		((and (match-string 3) new-box)
@@ -1887,7 +1892,7 @@ Initial position of cursor is restored after the changes."
 		(t (let ((counterp (match-end 2)))
 		     (goto-char (if counterp (1+ counterp) (match-end 1)))
 		     (insert (concat new-box (unless counterp " "))))))
-	       ;; c. Indent item to appropriate column.
+	       ;; c.  Indent item to appropriate column.
 	       (unless (= new-ind old-ind)
 		 (delete-region (goto-char (point-at-bol))
 				(progn (skip-chars-forward " \t") (point)))
@@ -2192,14 +2197,19 @@ item is invisible."
 				       (org-list-struct)))
 	       (prevs (org-list-prevs-alist struct))
 	       ;; If we're in a description list, ask for the new term.
-	       (desc (when (org-list-get-tag itemp struct)
+	       (desc (when (eq (org-list-get-list-type itemp struct prevs)
+			       'descriptive)
 		       (concat (read-string "Term: ") " :: "))))
 	  (setq struct
 		(org-list-insert-item pos struct prevs checkbox desc))
 	  (org-list-write-struct struct (org-list-parents-alist struct))
 	  (when checkbox (org-update-checkbox-count-maybe))
 	  (looking-at org-list-full-item-re)
-	  (goto-char (match-end 0))
+	  (goto-char (if (and (match-beginning 4)
+			      (save-match-data
+				(string-match "[.)]" (match-string 1))))
+			 (match-beginning 4)
+		       (match-end 0)))
 	  t)))))
 
 (defun org-list-repair ()
@@ -2228,7 +2238,6 @@ is an integer, 0 means `-', 1 means `+' etc.  If WHICH is
            (prevs (org-list-prevs-alist struct))
            (list-beg (org-list-get-first-item (point) struct prevs))
            (bullet (org-list-get-bullet list-beg struct))
-	   (bullet-rule-p (cdr (assq 'bullet org-list-automatic-rules)))
 	   (alpha-p (org-list-use-alpha-bul-p list-beg struct prevs))
 	   (case-fold-search nil)
 	   (current (cond
@@ -2243,22 +2252,21 @@ is an integer, 0 means `-', 1 means `+' etc.  If WHICH is
 	   (bullet-list
 	    (append '("-" "+" )
 		    ;; *-bullets are not allowed at column 0.
-		    (unless (and bullet-rule-p
-				 (looking-at "\\S-")) '("*"))
+		    (unless (looking-at "\\S-") '("*"))
 		    ;; Description items cannot be numbered.
 		    (unless (or (eq org-plain-list-ordered-item-terminator ?\))
-				(and bullet-rule-p (org-at-item-description-p)))
+				(org-at-item-description-p))
 		      '("1."))
 		    (unless (or (eq org-plain-list-ordered-item-terminator ?.)
-				(and bullet-rule-p (org-at-item-description-p)))
+				(org-at-item-description-p))
 		      '("1)"))
 		    (unless (or (not alpha-p)
 				(eq org-plain-list-ordered-item-terminator ?\))
-				(and bullet-rule-p (org-at-item-description-p)))
+				(org-at-item-description-p))
 		      '("a." "A."))
 		    (unless (or (not alpha-p)
 				(eq org-plain-list-ordered-item-terminator ?.)
-				(and bullet-rule-p (org-at-item-description-p)))
+				(org-at-item-description-p))
 		      '("a)" "A)"))))
 	   (len (length bullet-list))
 	   (item-index (- len (length (member current bullet-list))))
@@ -2361,13 +2369,13 @@ in subtree, ignoring drawers."
 				 (lambda (e) (or (< e lim-up) (> e lim-down)))
 				 (mapcar 'car struct))))
 	  (mapc (lambda (e) (org-list-set-checkbox
-			e struct
-			;; If there is no box at item, leave as-is
-			;; unless function was called with C-u prefix.
-			(let ((cur-box (org-list-get-checkbox e struct)))
-			  (if (or cur-box (equal toggle-presence '(4)))
-			      ref-checkbox
-			    cur-box))))
+			     e struct
+			     ;; If there is no box at item, leave as-is
+			     ;; unless function was called with C-u prefix.
+			     (let ((cur-box (org-list-get-checkbox e struct)))
+			       (if (or cur-box (equal toggle-presence '(4)))
+				   ref-checkbox
+				 cur-box))))
 		items-to-toggle)
 	  (setq block-item (org-list-struct-fix-box
 			    struct parents prevs orderedp))
@@ -2814,11 +2822,10 @@ COMPARE-FUNC to compare entries."
 	     (sort-func (cond
 			 ((= dcst ?a) 'string<)
 			 ((= dcst ?f) compare-func)
-			 ((= dcst ?t) '<)
-			 (t nil)))
+			 ((= dcst ?t) '<)))
 	     (next-record (lambda ()
-			     (skip-chars-forward " \r\t\n")
-			     (beginning-of-line)))
+			    (skip-chars-forward " \r\t\n")
+			    (beginning-of-line)))
 	     (end-record (lambda ()
 			   (goto-char (org-list-get-item-end-before-blank
 				       (point) struct))))
@@ -2932,7 +2939,7 @@ Point is left at list end."
 			    (goto-char e)
 			    (looking-at "[ \t]*\\S-+\\([ \t]+\\[@\\(start:\\)?\\([0-9]+\\|[a-zA-Z]\\)\\]\\)?[ \t]*")
 			    (match-end 0)))
-		   ;; Get counter number. For alphabetic counter, get
+		   ;; Get counter number.  For alphabetic counter, get
 		   ;; its position in the alphabet.
 		   (counter (let ((c (org-list-get-counter e struct)))
 			      (cond
@@ -3138,7 +3145,7 @@ items."
 			   ((and counter (eq type 'ordered))
 			    (concat (eval icount) "%s"))
 			   (t (concat (eval istart) "%s")))
-				 (eval iend)))
+			  (eval iend)))
 		    (first (car item)))
 	       ;; Replace checkbox if any is found.
 	       (cond
@@ -3195,21 +3202,21 @@ with overruling parameters for `org-list-to-generic'."
    list
    (org-combine-plists
     '(:splice nil :ostart "\\begin{enumerate}\n" :oend "\\end{enumerate}"
-	       :ustart "\\begin{itemize}\n" :uend "\\end{itemize}"
-	       :dstart "\\begin{description}\n" :dend "\\end{description}"
-	       :dtstart "[" :dtend "] "
-	       :istart "\\item " :iend "\n"
-	       :icount (let ((enum (nth depth '("i" "ii" "iii" "iv"))))
-			 (if enum
-			     ;; LaTeX increments counter just before
-			     ;; using it, so set it to the desired
-			     ;; value, minus one.
-			     (format "\\setcounter{enum%s}{%s}\n\\item "
-				     enum (1- counter))
-			   "\\item "))
-	       :csep "\n"
-	       :cbon "\\texttt{[X]}" :cboff "\\texttt{[ ]}"
-	       :cbtrans "\\texttt{[-]}")
+	      :ustart "\\begin{itemize}\n" :uend "\\end{itemize}"
+	      :dstart "\\begin{description}\n" :dend "\\end{description}"
+	      :dtstart "[" :dtend "] "
+	      :istart "\\item " :iend "\n"
+	      :icount (let ((enum (nth depth '("i" "ii" "iii" "iv"))))
+			(if enum
+			    ;; LaTeX increments counter just before
+			    ;; using it, so set it to the desired
+			    ;; value, minus one.
+			    (format "\\setcounter{enum%s}{%s}\n\\item "
+				    enum (1- counter))
+			  "\\item "))
+	      :csep "\n"
+	      :cbon "\\texttt{[X]}" :cboff "\\texttt{[ ]}"
+	      :cbtrans "\\texttt{[-]}")
     params)))
 
 (defun org-list-to-html (list &optional params)
@@ -3220,15 +3227,15 @@ with overruling parameters for `org-list-to-generic'."
    list
    (org-combine-plists
     '(:splice nil :ostart "<ol>\n" :oend "\n</ol>"
-	       :ustart "<ul>\n" :uend "\n</ul>"
-	       :dstart "<dl>\n" :dend "\n</dl>"
-	       :dtstart "<dt>" :dtend "</dt>\n"
-	       :ddstart "<dd>" :ddend "</dd>"
-	       :istart "<li>" :iend "</li>"
-	       :icount (format "<li value=\"%s\">" counter)
-	       :isep "\n" :lsep "\n" :csep "\n"
-	       :cbon "<code>[X]</code>" :cboff "<code>[ ]</code>"
-	       :cbtrans "<code>[-]</code>")
+	      :ustart "<ul>\n" :uend "\n</ul>"
+	      :dstart "<dl>\n" :dend "\n</dl>"
+	      :dtstart "<dt>" :dtend "</dt>\n"
+	      :ddstart "<dd>" :ddend "</dd>"
+	      :istart "<li>" :iend "</li>"
+	      :icount (format "<li value=\"%s\">" counter)
+	      :isep "\n" :lsep "\n" :csep "\n"
+	      :cbon "<code>[X]</code>" :cboff "<code>[ ]</code>"
+	      :cbtrans "<code>[-]</code>")
     params)))
 
 (defun org-list-to-texinfo (list &optional params)
@@ -3239,14 +3246,14 @@ with overruling parameters for `org-list-to-generic'."
    list
    (org-combine-plists
     '(:splice nil :ostart "@itemize @minus\n" :oend "@end itemize"
-	       :ustart "@enumerate\n" :uend "@end enumerate"
-	       :dstart "@table @asis\n" :dend "@end table"
-	       :dtstart " " :dtend "\n"
-	       :istart "@item\n" :iend "\n"
-	       :icount "@item\n"
-	       :csep "\n"
-	       :cbon "@code{[X]}" :cboff "@code{[ ]}"
-	       :cbtrans "@code{[-]}")
+	      :ustart "@enumerate\n" :uend "@end enumerate"
+	      :dstart "@table @asis\n" :dend "@end table"
+	      :dtstart " " :dtend "\n"
+	      :istart "@item\n" :iend "\n"
+	      :icount "@item\n"
+	      :csep "\n"
+	      :cbon "@code{[X]}" :cboff "@code{[ ]}"
+	      :cbtrans "@code{[-]}")
     params)))
 
 (defun org-list-to-subtree (list &optional params)

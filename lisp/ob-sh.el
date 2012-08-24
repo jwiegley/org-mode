@@ -57,7 +57,7 @@ This function is called by `org-babel-execute-src-block'."
   (let* ((session (org-babel-sh-initiate-session
 		   (cdr (assoc :session params))))
 	 (stdin ((lambda (stdin) (when stdin (org-babel-sh-var-to-string
-					 (org-babel-ref-resolve stdin))))
+					      (org-babel-ref-resolve stdin))))
 		 (cdr (assoc :stdin params))))
          (full-body (org-babel-expand-body:generic
 		     body params (org-babel-variable-assignments:sh params))))
@@ -107,13 +107,13 @@ var of the same value."
 
 (defun org-babel-sh-var-to-string (var &optional sep)
   "Convert an elisp value to a string."
-  (org-flet ((echo-var (v) (if (stringp v) v (format "%S" v))))
+  (let ((echo-var (lambda (v) (if (stringp v) v (format "%S" v)))))
     (cond
      ((and (listp var) (listp (car var)))
-      (orgtbl-to-generic var  (list :sep (or sep "\t") :fmt #'echo-var)))
+      (orgtbl-to-generic var  (list :sep (or sep "\t") :fmt echo-var)))
      ((listp var)
-      (mapconcat #'echo-var var "\n"))
-     (t (echo-var var)))))
+      (mapconcat echo-var var "\n"))
+     (t (funcall echo-var var)))))
 
 (defun org-babel-sh-table-or-results (results)
   "Convert RESULTS to an appropriate elisp value.

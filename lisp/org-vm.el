@@ -85,8 +85,8 @@
 				    (date-to-time date))))
 	     folder desc link)
         (if (vm-imap-folder-p)
-          (let ((spec (vm-imap-find-spec-for-buffer (current-buffer))))
-            (setq folder (vm-imap-folder-for-spec spec)))
+	    (let ((spec (vm-imap-find-spec-for-buffer (current-buffer))))
+	      (setq folder (vm-imap-folder-for-spec spec)))
           (progn
             (setq folder (abbreviate-file-name buffer-file-name))
             (if (and vm-folder-directory
@@ -100,7 +100,7 @@
 	  (org-add-link-props :date date :date-timestamp date-ts
 			      :date-timestamp-inactive date-ts-ia))
 	(setq desc (org-email-link-description))
-	(setq link (org-make-link (concat link-type ":") folder "#" message-id))
+	(setq link (concat (concat link-type ":") folder "#" message-id))
 	(org-add-link-props :link link :description desc)
 	link))))
 

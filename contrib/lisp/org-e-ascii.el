@@ -38,6 +38,7 @@
 (eval-when-compile (require 'cl))
 (require 'org-export)
 
+(declare-function aa2u "ext:ascii-art-to-unicode" ())
 
 ;;; Define Back-End
 ;;
@@ -1543,7 +1544,7 @@ contextual information."
 	      (aa2u)
 	      (goto-char (point-max))
 	      (skip-chars-backward " \r\t\n")
-	      (buffer-string)))
+	      (buffer-substring (point-min) (point))))
 	   (t (org-remove-indentation (org-element-property :value table))))
      ;; Possible add a caption string below.
      (when (and caption (not org-e-ascii-caption-above))
@@ -1725,7 +1726,7 @@ This function only applies to `e-ascii' back-end.  See
 `org-e-ascii-headline-spacing' for information.
 
 For any other back-end, HEADLINE is returned as-is."
-  (if (not (and (eq back-end 'e-ascii) org-e-ascii-headline-spacing)) headline
+  (if (not org-e-ascii-headline-spacing) headline
     (let ((blanks (make-string (1+ (cdr org-e-ascii-headline-spacing)) ?\n)))
       (replace-regexp-in-string "\n\\(?:\n[ \t]*\\)*\\'" blanks headline))))
 

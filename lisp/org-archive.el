@@ -31,6 +31,7 @@
 (require 'org)
 
 (declare-function org-inlinetask-remove-END-maybe "org-inlinetask" ())
+(declare-function org-datetree-find-date-create "org-datetree" (date &optional keep-restriction))
 
 (defcustom org-archive-default-command 'org-archive-subtree
   "The default archiving command."
@@ -100,14 +101,14 @@ the archived entry, with a prefix \"ARCHIVE_\", to remember this
 information."
   :group 'org-archive
   :type '(set :greedy t
-	  (const :tag "Time" time)
-	  (const :tag "File" file)
-	  (const :tag "Category" category)
-	  (const :tag "TODO state" todo)
-	  (const :tag "Priority" priority)
-	  (const :tag "Inherited tags" itags)
-	  (const :tag "Outline path" olpath)
-	  (const :tag "Local tags" ltags)))
+	      (const :tag "Time" time)
+	      (const :tag "File" file)
+	      (const :tag "Category" category)
+	      (const :tag "TODO state" todo)
+	      (const :tag "Priority" priority)
+	      (const :tag "Inherited tags" itags)
+	      (const :tag "Outline path" olpath)
+	      (const :tag "Local tags" ltags)))
 
 (defun org-get-local-archive-location ()
   "Get the archive location applicable at point."

@@ -31,6 +31,7 @@
   (require 'cl))
 
 (require 'org-macs)
+(require 'org-compat)
 (require 'pcomplete)
 
 (declare-function org-split-string "org" (string &optional separators))
@@ -57,10 +58,10 @@
   "Examine the thing at point and let the caller know what it is.
 The return value is a string naming the thing at point."
   (let ((beg1 (save-excursion
-		(skip-chars-backward (org-re "[:alnum:]_@"))
+		(skip-chars-backward (org-re "[:alnum:]-_@"))
 		(point)))
 	(beg (save-excursion
-	       (skip-chars-backward "a-zA-Z0-9_:$")
+	       (skip-chars-backward "a-zA-Z0-9-_:$")
 	       (point)))
 	(line-to-here (buffer-substring (point-at-bol) (point))))
     (cond
@@ -93,8 +94,8 @@ The return value is a string naming the thing at point."
 	     (skip-chars-backward "[ \t\n]")
 	     ;; org-drawer-regexp matches a whole line but while
 	     ;; looking-back, we just ignore trailing whitespaces
-	     (or (looking-back (substring org-drawer-regexp 0 -1))
-		 (looking-back org-property-re))))
+	     (or (org-looking-back (substring org-drawer-regexp 0 -1))
+		 (org-looking-back org-property-re))))
       (cons "prop" nil))
      ((and (equal (char-before beg1) ?:)
 	   (not (equal (char-after (point-at-bol)) ?*)))
@@ -132,7 +133,6 @@ When completing for #+STARTUP, for example, this function returns
 			   args)))
 	(cons (reverse args) (reverse begins))))))
 
-
 (defun org-pcomplete-initial ()
   "Calls the right completion function for first argument completions."
   (ignore
@@ -140,7 +140,8 @@ When completing for #+STARTUP, for example, this function returns
 		 (car (org-thing-at-point)))
 		pcomplete-default-completion-function))))
 
-(defvar org-additional-option-like-keywords)
+(defvar org-options-keywords)                ; From org.el
+(defvar org-additional-option-like-keywords) ; From org.el
 (defun pcomplete/org-mode/file-option ()
   "Complete against all valid file options."
   (require 'org-exp)
@@ -167,6 +168,38 @@ When completing for #+STARTUP, for example, this function returns
 	       ((string= arg "hidestars")
 		(setq opts (delete "showstars" opts)))))
 	    opts))))
+
+(defmacro pcomplete/org-mode/file-option/x (option)
+  "Complete arguments for OPTION."
+  `(while
+       (pcomplete-here
+	(pcomplete-uniqify-list
+	 (delq nil
+	       (mapcar (lambda(o)
+			 (when (string-match (concat "^[ \t]*#\\+"
+						     ,option ":[ \t]+\\(.*\\)[ \t]*$") o)
+			   (match-string 1 o)))
+		       (split-string (org-get-current-options) "\n")))))))
+
+(defun pcomplete/org-mode/file-option/options ()
+  "Complete arguments for the #+OPTIONS file option."
+  (pcomplete/org-mode/file-option/x "OPTIONS"))
+
+(defun pcomplete/org-mode/file-option/title ()
+  "Complete arguments for the #+TITLE file option."
+  (pcomplete/org-mode/file-option/x "TITLE"))
+
+(defun pcomplete/org-mode/file-option/author ()
+  "Complete arguments for the #+AUTHOR file option."
+  (pcomplete/org-mode/file-option/x "AUTHOR"))
+
+(defun pcomplete/org-mode/file-option/email ()
+  "Complete arguments for the #+EMAIL file option."
+  (pcomplete/org-mode/file-option/x "EMAIL"))
+
+(defun pcomplete/org-mode/file-option/date ()
+  "Complete arguments for the #+DATE file option."
+  (pcomplete/org-mode/file-option/x "DATE"))
 
 (defun pcomplete/org-mode/file-option/bind ()
   "Complete arguments for the #+BIND file option, which are variable names."
@@ -203,16 +236,16 @@ When completing for #+STARTUP, for example, this function returns
   "Complete against all headings.
 This needs more work, to handle headings with lots of spaces in them."
   (while
-   (pcomplete-here
-    (save-excursion
-      (goto-char (point-min))
-      (let (tbl)
-	(while (re-search-forward org-todo-line-regexp nil t)
-	  (push (org-make-org-heading-search-string
-		 (match-string-no-properties 3) t)
-		tbl))
-	(pcomplete-uniqify-list tbl)))
-    (substring pcomplete-stub 1))))
+      (pcomplete-here
+       (save-excursion
+	 (goto-char (point-min))
+	 (let (tbl)
+	   (while (re-search-forward org-todo-line-regexp nil t)
+	     (push (org-make-org-heading-search-string
+		    (match-string-no-properties 3) t)
+		   tbl))
+	   (pcomplete-uniqify-list tbl)))
+       (substring pcomplete-stub 1))))
 
 (defvar org-tag-alist)
 (defun pcomplete/org-mode/tag ()
@@ -256,14 +289,14 @@ This needs more work, to handle headings with lots of spaces in them."
 	       (match-string 1)))
 	(cpllist (mapcar (lambda (x) (concat x ": ")) org-drawers)))
     (pcomplete-here cpllist
-     (substring pcomplete-stub 1)
-     (unless (or (not (delete
-		       nil
-		       (mapcar (lambda(x)
-				 (string-match (substring pcomplete-stub 1) x))
-			       cpllist)))
-		 (looking-at "[ \t]*\n.*:END:"))
-       (save-excursion (insert "\n" spc ":END:"))))))
+		    (substring pcomplete-stub 1)
+		    (unless (or (not (delete
+				      nil
+				      (mapcar (lambda(x)
+						(string-match (substring pcomplete-stub 1) x))
+					      cpllist)))
+				(looking-at "[ \t]*\n.*:END:"))
+		      (save-excursion (insert "\n" spc ":END:"))))))
 
 (defun pcomplete/org-mode/block-option/src ()
   "Complete the arguments of a begin_src block.

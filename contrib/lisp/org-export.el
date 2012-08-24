@@ -138,6 +138,7 @@
     (:with-entities nil "e" org-export-with-entities)
     (:with-fixed-width nil ":" org-export-with-fixed-width)
     (:with-footnotes nil "f" org-export-with-footnotes)
+    (:with-inlinetasks nil "inline" org-export-with-inlinetasks)
     (:with-plannings nil "p" org-export-with-planning)
     (:with-priority nil "pri" org-export-with-priority)
     (:with-special-strings nil "-" org-export-with-special-strings)
@@ -405,9 +406,7 @@ e.g. \"f:nil\"."
 (defcustom org-export-headline-levels 3
   "The last level which is still exported as a headline.
 
-Inferior levels will produce itemize lists when exported.  Note
-that a numeric prefix argument to an exporter function overrides
-this setting.
+Inferior levels will produce itemize lists when exported.
 
 This option can also be set with the #+OPTIONS line, e.g. \"H:2\"."
   :group 'org-export-general
@@ -444,6 +443,13 @@ e.g. \"e:nil\"."
   :group 'org-export-general
   :type 'boolean)
 
+(defcustom org-export-with-inlinetasks t
+  "Non-nil means inlinetasks should be exported.
+This option can also be set with the #+OPTIONS line,
+e.g. \"inline:nil\"."
+  :group 'org-export-general
+  :type 'boolean)
+
 (defcustom org-export-with-planning nil
   "Non-nil means include planning info in export.
 This option can also be set with the #+OPTIONS: line,
@@ -453,9 +459,6 @@ e.g. \"p:t\"."
 
 (defcustom org-export-with-priority nil
   "Non-nil means include priority cookies in export.
-
-When nil, remove priority cookies for export.
-
 This option can also be set with the #+OPTIONS line,
 e.g. \"pri:t\"."
   :group 'org-export-general
@@ -742,7 +745,9 @@ keywords are understood:
 
     Alist between filters and function, or list of functions,
     specific to the back-end.  See `org-export-filters-alist' for
-    a list of all allowed filters.
+    a list of all allowed filters.  Filters defined here
+    shouldn't make a back-end test, as it may prevent back-ends
+    derived from this one to behave properly.
 
   :options-alist
 
@@ -809,7 +814,7 @@ As an example, here is how the `e-ascii' back-end is defined:
   :options-alist ((:ascii-charset nil nil org-e-ascii-charset)))"
   (declare (debug (&define name sexp [&rest [keywordp sexp]] defbody))
 	   (indent 1))
-  (let (filters options block-name)
+  (let (filters options export-block)
     (while (keywordp (car body))
       (case (pop body)
         (:export-block (let ((names (pop body)))
@@ -894,7 +899,7 @@ The back-end could then be called with, for example:
   \(org-export-to-buffer 'my-latex \"*Test my-latex*\")"
   (declare (debug (&define name sexp [&rest [keywordp sexp]] def-body))
 	   (indent 2))
-  (let (filters options translate)
+  (let (filters options translate export-block)
     (while (keywordp (car body))
       (case (pop body)
 	(:export-block (let ((names (pop body)))
@@ -1814,6 +1819,8 @@ tag."
 		 (and (memq with-tasks '(todo done))
 		      (not (eq todo-type with-tasks)))
 		 (and (consp with-tasks) (not (member todo with-tasks))))))))
+    ;; Check inlinetask.
+    (inlinetask (not (plist-get options :with-inlinetasks)))
     ;; Check timestamp.
     (timestamp
      (case (plist-get options :with-timestamps)
@@ -2071,10 +2078,14 @@ Any element in `:ignore-list' will be skipped when using
 
 (defvar org-export-before-parsing-hook nil
   "Hook run before parsing an export buffer.
+
 This is run after include keywords have been expanded and Babel
 code executed, on a copy of original buffer's area being
 exported.  Visibility is the same as in the original one.  Point
-is left at the beginning of the new one.")
+is left at the beginning of the new one.
+
+Every function in this hook will be called with one argument: the
+back-end currently used, as a symbol.")
 
 
 ;;;; Special Filters
@@ -2421,18 +2432,26 @@ channel, as a plist.  It must return a string or nil.")
 ;; variables (user filters) in the communication channel.
 ;;
 ;; Internal function `org-export-filter-apply-functions' takes care
-;; about applying each filter in order to a given data.  It stops
-;; whenever a filter returns a nil value.
+;; about applying each filter in order to a given data.  It ignores
+;; filters returning a nil value but stops whenever a filter returns
+;; an empty string.
 
 (defun org-export-filter-apply-functions (filters value info)
   "Call every function in FILTERS.
+
 Functions are called with arguments VALUE, current export
-back-end and INFO.  Call is done in a LIFO fashion, to be sure
-that developer specified filters, if any, are called first."
-  (loop for filter in filters
-	if (not value) return nil else
-	do (setq value (funcall filter value (plist-get info :back-end) info)))
-  value)
+back-end and INFO.  A function returning a nil value will be
+skipped.  If it returns the empty string, the process ends and
+VALUE is ignored.
+
+Call is done in a LIFO fashion, to be sure that developer
+specified filters, if any, are called first."
+  (catch 'exit
+    (dolist (filter filters value)
+      (let ((result (funcall filter value (plist-get info :back-end) info)))
+	(cond ((not value))
+	      ((equal value "") (throw 'exit nil))
+	      (t (setq value result)))))))
 
 (defun org-export-install-filters (info)
   "Install filters properties in communication channel.
@@ -2489,8 +2508,6 @@ Return the updated communication channel."
 ;; why file inclusion should be done before any structure can be
 ;; associated to the file, that is before parsing.
 
-(defvar org-current-export-file)	; Dynamically scoped
-(defvar org-export-current-backend)	; Dynamically scoped
 (defun org-export-as
   (backend &optional subtreep visible-only body-only ext-plist noexpand)
   "Transcode current Org buffer into BACKEND code.
@@ -2542,16 +2559,20 @@ Return code as a string."
 		    (org-export-with-current-buffer-copy
 		     (unless noexpand
 		       (org-export-expand-include-keyword)
-		       ;; Setting `org-current-export-file' is
+		       ;; TODO: Setting `org-current-export-file' is
 		       ;; required by Org Babel to properly resolve
-		       ;; noweb references.
+		       ;; noweb references.  Once "org-exp.el" is
+		       ;; removed, modify
+		       ;; `org-export-blocks-preprocess' so it accepts
+		       ;; the value as an argument instead.
 		       (let ((org-current-export-file buf))
 			 (org-export-blocks-preprocess)))
 		     (goto-char (point-min))
-		     ;; Run hook with `org-export-current-backend' set
-		     ;; to BACKEND.
-		     (let ((org-export-current-backend backend))
-		       (run-hooks 'org-export-before-parsing-hook))
+		     ;; Run hook
+		     ;; `org-export-before-parsing-hook'. with current
+		     ;; back-end as argument.
+		     (run-hook-with-args
+		      'org-export-before-parsing-hook backend)
 		     ;; Eventually parse buffer.
 		     (org-element-parse-buffer nil visible-only)))))
 	;; 3. Call parse-tree filters to get the final tree.
@@ -3007,7 +3028,7 @@ FOOTNOTE is either a footnote reference or a footnote definition.
 INFO is the plist used as a communication channel."
   (let* ((label (org-element-property :label footnote))
 	 seen-refs
-	 search-ref			; for byte-compiler.
+	 search-ref			; For byte-compiler.
 	 (search-ref
 	  (function
 	   (lambda (data)
@@ -3030,11 +3051,11 @@ INFO is the plist used as a communication channel."
 		   ((not fn-lbl) (push 'inline seen-refs) nil)
 		   ;; Label not seen so far: add it so SEEN-REFS.
 		   ;;
-		   ;; Also search for subsequent references in footnote
-		   ;; definition so numbering following reading logic.
-		   ;; Note that we don't have to care about inline
-		   ;; definitions, since `org-element-map' already
-		   ;; traverse them at the right time.
+		   ;; Also search for subsequent references in
+		   ;; footnote definition so numbering follows reading
+		   ;; logic.  Note that we don't have to care about
+		   ;; inline definitions, since `org-element-map'
+		   ;; already traverses them at the right time.
 		   ;;
 		   ;; Once again, return nil to stay in the loop.
 		   ((not (member fn-lbl seen-refs))
@@ -4070,17 +4091,20 @@ return nil."
 
 INFO is a plist used as a communication channel.
 
-When non-nil, optional argument N must be an integer.  It
-specifies the depth of the table of contents.
+When optional argument N is an integer, it specifies the depth of
+the table of contents.  Otherwise, it is set to the value of the
+last headline level.  See `org-export-headline-levels' for more
+information.
 
 Return a list of all exportable headlines as parsed elements."
+  (unless (wholenump n) (setq n (plist-get info :headline-levels)))
   (org-element-map
    (plist-get info :parse-tree)
    'headline
    (lambda (headline)
      ;; Strip contents from HEADLINE.
      (let ((relative-level (org-export-get-relative-level headline info)))
-       (unless (and n (> relative-level n)) headline)))
+       (unless (> relative-level n) headline)))
    info))
 
 (defun org-export-collect-elements (type info &optional predicate)
@@ -4318,6 +4342,7 @@ translated string.  If no translation is found return S."
 ;; for its interface.  Most commons back-ends should have an entry in
 ;; it.
 
+;;;###autoload
 (defun org-export-dispatch ()
   "Export dispatcher for Org mode.
 
