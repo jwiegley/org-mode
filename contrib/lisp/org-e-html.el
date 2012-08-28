@@ -670,9 +670,9 @@ and corresponding declarations."
 		  (cons (string :tag "Extension")
 			(string :tag "Declaration")))))
 
-(defcustom org-e-html-coding-system org-export-coding-system
+(defcustom org-e-html-coding-system 'utf-8
   "Coding system for HTML export.
-Use `org-export-coding-system' as the default value."
+Use utf-8 as the default value."
   :group 'org-export-e-html
   :type 'coding-system)
 
@@ -2277,10 +2277,6 @@ INFO is a plist holding contextual information.  See
 		((member type '("http" "https" "ftp" "mailto"))
 		 (concat type ":" raw-path))
 		((string= type "file")
-		 ;; Extract just the file path and strip all other
-		 ;; components.
-		 (when (string-match "\\(.+\\)::.+" raw-path)
-		   (setq raw-path (match-string 1 raw-path)))
 		 ;; Treat links to ".org" files as ".html", if needed.
 		 (setq raw-path (funcall --link-org-files-as-html-maybe
 					 raw-path info))

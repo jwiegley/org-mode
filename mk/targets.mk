@@ -5,7 +5,7 @@ DISTFILES_extra=  Makefile request-assign-future.txt contrib etc
 
 LISPDIRS      = lisp
 OTHERDIRS     = doc etc
-CLEANDIRS     = contrib testing utils
+CLEANDIRS     = contrib testing mk
 SUBDIRS       = $(OTHERDIRS) $(LISPDIRS)
 INSTSUB       = $(SUBDIRS:%=install-%)
 ORG_MAKE_DOC ?= info html pdf
@@ -22,6 +22,7 @@ ifneq ($(wildcard .git),)
   ORGVERSION ?= $(subst release_,,$(shell git describe --abbrev=0 HEAD))
   GITSTATUS  ?= $(shell git status -uno --porcelain)
 else
+ -include mk/version.mk
   GITVERSION ?= N/A
   ORGVERSION ?= N/A
 endif
@@ -39,7 +40,7 @@ endif
 	compile compile-dirty uncompiled \
 	config config-test config-exe config-all config-eol
 
-CONF_BASE = EMACS DESTDIR ORGCM
+CONF_BASE = EMACS DESTDIR ORGCM ORG_MAKE_DOC
 CONF_DEST = lispdir infodir datadir testdir
 CONF_TEST = BTEST_PRE BTEST_POST BTEST_OB_LANGUAGES BTEST_EXTRA
 CONF_EXEC = CP MKDIR RM RMR FIND SUDO PDFTEX TEXI2PDF TEXI2HTML MAKEINFO INSTALL_INFO

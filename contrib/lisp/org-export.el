@@ -142,6 +142,7 @@
     (:with-plannings nil "p" org-export-with-planning)
     (:with-priority nil "pri" org-export-with-priority)
     (:with-special-strings nil "-" org-export-with-special-strings)
+    (:with-statistics-cookies nil "stat" org-export-with-statistics-cookies)
     (:with-sub-superscript nil "^" org-export-with-sub-superscripts)
     (:with-toc nil "toc" org-export-with-toc)
     (:with-tables nil "|" org-export-with-tables)
@@ -488,19 +489,26 @@ This option can also be set with the #+SELECT_TAGS: keyword."
   :type '(repeat (string :tag "Tag")))
 
 (defcustom org-export-with-special-strings t
-  "Non-nil means interpret \"\-\", \"--\" and \"---\" for export.
+  "Non-nil means interpret \"\\-\", \"--\" and \"---\" for export.
 
 When this option is turned on, these strings will be exported as:
 
-  Org     HTML     LaTeX
- -----+----------+--------
-  \\-    &shy;      \\-
-  --    &ndash;    --
-  ---   &mdash;    ---
-  ...   &hellip;   \ldots
+   Org     HTML     LaTeX    UTF-8
+  -----+----------+--------+-------
+   \\-    &shy;      \\-
+   --    &ndash;    --         –
+   ---   &mdash;    ---        —
+   ...   &hellip;   \\ldots     …
 
 This option can also be set with the #+OPTIONS line,
 e.g. \"-:nil\"."
+  :group 'org-export-general
+  :type 'boolean)
+
+(defcustom org-export-with-statistics-cookies t
+  "Non-nil means include statistics cookies in export.
+This option can also be set with the #+OPTIONS: line,
+e.g. \"stat:nil\""
   :group 'org-export-general
   :type 'boolean)
 
@@ -1733,29 +1741,30 @@ associated numbering \(in the shape of a list of numbers\)."
 DATA is the parse tree to traverse.  OPTIONS is the plist holding
 export options."
   (let* (ignore
-	 walk-data			; for byte-compiler.
+	 walk-data
+	 ;; First find trees containing a select tag, if any.
+	 (selected (org-export--selected-trees data options))
 	 (walk-data
-	  (function
-	   (lambda (data options selected)
-	     ;; Collect ignored elements or objects into IGNORE-LIST.
-	     (mapc
-	      (lambda (el)
-		(if (org-export--skip-p el options selected) (push el ignore)
-		  (let ((type (org-element-type el)))
-		    (if (and (eq (plist-get options :with-archived-trees)
-				 'headline)
-			     (eq (org-element-type el) 'headline)
-			     (org-element-property :archivedp el))
-			;; If headline is archived but tree below has
-			;; to be skipped, add it to ignore list.
-			(mapc (lambda (e) (push e ignore))
-			      (org-element-contents el))
-		      ;; Move into recursive objects/elements.
-		      (when (org-element-contents el)
-			(funcall walk-data el options selected))))))
-	      (org-element-contents data))))))
-    ;; Main call.  First find trees containing a select tag, if any.
-    (funcall walk-data data options (org-export--selected-trees data options))
+	  (lambda (data)
+	    ;; Collect ignored elements or objects into IGNORE-LIST.
+	    (let ((type (org-element-type data)))
+	      (if (org-export--skip-p data options selected) (push data ignore)
+		(if (and (eq type 'headline)
+			 (eq (plist-get options :with-archived-trees) 'headline)
+			 (org-element-property :archivedp data))
+		    ;; If headline is archived but tree below has
+		    ;; to be skipped, add it to ignore list.
+		    (mapc (lambda (e) (push e ignore))
+			  (org-element-contents data))
+		  ;; Move into secondary string, if any.
+		  (let ((sec-prop
+			 (cdr (assq type org-element-secondary-value-alist))))
+		    (when sec-prop
+		      (mapc walk-data (org-element-property sec-prop data))))
+		  ;; Move into recursive objects/elements.
+		  (mapc walk-data (org-element-contents data))))))))
+    ;; Main call.
+    (funcall walk-data data)
     ;; Return value.
     ignore))
 
@@ -1795,7 +1804,12 @@ OPTIONS is the plist holding export options.  SELECTED, when
 non-nil, is a list of headlines belonging to a tree with a select
 tag."
   (case (org-element-type blob)
-    ;; Check headline.
+    (clock (not (plist-get options :with-clocks)))
+    (drawer
+     (or (not (plist-get options :with-drawers))
+	 (and (consp (plist-get options :with-drawers))
+	      (not (member (org-element-property :drawer-name blob)
+			   (plist-get options :with-drawers))))))
     (headline
      (let ((with-tasks (plist-get options :with-tasks))
 	   (todo (org-element-property :todo-keyword blob))
@@ -1819,9 +1833,14 @@ tag."
 		 (and (memq with-tasks '(todo done))
 		      (not (eq todo-type with-tasks)))
 		 (and (consp with-tasks) (not (member todo with-tasks))))))))
-    ;; Check inlinetask.
     (inlinetask (not (plist-get options :with-inlinetasks)))
-    ;; Check timestamp.
+    (planning (not (plist-get options :with-plannings)))
+    (statistics-cookie (not (plist-get options :with-statistics-cookies)))
+    (table-cell
+     (and (org-export-table-has-special-column-p
+	   (org-export-get-parent-table blob))
+	  (not (org-export-get-previous-element blob options))))
+    (table-row (org-export-table-row-is-special-p blob options))
     (timestamp
      (case (plist-get options :with-timestamps)
        ;; No timestamp allowed.
@@ -1835,24 +1854,7 @@ tag."
        ;; inactive.
        (inactive
 	(not (memq (org-element-property :type blob)
-		   '(inactive inactive-range))))))
-    ;; Check drawer.
-    (drawer
-     (or (not (plist-get options :with-drawers))
-	 (and (consp (plist-get options :with-drawers))
-	      (not (member (org-element-property :drawer-name blob)
-			   (plist-get options :with-drawers))))))
-    ;; Check table-row.
-    (table-row (org-export-table-row-is-special-p blob options))
-    ;; Check table-cell.
-    (table-cell
-     (and (org-export-table-has-special-column-p
-	   (org-export-get-parent-table blob))
-	  (not (org-export-get-previous-element blob options))))
-    ;; Check clock.
-    (clock (not (plist-get options :with-clocks)))
-    ;; Check planning.
-    (planning (not (plist-get options :with-plannings)))))
+		   '(inactive inactive-range))))))))
 
 
 
@@ -2449,7 +2451,7 @@ specified filters, if any, are called first."
   (catch 'exit
     (dolist (filter filters value)
       (let ((result (funcall filter value (plist-get info :back-end) info)))
-	(cond ((not value))
+	(cond ((not result) value)
 	      ((equal value "") (throw 'exit nil))
 	      (t (setq value result)))))))
 
@@ -4249,67 +4251,124 @@ object, a string, or nil."
 
 (defconst org-export-dictionary
   '(("Author"
-     ("fr"
-      :ascii "Auteur"
-      :latin1 "Auteur"
-      :utf-8 "Auteur"))
+     ("ca" :default "Autor")
+     ("cs" :default "Autor")
+     ("da" :default "Ophavsmand")
+     ("de" :default "Autor")
+     ("eo" :html "A&#365;toro")
+     ("es" :default "Autor")
+     ("fi" :html "Tekij&auml;")
+     ("fr" :default "Auteur")
+     ("hu" :default "Szerz&otilde;")
+     ("is" :html "H&ouml;fundur")
+     ("it" :default "Autore")
+     ("ja" :html "&#33879;&#32773;" :utf-8 "著者")
+     ("nl" :default "Auteur")
+     ("no" :default "Forfatter")
+     ("nb" :default "Forfatter")
+     ("nn" :default "Forfattar")
+     ("pl" :default "Autor")
+     ("ru" :html "&#1040;&#1074;&#1090;&#1086;&#1088;" :utf-8 "Автор")
+     ("sv" :html "F&ouml;rfattare")
+     ("uk" :html "&#1040;&#1074;&#1090;&#1086;&#1088;" :utf-8 "Автор")
+     ("zh-CN" :html "&#20316;&#32773;" :utf-8 "作者")
+     ("zh-TW" :html "&#20316;&#32773;" :utf-8 "作者"))
     ("Date"
-     ("fr"
-      :ascii "Date"
-      :latin1 "Date"
-      :utf-8 "Date"))
-    ("Equation")
+     ("ca" :default "Data")
+     ("cs" :default "Datum")
+     ("da" :default "Dato")
+     ("de" :default "Datum")
+     ("eo" :default "Dato")
+     ("es" :default "Fecha")
+     ("fi" :html "P&auml;iv&auml;m&auml;&auml;r&auml;")
+     ("hu" :html "D&aacute;tum")
+     ("is" :default "Dagsetning")
+     ("it" :default "Data")
+     ("ja" :html "&#26085;&#20184;" :utf-8 "日付")
+     ("nl" :default "Datum")
+     ("no" :default "Dato")
+     ("nb" :default "Dato")
+     ("nn" :default "Dato")
+     ("pl" :default "Data")
+     ("ru" :html "&#1044;&#1072;&#1090;&#1072;" :utf-8 "Дата")
+     ("sv" :default "Datum")
+     ("uk" :html "&#1044;&#1072;&#1090;&#1072;" :utf-8 "Дата")
+     ("zh-CN" :html "&#26085;&#26399;" :utf-8 "日期")
+     ("zh-TW" :html "&#26085;&#26399;" :utf-8 "日期"))
+    ("Equation"
+     ("fr" :ascii "Equation" :default "Équation"))
     ("Figure")
     ("Footnotes"
-     ("fr"
-      :ascii "Notes de bas de page"
-      :latin1 "Notes de bas de page"
-      :utf-8 "Notes de bas de page"))
+     ("ca" :html "Peus de p&agrave;gina")
+     ("cs" :default "Pozn\xe1mky pod carou")
+     ("da" :default "Fodnoter")
+     ("de" :html "Fu&szlig;noten")
+     ("eo" :default "Piednotoj")
+     ("es" :html "Pies de p&aacute;gina")
+     ("fi" :default "Alaviitteet")
+     ("fr" :default "Notes de bas de page")
+     ("hu" :html "L&aacute;bjegyzet")
+     ("is" :html "Aftanm&aacute;lsgreinar")
+     ("it" :html "Note a pi&egrave; di pagina")
+     ("ja" :html "&#33050;&#27880;" :utf-8 "脚注")
+     ("nl" :default "Voetnoten")
+     ("no" :default "Fotnoter")
+     ("nb" :default "Fotnoter")
+     ("nn" :default "Fotnotar")
+     ("pl" :default "Przypis")
+     ("ru" :html "&#1057;&#1085;&#1086;&#1089;&#1082;&#1080;" :utf-8 "Сноски")
+     ("sv" :default "Fotnoter")
+     ("uk" :html "&#1055;&#1088;&#1080;&#1084;&#1110;&#1090;&#1082;&#1080;"
+      :utf-8 "Примітки")
+     ("zh-CN" :html "&#33050;&#27880;" :utf-8 "脚注")
+     ("zh-TW" :html "&#33139;&#35387;" :utf-8 "腳註"))
     ("List of Listings"
-     ("fr"
-      :ascii "Liste des programmes"
-      :latin1 "Liste des programmes"
-      :utf-8 "Liste des programmes"))
+     ("fr" :default "Liste des programmes"))
     ("List of Tables"
-     ("fr"
-      :ascii "Liste des tableaux"
-      :latin1 "Liste des tableaux"
-      :utf-8 "Liste des tableaux"))
+     ("fr" :default "Liste des tableaux"))
     ("Listing %d:"
      ("fr"
-      :ascii "Programme %d :"
-      :latin1 "Programme %d :"
-      :utf-8 "Programme nº %d :"))
+      :ascii "Programme %d :" :default "Programme nº %d :"
+      :latin1 "Programme %d :"))
     ("Listing %d: %s"
      ("fr"
-      :ascii "Programme %d : %s"
-      :latin1 "Programme %d : %s"
-      :utf-8 "Programme nº %d : %s"))
+      :ascii "Programme %d : %s" :default "Programme nº %d : %s"
+      :latin1 "Programme %d : %s"))
     ("See section %s"
-     ("fr"
-      :ascii "cf. section %s"
-      :latin1 "cf. section %s"
-      :utf-8 "cf. section %s"))
+     ("fr" :default "cf. section %s"))
     ("Table %d:"
      ("fr"
-      :ascii "Tableau %d :"
-      :latin1 "Tableau %d :"
-      :utf-8 "Tableau nº %d :"))
+      :ascii "Tableau %d :" :default "Tableau nº %d :" :latin1 "Tableau %d :"))
     ("Table %d: %s"
      ("fr"
-      :ascii "Tableau %d : %s"
-      :latin1 "Tableau %d : %s"
-      :utf-8 "Tableau nº %d : %s"))
+      :ascii "Tableau %d : %s" :default "Tableau nº %d : %s"
+      :latin1 "Tableau %d : %s"))
     ("Table of Contents"
-     ("fr"
-      :ascii "Sommaire"
-      :latin1 "Table des matières"
-      :utf-8 "Table des matières"))
+     ("ca" :html "&Iacute;ndex")
+     ("cs" :default "Obsah")
+     ("da" :default "Indhold")
+     ("de" :default "Inhaltsverzeichnis")
+     ("eo" :default "Enhavo")
+     ("es" :html "&Iacute;ndice")
+     ("fi" :html "Sis&auml;llysluettelo")
+     ("fr" :ascii "Sommaire" :default "Table des matières")
+     ("hu" :html "Tartalomjegyz&eacute;k")
+     ("is" :default "Efnisyfirlit")
+     ("it" :default "Indice")
+     ("ja" :html "&#30446;&#27425;" :utf-8 "目次")
+     ("nl" :default "Inhoudsopgave")
+     ("no" :default "Innhold")
+     ("nb" :default "Innhold")
+     ("nn" :default "Innhald")
+     ("pl" :html "Spis tre&#x015b;ci")
+     ("ru" :html "&#1057;&#1086;&#1076;&#1077;&#1088;&#1078;&#1072;&#1085;&#1080;&#1077;"
+      :utf-8 "Содержание")
+     ("sv" :html "Inneh&aring;ll")
+     ("uk" :html "&#1047;&#1084;&#1110;&#1089;&#1090;" :utf-8 "Зміст")
+     ("zh-CN" :html "&#30446;&#24405;" :utf-8 "目录")
+     ("zh-TW" :html "&#30446;&#37636;" :utf-8 "目錄"))
     ("Unknown reference"
-     ("fr"
-      :ascii "Destination inconnue"
-      :latin1 "Référence inconnue"
-      :utf-8 "Référence inconnue")))
+     ("fr" :ascii "Destination inconnue" :default "Référence inconnue")))
   "Dictionary for export engine.
 
 Alist whose CAR is the string to translate and CDR is an alist
@@ -4327,11 +4386,15 @@ entry.")
 ENCODING is a symbol among `:ascii', `:html', `:latex', `:latin1'
 and `:utf-8'.  INFO is a plist used as a communication channel.
 
-Translation depends on `:language' property.  Return the
-translated string.  If no translation is found return S."
-  (let ((lang (plist-get info :language))
-	(translations (cdr (assoc s org-export-dictionary))))
-    (or (plist-get (cdr (assoc lang translations)) encoding) s)))
+Translation depends on `:language' property. Return the
+translated string. If no translation is found, try to fall back
+to `:default' encoding. If it fails, return S."
+  (let* ((lang (plist-get info :language))
+	 (translations (cdr (assoc lang
+				   (cdr (assoc s org-export-dictionary))))))
+    (or (plist-get translations encoding)
+	(plist-get translations :default)
+	s)))
 
 
 

@@ -868,30 +868,41 @@ Theory Ltd.}
 @cindex XEmacs
 
 @b{Important:} @i{If you are using a version of Org that is part of the Emacs
-distribution, GNU ELPA or an XEmacs package, please skip this section and go
-directly to @ref{Activation}.  To see what version of Org (if any) is part of
-your Emacs distribution, type @kbd{M-x org-version} (if your Emacs
-distribution does not come with Org, this function will not be defined).}
+distribution, GNU ELPA installed by the package manager or an XEmacs package,
+please skip this section and go directly to @ref{Activation}.  To see what
+version of Org (if any) is part of your Emacs distribution, type @kbd{M-x
+org-version} (if your Emacs distribution does not come with Org, this
+function will not be defined).}
+
+Installation of Org mode uses a build system, which is described in more
+detail on @uref{http://orgmode.org/worg/dev/org-build-system.html, Worg}.
 
 If you have downloaded Org from the Web as a distribution @file{.zip} or
-@file{.tar} archive, you must take the following steps to install it:
+@file{.tar.gz} archive, you must take the following steps to install it:
 
 @itemize @bullet
 @item Unpack the distribution archive.
 @item Change into (@code{cd}) the Org directory.
-@item Run @code{make help}
-and then check and edit the file @file{local.mk}.  You must set the name of
-the Emacs binary (likely either @file{emacs} or @file{xemacs}), and the paths
-to the directories where local Lisp and Info files will be installed.
+@item Run @code{make help config}
+and then check and edit the file @file{local.mk} if the default configuration
+does not match your system.  You must set the name of the Emacs binary
+(likely either @file{emacs} or @file{xemacs}), and the paths to the
+directories where local Lisp and Info files will be installed.  If the Emacs
+binary is not in your path, you must give the full path to the executable.
+Avoid spaces in any path names.
 @item Run @code{make config}
-to check the configuration.
+again to check the configuration.
+@item Optionally run @code{make test}
+to build Org mode and then run the full testsuite.
 @item Run @code{make install} or @code{sudo make install}
-to build and install Org mode on your system.  If you use a local Git
-repository, preferrably us @code{make update2} or, if you want to run the
-complete test suite before installation, @code{make up2}.
+to build and install Org mode on your system.
 @end itemize
 
-If you use a cloned Git repository, then the procedure is slightly different:
+If you use a cloned Git repository, then the procedure is slightly different.
+The following description assumes that you are using the @code{master} branch
+(where the development is done).  You could also use the @code{maint} branch
+instead, where the release versions are published, just replace @code{master}
+with @code{maint} in the description below.
 
 @itemize @bullet
 @item Change into (@code{cd}) the Org repository.
@@ -900,7 +911,9 @@ to switch to the @code{master} branch of the Org repository.
 @item Run @code{make help}
 and then check and edit the file @file{local.mk}.  You must set the name of
 the Emacs binary (likely either @file{emacs} or @file{xemacs}), and the paths
-to the directories where local Lisp and Info files will be installed.
+to the directories where local Lisp and Info files will be installed.  If the
+Emacs binary is not in your path, you must give the full path to the
+executable.  Avoid spaces in any path names.
 @item Run @code{make config}
 to check the configuration.
 @item Run @code{make update2} or @code{make up2}
@@ -931,12 +944,18 @@ Then add the following line to @file{.emacs}:
 @end example
 
 @noindent
-If you plan to use code from the @file{contrib} subdirectory, do a similar
-step for this directory:
+If you plan to use code from the @file{contrib} subdirectory without
+compiling them, do a similar step for this directory:
 
 @example
 (add-to-list 'load-path "~/path/to/orgdir/contrib/lisp")
 @end example
+
+If you want to include those files with the build and install, please
+customize the variable @code{ORG_ADD_CONTRIB} instead in your @code{local.mk}
+file, for more details please see this
+@uref{http://orgmode.org/worg/dev/org-build-system.html#sec-4-1-2,
+description on Worg}.
 
 Installing Info files is system dependent, because of differences in the
 @file{install-info} program.  The Info documentation is installed together
@@ -6291,12 +6310,12 @@ as 10 or 15, Emacs can alert you when you get back to your computer after
 being idle for that many minutes@footnote{On computers using Mac OS X,
 idleness is based on actual user idleness, not just Emacs' idle time.  For
 X11, you can install a utility program @file{x11idle.c}, available in the
-@code{utils} directory of the Org git distribution, to get the same general
-treatment of idleness.  On other systems, idle time refers to Emacs idle time
-only.}, and ask what you want to do with the idle time.  There will be a
-question waiting for you when you get back, indicating how much idle time has
-passed (constantly updated with the current amount), as well as a set of
-choices to correct the discrepancy:
+@code{contrib/scripts} directory of the Org git distribution, to get the same
+general treatment of idleness.  On other systems, idle time refers to Emacs
+idle time only.}, and ask what you want to do with the idle time.  There will
+be a question waiting for you when you get back, indicating how much idle
+time has passed (constantly updated with the current amount), as well as a
+set of choices to correct the discrepancy:
 
 @table @kbd
 @item k
@@ -7418,7 +7437,8 @@ is always up to date.  If you switch between views often and the build time
 bothers you, you can turn on sticky agenda buffers (make this the default by
 customizing the variable @code{org-agenda-sticky}).  With sticky agendas, the
 dispatcher only switches to the selected view, you need to update it by hand
-with @kbd{r} or @kbd{g}.
+with @kbd{r} or @kbd{g}.  You can toggle sticky agenda view any time with
+@code{org-toggle-sticky-agenda}.
 @end table
 
 You can also define custom commands that will be accessible through the
@@ -8580,7 +8600,7 @@ Export a single iCalendar file containing entries from all agenda files.
 This is a globally available command, and also available in the agenda menu.
 
 @tsubheading{Exporting to a file}
-@orgcmd{C-x C-w,org-write-agenda}
+@orgcmd{C-x C-w,org-agenda-write}
 @cindex exporting agenda views
 @cindex agenda views, exporting
 @vindex org-agenda-exporter-settings
@@ -8829,7 +8849,7 @@ a PDF file will also create the postscript file.}, and iCalendar files.  If
 you want to do this only occasionally, use the command
 
 @table @kbd
-@orgcmd{C-x C-w,org-write-agenda}
+@orgcmd{C-x C-w,org-agenda-write}
 @cindex exporting agenda views
 @cindex agenda views, exporting
 @vindex org-agenda-exporter-settings
@@ -11952,9 +11972,9 @@ nodes of a document or strictly follow the order of the nodes in the
 document.
 
 Instead the TaskJuggler exporter looks for a tree that defines the tasks and
-a optionally tree that defines the resources for this project.  It then
-creates a TaskJuggler file based on these trees and the attributes defined in
-all the nodes.
+optionally trees that define the resources and reports for this project.
+It then creates a TaskJuggler file based on these trees and the attributes
+defined in all the nodes.
 
 @subsection TaskJuggler export commands
 
@@ -11963,7 +11983,8 @@ all the nodes.
 Export as a TaskJuggler file.
 
 @orgcmd{C-c C-e J,org-export-as-taskjuggler-and-open}
-Export as a TaskJuggler file and then open the file with TaskJugglerUI.
+Export as a TaskJuggler file and then open the file with TaskJugglerUI (only
+for TaskJugglerUI 2.x).
 @end table
 
 @subsection Tasks
@@ -12001,15 +12022,17 @@ time.
 
 @subsection Export of properties
 
-The exporter also takes TODO state information into consideration, i.e.@: if a
-task is marked as done it will have the corresponding attribute in
-TaskJuggler (@samp{complete 100}).  Also it will export any property on a task
-resource or resource node which is known to TaskJuggler, such as
-@samp{limits}, @samp{vacation}, @samp{shift}, @samp{booking},
-@samp{efficiency}, @samp{journalentry}, @samp{rate} for resources or
-@samp{account}, @samp{start}, @samp{note}, @samp{duration}, @samp{end},
-@samp{journalentry}, @samp{milestone}, @samp{reference}, @samp{responsible},
-@samp{scheduling}, etc for tasks.
+The exporter also takes TODO state information into consideration, i.e.@: if
+a task is marked as done it will have the corresponding attribute in
+TaskJuggler (@samp{complete 100}).  Scheduling information is also taken into
+account to set start/end dates for tasks.
+
+The exporter will also export any property on a task resource or resource
+node which is known to TaskJuggler, such as @samp{limits}, @samp{vacation},
+@samp{shift}, @samp{booking}, @samp{efficiency}, @samp{journalentry},
+@samp{rate} for resources or @samp{account}, @samp{start}, @samp{note},
+@samp{duration}, @samp{end}, @samp{journalentry}, @samp{milestone},
+@samp{reference}, @samp{responsible}, @samp{scheduling}, etc for tasks.
 
 @subsection Dependencies
 
@@ -12055,11 +12078,20 @@ examples should illustrate this:
 @vindex org-export-taskjuggler-default-reports
 TaskJuggler can produce many kinds of reports (e.g.@: gantt chart, resource
 allocation, etc).  The user defines what kind of reports should be generated
-for a project in the TaskJuggler file.  The exporter will automatically insert
-some default reports in the file.  These defaults are defined in
-@code{org-export-taskjuggler-default-reports}.  They can be modified using
-customize along with a number of other options.  For a more complete list, see
-@kbd{M-x customize-group @key{RET} org-export-taskjuggler @key{RET}}.
+for a project in the TaskJuggler file.  By default, the exporter will
+automatically insert some pre-set reports in the file.  These defaults are
+defined in @code{org-export-taskjuggler-default-reports}.  They can be
+modified using customize along with a number of other options.  For a more
+complete list, see @kbd{M-x customize-group @key{RET} org-export-taskjuggler
+@key{RET}}.
+
+Alternately, the user can tag a tree with
+@code{org-export-taskjuggler-report-tag}, and define reports in sub-nodes,
+similarly to what is done with tasks or resources.  The properties used for
+report generation are defined in
+@code{org-export-taskjuggler-valid-report-attributes}. In addition, a special
+property named @samp{report-kind} is used to define the kind of report one
+wants to generate (by default, a @samp{taskreport}).
 
 For more information and examples see the Org-taskjuggler tutorial at
 @uref{http://orgmode.org/worg/org-tutorials/org-taskjuggler.html}.

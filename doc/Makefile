@@ -15,15 +15,17 @@ pdf:		org.pdf orgguide.pdf
 
 card:		orgcard.pdf orgcard_letter.pdf orgguide.pdf
 
+ifneq ($(SERVERMK),)
 manual guide::
 	-$(RMR) $@
 	$(MKDIR) $@
 manual::	org.texi org-version.inc
 	$(TEXI2HTML) -o $@ $<
-	../utils/mansplit.pl $@/*
+	../mk/mansplit.pl $@/*
 guide::		orgguide.texi org-version.inc
 	$(TEXI2HTML) -o $@ $<
-	../utils/guidesplit.pl $@/*
+	../mk/guidesplit.pl $@/*
+endif
 
 org-version.inc:	org.texi
 	@echo "org-version: $(ORGVERSION) ($(GITVERSION))"
@@ -61,14 +63,16 @@ clean-install:
 
 %.html:		%.texi org-version.inc
 	$(TEXI2HTML) --no-split -o $@ $<
-	../utils/manfull.pl $@
+ifneq ($(SERVERMK),)
+	../mk/manfull.pl $@
 
 %.txt:		%.tex
-	perl ../utils/orgcard2txt.pl $< > $@
+	perl ../mk/orgcard2txt.pl $< > $@
+endif
 
 %_letter.tex:	%.tex
 	$(BATCH) \
 	  --eval '(add-to-list '"'"'load-path "../lisp")' \
 	  --eval '(load "org-compat.el")' \
-	  --eval '(load "../utils/org-fixup.el")' \
+	  --eval '(load "../mk/org-fixup.el")' \
 	  --eval '(org-make-letterformat "$(<F)" "$(@F)")'

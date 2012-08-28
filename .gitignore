@@ -31,14 +31,17 @@ orgcard_letter.tex
 orgcard.txt
 org
 org-install.el
-org-version.*
-org-*.tar.gz
+org-version.el
+doc/org-version.inc
+org-*.tar*
 org-*.zip
+version.mk
 manual
 org_dual_license.texi
 ORGWEBPAGE/Changes.txt
 local*.mk
 .gitattributes
+mk/x11idle
 
 # texi2pdf --tidy
 
@@ -63,7 +66,6 @@ TODO
 .DS_Store
 *#
 .#*
-/utils/x11idle
 
 #
 # Local variables:
