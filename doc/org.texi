@@ -481,7 +481,7 @@ Capture - Refile - Archive
 * Attachments::                 Add files to tasks
 * RSS Feeds::                   Getting input from RSS feeds
 * Protocols::                   External (e.g.@: Browser) access to Emacs and Org
-* Refiling notes::              Moving a tree from one place to another
+* Refile and copy::             Moving/copying a tree from one place to another
 * Archiving::                   What to do with finished projects
 
 Capture
@@ -867,29 +867,29 @@ Theory Ltd.}
 @cindex installation
 @cindex XEmacs
 
-@b{Important:} @i{If you are using a version of Org that is part of the Emacs
-distribution, GNU ELPA installed by the package manager or an XEmacs package,
-please skip this section and go directly to @ref{Activation}.  To see what
-version of Org (if any) is part of your Emacs distribution, type @kbd{M-x
-org-version} (if your Emacs distribution does not come with Org, this
-function will not be defined).}
+@b{Important:} @i{If you the version of Org that comes with Emacs or as a
+XEmacs package, please skip this section and go directly to @ref{Activation}.
+If you downloaded Org as an ELPA package, please read the instructions on the
+@uref{http://orgmode.org/elpa.html, Org ELPA page}.  To see what version of Org
+(if any) is part of your Emacs distribution, type @kbd{M-x org-version} (if
+your Emacs distribution does not come with Org, this function will not be
+defined).}
 
 Installation of Org mode uses a build system, which is described in more
 detail on @uref{http://orgmode.org/worg/dev/org-build-system.html, Worg}.
 
 If you have downloaded Org from the Web as a distribution @file{.zip} or
-@file{.tar.gz} archive, you must take the following steps to install it:
+@file{.tar.gz} archive, take the following steps to install it:
 
 @itemize @bullet
 @item Unpack the distribution archive.
 @item Change into (@code{cd}) the Org directory.
 @item Run @code{make help config}
 and then check and edit the file @file{local.mk} if the default configuration
-does not match your system.  You must set the name of the Emacs binary
-(likely either @file{emacs} or @file{xemacs}), and the paths to the
-directories where local Lisp and Info files will be installed.  If the Emacs
-binary is not in your path, you must give the full path to the executable.
-Avoid spaces in any path names.
+does not match your system.  Set the name of the Emacs binary (likely either
+@file{emacs} or @file{xemacs}), and the paths to the directories where local
+Lisp and Info files will be installed.  If the Emacs binary is not in your
+path, give the full path to the executable.  Avoid spaces in any path names.
 @item Run @code{make config}
 again to check the configuration.
 @item Optionally run @code{make test}
@@ -948,7 +948,7 @@ If you plan to use code from the @file{contrib} subdirectory without
 compiling them, do a similar step for this directory:
 
 @example
-(add-to-list 'load-path "~/path/to/orgdir/contrib/lisp")
+(add-to-list 'load-path "~/path/to/orgdir/contrib/lisp" t)
 @end example
 
 If you want to include those files with the build and install, please
@@ -977,13 +977,6 @@ on your system).
 make install-info
 @end example
 
-Then add the following line to @file{.emacs}.  It is needed so that
-Emacs can autoload functions that are located in files not immediately loaded
-when Org mode starts.
-@lisp
-(require 'org-install)
-@end lisp
-
 Do not forget to activate Org as described in the following section.
 @page
 
@@ -991,6 +984,7 @@ Do not forget to activate Org as described in the following section.
 @section Activation
 @cindex activation
 @cindex autoload
+@cindex ELPA
 @cindex global key bindings
 @cindex key bindings, global
 @findex org-agenda
@@ -998,14 +992,20 @@ Do not forget to activate Org as described in the following section.
 @findex org-store-link
 @findex org-iswitchb
 
-To make sure files with extension @file{.org} use Org mode, add the following
-line to your @file{.emacs} file.
+Since Emacs 22.2, files with the @file{.org} extension use Org mode by
+default.  If you are using an earlier version of Emacs, add this line to your
+@file{.emacs} file:
+
 @lisp
 (add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode))
 @end lisp
-@noindent Org mode buffers need font-lock to be turned on - this is the
-default in Emacs@footnote{If you don't use font-lock globally, turn it on in
-Org buffer with @code{(add-hook 'org-mode-hook 'turn-on-font-lock)}}.
+
+Org mode buffers need font-lock to be turned on - this is the default in
+Emacs@footnote{If you don't use font-lock globally, turn it on in Org buffer
+with @code{(add-hook 'org-mode-hook 'turn-on-font-lock)}}.
+
+There are compatibility issues between Org mode and some other Elisp
+packages, please take the time to check the list (@pxref{Conflicts}).
 
 The four Org commands @command{org-store-link}, @command{org-capture},
 @command{org-agenda}, and @command{org-iswitchb} should be accessible through
@@ -1083,8 +1083,9 @@ $ emacs -Q -l /path/to/minimal-org.el
 @end example
 
 However if you are using Org mode as distributed with Emacs, a minimal setup
-is not necessary.  In that case it is sufficient to start Emacs as @code{emacs
--Q}.  The @code{minimal-org.el} setup file can have contents as shown below.
+is not necessary.  In that case it is sufficient to start Emacs as
+@code{emacs -Q}.  The @code{minimal-org.el} setup file can have contents as
+shown below.
 
 @example
 ;;; Minimal setup to load latest `org-mode'
@@ -1096,10 +1097,7 @@ is not necessary.  In that case it is sufficient to start Emacs as @code{emacs
 
 ;; add latest org-mode to load path
 (add-to-list 'load-path (expand-file-name "/path/to/org-mode/lisp"))
-(add-to-list 'load-path (expand-file-name "/path/to/org-mode/contrib/lisp"))
-
-;; activate org
-(require 'org-install)
+(add-to-list 'load-path (expand-file-name "/path/to/org-mode/contrib/lisp" t))
 @end example
 
 If an error occurs, a backtrace can be very useful (see below on how to
@@ -1520,7 +1518,7 @@ to create a number of tasks related to a series of lectures to prepare.  For
 more details, see the docstring of the command
 @code{org-clone-subtree-with-time-shift}.
 @orgcmd{C-c C-w,org-refile}
-Refile entry or region to a different location.  @xref{Refiling notes}.
+Refile entry or region to a different location.  @xref{Refile and copy}.
 @orgcmd{C-c ^,org-sort}
 Sort same-level entries.  When there is an active region, all entries in the
 region will be sorted.  Otherwise the children of the current headline are
@@ -2324,7 +2322,7 @@ on a per-file basis with:
 
 If you would like to overrule the automatic alignment of number-rich columns
 to the right and of string-rich column to the left, you can use @samp{<r>},
-@samp{c}@footnote{Centering does not work inside Emacs, but it does have an
+@samp{<c>}@footnote{Centering does not work inside Emacs, but it does have an
 effect when exporting to HTML.} or @samp{<l>} in a similar fashion.  You may
 also combine alignment and field width like this: @samp{<l10>}.
 
@@ -2670,6 +2668,9 @@ if($1<20,teen,string(""))  @r{"teen" if age $1 less than 20, else empty}
 
 Note that you can also use two org-specific flags @code{T} and @code{t} for
 durations computations @ref{Durations and time values}.
+
+You can add your own Calc functions defined in Emacs Lisp with @code{defmath}
+and use them in formula syntax for Calc.
 
 @node Formula syntax for Lisp, Durations and time values, Formula syntax for Calc, The spreadsheet
 @subsection Emacs Lisp forms as formulas
@@ -4276,10 +4277,10 @@ The TODO may also have minimum and maximum ranges specified by using the
 syntax @samp{.+2d/3d}, which says that you want to do the task at least every
 three days, but at most every two days.
 @item
-You must also have state logging for the @code{DONE} state enabled, in order
-for historical data to be represented in the consistency graph.  If it is not
-enabled it is not an error, but the consistency graphs will be largely
-meaningless.
+You must also have state logging for the @code{DONE} state enabled
+(@pxref{Tracking TODO state changes}), in order for historical data to be
+represented in the consistency graph.  If it is not enabled it is not an
+error, but the consistency graphs will be largely meaningless.
 @end enumerate
 
 To give you an idea of what the above rules look like in action, here's an
@@ -6507,7 +6508,7 @@ trees to an archive file keeps the system compact and fast.
 * Attachments::                 Add files to tasks
 * RSS Feeds::                   Getting input from RSS feeds
 * Protocols::                   External (e.g.@: Browser) access to Emacs and Org
-* Refiling notes::              Moving a tree from one place to another
+* Refile and copy::             Moving/copying a tree from one place to another
 * Archiving::                   What to do with finished projects
 @end menu
 
@@ -6574,7 +6575,7 @@ so that you can resume your work without further distraction.  When called
 with a prefix arg, finalize and then jump to the captured item.
 
 @orgcmd{C-c C-w,org-capture-refile}
-Finalize the capture process by refiling (@pxref{Refiling notes}) the note to
+Finalize the capture process by refiling (@pxref{Refile and copy}) the note to
 a different place.  Please realize that this is a normal refiling command
 that will be executed---so the cursor position at the moment you run this
 command is important.  If you have inserted a tree with a parent and
@@ -7046,7 +7047,7 @@ list of drawers in that file:
 For more information, including how to read atom feeds, see
 @file{org-feed.el} and the docstring of @code{org-feed-alist}.
 
-@node Protocols, Refiling notes, RSS Feeds, Capture - Refile - Archive
+@node Protocols, Refile and copy, RSS Feeds, Capture - Refile - Archive
 @section Protocols for external access
 @cindex protocols, for external access
 @cindex emacsserver
@@ -7060,17 +7061,22 @@ a remote website you are looking at with the browser.  See
 @uref{http://orgmode.org/worg/org-contrib/org-protocol.php} for detailed
 documentation and setup instructions.
 
-@node Refiling notes, Archiving, Protocols, Capture - Refile - Archive
-@section Refiling notes
+@node Refile and copy, Archiving, Protocols, Capture - Refile - Archive
+@section Refile and copy
 @cindex refiling notes
+@cindex copying notes
 
-When reviewing the captured data, you may want to refile some of the entries
-into a different list, for example into a project.  Cutting, finding the
-right location, and then pasting the note is cumbersome.  To simplify this
-process, you can use the following special command:
+When reviewing the captured data, you may want to refile or to copy some of
+the entries into a different list, for example into a project.  Cutting,
+finding the right location, and then pasting the note is cumbersome.  To
+simplify this process, you can use the following special command:
 
 @table @kbd
+@orgcmd{C-c M-w,org-copy}
+@findex org-copy
+Copying works like refiling, except that the original note is not deleted.
 @orgcmd{C-c C-w,org-refile}
+@findex org-refile
 @vindex org-reverse-note-order
 @vindex org-refile-targets
 @vindex org-refile-use-outline-path
@@ -7107,7 +7113,7 @@ setting @code{org-refile-use-cache}.  To make the command see new possible
 targets, you have to clear the cache with this command.
 @end table
 
-@node Archiving,  , Refiling notes, Capture - Refile - Archive
+@node Archiving,  , Refile and copy, Capture - Refile - Archive
 @section Archiving
 @cindex archiving
 
@@ -8442,21 +8448,6 @@ Schedule this item.  With prefix arg remove the scheduling timestamp
 @orgcmd{C-c C-d,org-agenda-deadline}
 Set a deadline for this item.  With prefix arg remove the deadline.
 @c
-@orgcmd{k,org-agenda-action}
-Agenda actions, to set dates for selected items to the cursor date.
-This command also works in the calendar!  The command prompts for an
-additional key:
-@example
-m   @r{Mark the entry at point for action.  You can also make entries}
-    @r{in Org files with @kbd{C-c C-x C-k}.}
-d   @r{Set the deadline of the marked entry to the date at point.}
-s   @r{Schedule the marked entry at the date at point.}
-r   @r{Call @code{org-capture} with the cursor date as default date.}
-@end example
-@noindent
-Press @kbd{r} afterward to refresh the agenda and see the effect of the
-command.
-@c
 @orgcmd{S-@key{right},org-agenda-do-date-later}
 Change the timestamp associated with the current line by one day into the
 future.  If the date is in the past, the first call to this command will move
@@ -8489,6 +8480,13 @@ Cancel the currently running clock.
 @c
 @orgcmd{J,org-agenda-clock-goto}
 Jump to the running clock in another window.
+@c
+@orgcmd{k,org-agenda-capture}
+Like @code{org-capture}, but use the date at point as the default date for
+the capture template.  See @var{org-capture-use-agenda-date} to make this
+the default behavior of @code{org-capture}.
+@cindex capturing, from agenda
+@vindex org-capture-use-agenda-date
 
 @tsubheading{Bulk remote editing selected entries}
 @cindex remote editing, bulk, from agenda
@@ -8517,8 +8515,7 @@ you want them to persist, set @code{org-agenda-bulk-persistent-marks} to
 @code{t} or hit @kbd{p} at the prompt.
 
 @example
-r  @r{Prompt for a single refile target and move all entries.  The entries}
-   @r{will no longer be in the agenda; refresh (@kbd{g}) to bring them back.}
+*  @r{Toggle persistent marks.}
 $  @r{Archive all selected entries.}
 A  @r{Archive entries by moving them to their respective archive siblings.}
 t  @r{Change TODO state.  This prompts for a single TODO keyword and}
@@ -8529,9 +8526,11 @@ t  @r{Change TODO state.  This prompts for a single TODO keyword and}
 s  @r{Schedule all items to a new date.  To shift existing schedule dates}
    @r{by a fixed number of days, use something starting with double plus}
    @r{at the prompt, for example @samp{++8d} or @samp{++2w}.}
+d  @r{Set deadline to a specific date.}
+r  @r{Prompt for a single refile target and move all entries.  The entries}
+   @r{will no longer be in the agenda; refresh (@kbd{g}) to bring them back.}
 S  @r{Reschedule randomly into the coming N days.  N will be prompted for.}
    @r{With prefix arg (@kbd{C-u B S}), scatter only across weekdays.}
-d  @r{Set deadline to a specific date.}
 f  @r{Apply a function@footnote{You can also create persistent custom functions through@code{org-agenda-bulk-custom-functions}.} to marked entries.}
    @r{For example, the function below sets the CATEGORY property of the}
    @r{entries to web.}
@@ -9401,16 +9400,16 @@ so often, shortcuts are provided using the Easy Templates facility
 @item C-c '
 Edit the source code example at point in its native mode.  This works by
 switching to a temporary buffer with the source code.  You need to exit by
-pressing @kbd{C-c '} again@footnote{Upon exit, lines starting with @samp{*}
-or @samp{#} will get a comma prepended, to keep them from being interpreted
-by Org as outline nodes or special comments.  These commas will be stripped
-for editing with @kbd{C-c '}, and also for export.}.  The edited version will
-then replace the old version in the Org buffer.  Fixed-width regions
-(where each line starts with a colon followed by a space) will be edited
-using @code{artist-mode}@footnote{You may select a different-mode with the
-variable @code{org-edit-fixed-width-region-mode}.} to allow creating ASCII
-drawings easily.  Using this command in an empty line will create a new
-fixed-width region.
+pressing @kbd{C-c '} again@footnote{Upon exit, lines starting with @samp{*},
+@samp{,*}, @samp{#+} and @samp{,#+} will get a comma prepended, to keep them
+from being interpreted by Org as outline nodes or special syntax.  These
+commas will be stripped for editing with @kbd{C-c '}, and also for export.}.
+The edited version will then replace the old version in the Org buffer.
+Fixed-width regions (where each line starts with a colon followed by a space)
+will be edited using @code{artist-mode}@footnote{You may select
+a different-mode with the variable @code{org-edit-fixed-width-region-mode}.}
+to allow creating ASCII drawings easily.  Using this command in an empty line
+will create a new fixed-width region.
 @kindex C-c l
 @item C-c l
 Calling @code{org-store-link} while editing a source code example in a
@@ -12951,6 +12950,8 @@ Include the code block in the tangled output to file @samp{filename}.
 @table @code
 @item org-babel-tangle
 Tangle the current file.  Bound to @kbd{C-c C-v t}.
+
+With prefix argument only tangle the current code block.
 @item org-babel-tangle-file
 Choose a file to tangle.  Bound to @kbd{C-c C-v f}.
 @end table
@@ -13688,10 +13689,14 @@ buffer as quoted text.  E.g., @code{:results value verbatim}.
 @item @code{file}
 The results will be interpreted as the path to a file, and will be inserted
 into the Org mode buffer as a file link.  E.g., @code{:results value file}.
-@item @code{raw}, @code{org}
+@item @code{raw}
 The results are interpreted as raw Org mode code and are inserted directly
 into the buffer.  If the results look like a table they will be aligned as
 such by Org mode.  E.g., @code{:results value raw}.
+@item @code{org}
+The results are will be enclosed in a @code{BEGIN_SRC org} block.
+They are not comma-escaped by default but they will be if you hit @kbd{TAB}
+in the block and/or if you export the file.  E.g., @code{:results value org}.
 @item @code{html}
 Results are assumed to be HTML and will be enclosed in a @code{BEGIN_HTML}
 block.  E.g., @code{:results value html}.
@@ -13705,7 +13710,7 @@ E.g., @code{:results value code}.
 The result is converted to pretty-printed code and is enclosed in a code
 block.  This option currently supports Emacs Lisp, Python, and Ruby.  E.g.,
 @code{:results value pp}.
-@item @code{wrap}
+@item @code{drawer}
 The result is wrapped in a RESULTS drawer.  This can be useful for
 inserting @code{raw} or @code{org} syntax results in such a way that their
 extent is known and they can be automatically removed or replaced.
@@ -14546,17 +14551,16 @@ Be sure to adjust the paths to fit your system.
 #
 DIR=`pwd`
 FILES=""
-ORGINSTALL="~/src/org/lisp/org-install.el"
 
 # wrap each argument in the code required to call tangle on it
 for i in $@@; do
     FILES="$FILES \"$i\""
 done
 
-emacs -Q --batch -l $ORGINSTALL \
+emacs -Q --batch \
 --eval "(progn
 (add-to-list 'load-path (expand-file-name \"~/src/org/lisp/\"))
-(add-to-list 'load-path (expand-file-name \"~/src/org/contrib/lisp/\"))
+(add-to-list 'load-path (expand-file-name \"~/src/org/contrib/lisp/\" t))
 (require 'org)(require 'org-exp)(require 'ob)(require 'ob-tangle)
 (mapc (lambda (file)
        (find-file (expand-file-name file \"$DIR\"))
@@ -15643,6 +15647,18 @@ C-S-LEFT  @result{}  M-S--           C-S-RIGHT  @result{}  M-S-+
 Yes, these are unfortunately more difficult to remember.  If you want
 to have other replacement keys, look at the variable
 @code{org-disputed-keys}.
+
+@item @file{filladapt.el} by Kyle Jones
+@cindex @file{filladapt.el}
+
+Org mode tries to do the right thing when filling paragraphs, list items and
+other elements.  Many users reported they had problems using both
+@file{filladapt.el} and Org mode, so a safe thing to do is to disable it like
+this:
+
+@lisp
+(add-hook 'org-mode-hook 'turn-off-filladapt-mode)
+@end lisp
 
 @item @file{yasnippet.el}
 @cindex @file{yasnippet.el}
@@ -16869,6 +16885,8 @@ the current agenda files will be searched.} using @kbd{C-c a ?}.
 @cindex history
 @cindex thanks
 
+@section From Carsten
+
 Org was born in 2003, out of frustration over the user interface of the Emacs
 Outline mode.  I was trying to organize my notes and projects, and using
 Emacs seemed to be the natural way to go.  However, having to remember eleven
@@ -16923,8 +16941,57 @@ webpages derived from Org using an Info-like or a folding interface with
 single-key navigation.
 @end table
 
-@noindent OK, now to the full list of contributions!  Again, please let me
-know what I am missing here!
+@noindent See below for the full list of contributions!  Again, please
+let me know what I am missing here!
+
+@section From Bastien
+
+I (Bastien) have been maintaining Org since January 2011.  This appendix
+would not be complete without adding a few more acknowledgements and thanks
+to Carsten's ones above.
+
+I am first grateful to Carsten for his trust while handing me over the
+maintainership of Org.  His support as been great since day one of this new
+adventure, and it helped a lot.
+
+When I took over maintainership, I knew I would have to make Org more
+collaborative than ever, as I would have to rely on people that are more
+knowledgeable than I am on many parts of the code.  Here is a list of the
+persons I could rely on, they should really be considered co-maintainers,
+either of the code or the community:
+
+@table @i
+@item Eric Schulte
+Eric is maintaining the Babel parts of Org.  His reactivity here kept me away
+from worrying about possible bugs here and let me focus on other parts.
+
+@item Nicolas Goaziou
+Nicolas is maintaining the consistency of the deepest parts of Org.  His work
+on @file{org-element.el} and @file{org-export.el} has been outstanding, and
+opened the doors for many new ideas and features.
+
+@item Jambunathan K
+Jambunathan contributed the ODT exporter, definitly a killer feature of
+Org mode.  He also contributed the new HTML exporter, which is another core
+feature of Org.  Here too, I knew I could rely on him to fix bugs in these
+areas and to patiently explain the users what was the problems and solutions.
+
+@item Achim Gratz
+Achim rewrote the building process of Org, turning some @emph{ad hoc} tools
+into a flexible and conceptually clean process.  He patiently coped with the
+many hicups that such a change can create for users.
+
+@item Nick Dokos
+The Org mode mailing list would not be such a nice place without Nick, who
+patiently helped users so many times.  It is impossible to overestimate such
+a great help, and the list would not be so active without him.
+@end table
+
+I received support from so many users that it is clearly impossible to be
+fair when shortlisting a few of them -- but Org's history would not be
+complete if the ones above were not mentioned in this manual.
+
+@section List of contributions
 
 @itemize @bullet
 

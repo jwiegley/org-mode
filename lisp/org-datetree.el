@@ -41,7 +41,7 @@ so the base level will be properly adjusted.")
 (defcustom org-datetree-add-timestamp nil
   "When non-nil, add a time stamp when create a datetree entry."
   :group 'org-capture
-  ;; :version "24.3"
+  :version "24.3"
   :type '(choice
 	  (const :tag "Do not add a time stamp" nil)
 	  (const :tag "Add an inactive time stamp" inactive)
@@ -206,5 +206,9 @@ before running this command, even though the command tries to be smart."
 	    (org-datetree-file-entry-under (current-kill 0) date)))))))
 
 (provide 'org-datetree)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-datetree.el ends here

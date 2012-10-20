@@ -55,9 +55,12 @@
 ;;   adding more).
 ;;
 ;; - As a special case, if the "BEAMER_env" property is set to either
-;;   "appendix", "note" or "noteNH", the headline will become,
-;;   respectively, an appendix, a note (within frame or between frame,
-;;   depending on its level) and a note with its title ignored.
+;;   "appendix", "note", "noteNH" or "againframe", the headline will
+;;   become, respectively, an appendix, a note (within frame or
+;;   between frame, depending on its level), a note with its title
+;;   ignored or an againframe command.  In the latter case,
+;;   a "BEAMER_ref" property is mandatory in order to refer to the
+;;   frame being resumed, and contents are ignored.
 ;;
 ;;   Also, an headline with an "ignoreheading" value will have its
 ;;   contents only inserted in the output.  This special value is
@@ -181,7 +184,8 @@ You might want to put e.g. \"allowframebreaks=0.9\" here."
 "The column widths that should be installed as allowed property values.")
 
 (defconst org-e-beamer-environments-special
-  '(("appendix"       "x")
+  '(("againframe"     "F")
+    ("appendix"       "x")
     ("column"         "c")
     ("frame"          "f")
     ("ignoreheading"  "i")
@@ -258,6 +262,13 @@ brackets.  Return overlay specification, as a string, or nil."
 
 (org-export-define-derived-backend e-beamer e-latex
   :export-block "BEAMER"
+  :sub-menu-entry
+  (?l (?B "As TEX buffer (Beamer)" org-e-beamer-export-as-latex)
+      (?b "As TEX file (Beamer)" org-e-beamer-export-to-latex)
+      (?P "As PDF file (Beamer)" org-e-beamer-export-to-pdf)
+      (?O "As PDF file and open (Beamer)"
+	  (lambda (s v b)
+	    (org-open-file (org-e-beamer-export-to-pdf s v b)))))
   :options-alist
   ((:beamer-theme "BEAMER_THEME" nil org-e-beamer-theme)
    (:beamer-color-theme "BEAMER_COLOR_THEME" nil nil t)
@@ -331,7 +342,25 @@ channel."
 ;; (`org-e-beamer--format-block').
 ;;
 ;; `org-e-beamer-headline' also takes care of special environments
-;; like "ignoreheading", "note", "noteNH" and "appendix".
+;; like "ignoreheading", "note", "noteNH", "appendix" and
+;; "againframe".
+
+(defun org-e-beamer--get-label (headline info)
+  "Return label for HEADLINE, as a string.
+
+INFO is a plist used as a communication channel.
+
+The value is either the label specified in \"BEAMER_opt\"
+property, or a fallback value built from headline's number.  This
+function assumes HEADLINE will be treated as a frame."
+  (let ((opt (org-element-property :beamer-opt headline)))
+    (if (and (org-string-nw-p opt)
+	     (string-match "\\(?:^\\|,\\)label=\\(.*?\\)\\(?:$\\|,\\)" opt))
+	(match-string 1 opt)
+      (format "sec-%s"
+	      (mapconcat 'number-to-string
+			 (org-export-get-headline-number headline info)
+			 "-")))))
 
 (defun org-e-beamer--frame-level (headline info)
   "Return frame level in subtree containing HEADLINE.
@@ -386,8 +415,9 @@ used as a communication channel."
 	 (org-element-map headline org-e-beamer-verbatim-elements 'identity
 			  info 'first-match)))
     (concat "\\begin{frame}"
-	    ;; Overlay specification, if any. If is surrounded by square
-	    ;; brackets, consider it as a default specification.
+	    ;; Overlay specification, if any. When surrounded by
+	    ;; square brackets, consider it as a default
+	    ;; specification.
 	    (let ((action (org-element-property :beamer-act headline)))
 	      (cond
 	       ((not action) "")
@@ -395,25 +425,26 @@ used as a communication channel."
 		(org-e-beamer--normalize-argument action 'defaction))
 	       (t (org-e-beamer--normalize-argument action 'action))))
 	    ;; Options, if any.
-	    (let ((options
-		   ;; Collect options from default value and headline's
-		   ;; properties.  Also add a label for links.
-		   (append
-		    (org-split-string org-e-beamer-frame-default-options
-				      ",")
-		    (let ((opt (org-element-property :beamer-opt headline)))
-		      (and opt (org-split-string
-				;; Remove square brackets if user
-				;; provided them.
-				(and (string-match "^\\[?\\(.*\\)\\]?$" opt)
-				     (match-string 1 opt))
-				",")))
-		    (list
-		     (format "label=sec-%s"
-			     (mapconcat
-			      'number-to-string
-			      (org-export-get-headline-number headline info)
-			      "-"))))))
+	    (let* ((beamer-opt (org-element-property :beamer-opt headline))
+		   (options
+		    ;; Collect options from default value and headline's
+		    ;; properties.  Also add a label for links.
+		    (append
+		     (org-split-string org-e-beamer-frame-default-options ",")
+		     (and beamer-opt
+			  (org-split-string
+			   ;; Remove square brackets if user provided
+			   ;; them.
+			   (and (string-match "^\\[?\\(.*\\)\\]?$" beamer-opt)
+				(match-string 1 beamer-opt))
+			   ","))
+		     ;; Provide an automatic label for the frame
+		     ;; unless the user specified one.
+		     (unless (and beamer-opt
+				  (string-match "\\(^\\|,\\)label=" beamer-opt))
+		       (list
+			(format "label=%s"
+				(org-e-beamer--get-label headline info)))))))
 	      ;; Change options list into a string.
 	      (org-e-beamer--normalize-argument
 	       (mapconcat
@@ -537,17 +568,55 @@ as a communication channel."
 	  (environment (let ((env (org-element-property :beamer-env headline)))
 			 (if (stringp env) (downcase env) "block"))))
       (cond
-       ;; Creation of an appendix is requested.
+       ;; Case 1: Resume frame specified by "BEAMER_ref" property.
+       ((equal environment "againframe")
+	(let ((ref (org-element-property :beamer-ref headline)))
+	  ;; Reference to frame being resumed is mandatory.  Ignore
+	  ;; the whole headline if it isn't provided.
+	  (when (org-string-nw-p ref)
+	    (concat "\\againframe"
+		    ;; Overlay specification.
+		    (let ((overlay (org-element-property :beamer-act headline)))
+		      (when overlay
+			(org-e-beamer--normalize-argument
+			 overlay
+			 (if (string-match "^\\[.*\\]$" overlay) 'defaction
+			   'action))))
+		    ;; Options.
+		    (let ((options (org-element-property :beamer-opt headline)))
+		      (when options
+			(org-e-beamer--normalize-argument options 'option)))
+		    ;; Resolve reference provided by "BEAMER_ref"
+		    ;; property.  This is done by building a minimal fake
+		    ;; link and calling the appropriate resolve function,
+		    ;; depending on the reference syntax.
+		    (let* ((type
+			    (progn
+			      (string-match "^\\(id:\\|#\\|\\*\\)?\\(.*\\)" ref)
+			      (cond
+			       ((or (not (match-string 1 ref))
+				    (equal (match-string 1 ref) "*")) 'fuzzy)
+			       ((equal (match-string 1 ref) "id:") 'id)
+			       (t 'custom-id))))
+			   (link (list 'link (list :path (match-string 2 ref))))
+			   (target (if (eq type 'fuzzy)
+				       (org-export-resolve-fuzzy-link link info)
+				     (org-export-resolve-id-link link info))))
+		      ;; Now use user-defined label provided in TARGET
+		      ;; headline, or fallback to standard one.
+		      (format "{%s}" (org-e-beamer--get-label target info)))))))
+       ;; Case 2: Creation of an appendix is requested.
        ((equal environment "appendix")
 	(concat "\\appendix"
 		(org-element-property :beamer-act headline)
 		"\n"
 		(make-string (org-element-property :pre-blank headline) ?\n)
 		contents))
+       ;; Case 3: Ignore heading.
        ((equal environment "ignoreheading")
 	(concat (make-string (org-element-property :pre-blank headline) ?\n)
 		contents))
-       ;; HEADLINE is a note.
+       ;; Case 4: HEADLINE is a note.
        ((member environment '("note" "noteNH"))
 	(format "\\note{%s}"
 		(concat (and (equal environment "note")
@@ -556,13 +625,14 @@ as a communication channel."
 			       (org-element-property :title headline) info)
 			      "\n"))
 			(org-trim contents))))
-       ;; HEADLINE is a frame.
-       ((or (equal environment "frame") (= level frame-level))
+       ;; Case 5: HEADLINE is a frame.
+       ((= level frame-level)
 	(org-e-beamer--format-frame headline contents info))
-       ;; Regular section, extracted from `org-e-latex-classes'.
+       ;; Case 6: Regular section, extracted from
+       ;; `org-e-latex-classes'.
        ((< level frame-level)
 	(org-e-beamer--format-section headline contents info))
-       ;; Otherwise, HEADLINE is a block.
+       ;; Case 7: Otherwise, HEADLINE is a block.
        (t (org-e-beamer--format-block headline contents info))))))
 
 
@@ -743,11 +813,10 @@ holding export options."
 	(let* ((header (nth 1 (assoc class org-e-latex-classes)))
 	       (document-class-string
 		(and (stringp header)
-		     (if class-options
-			 (replace-regexp-in-string
-			  "^[ \t]*\\\\documentclass\\(\\[.*?\\]\\)"
-			  class-options header t nil 1)
-		       header))))
+		     (if (not class-options) header
+		       (replace-regexp-in-string
+			"^[ \t]*\\\\documentclass\\(\\(\\[.*\\]\\)?\\)"
+			class-options header t nil 1)))))
 	  (when document-class-string
 	    (org-e-latex--guess-babel-language
 	     (org-e-latex--guess-inputenc
@@ -867,12 +936,12 @@ value."
    ((equal property "BEAMER_env")
     (save-excursion
       (org-back-to-heading t)
-      (let ((tags (org-get-tags)))
-	(setq tags (delq nil (mapcar (lambda (x)
-				       (if (string-match "^B_" x) nil x))
-				     tags)))
-	(org-set-tags-to tags))
-      (when (org-string-nw-p value) (org-toggle-tag (concat "B_" value) 'on))))
+      ;; Filter out Beamer-related tags and install environment tag.
+      (let ((tags (org-remove-if (lambda (x) (string-match "^B_" x))
+				 (org-get-tags)))
+	    (env-tag (and (org-string-nw-p value) (concat "B_" value))))
+	(org-set-tags-to (if env-tag (cons env-tag tags) tags))
+	(when env-tag (org-toggle-tag env-tag 'on)))))
    ((equal property "BEAMER_col")
     (org-toggle-tag "BMCOL" (if (org-string-nw-p value) 'on 'off)))))
 
@@ -1028,14 +1097,25 @@ aid, but the tag does not have any semantic meaning."
     (org-set-tags)
     (let ((tags (or (ignore-errors (org-get-tags-string)) "")))
       (cond
+       ;; For a column, automatically ask for its width.
        ((eq org-last-tag-selection-key ?|)
 	(if (string-match ":BMCOL:" tags)
 	    (org-set-property "BEAMER_col" (read-string "Column width: "))
 	  (org-delete-property "BEAMER_col")))
-       ((string-match (concat ":B_\\("
-			      (mapconcat 'car envs "\\|")
-			      "\\):")
-		      tags)
+       ;; For an "againframe" section, automatically ask for reference
+       ;; to resumed frame and overlay specifications.
+       ((eq org-last-tag-selection-key ?F)
+	(if (equal (org-entry-get nil "BEAMER_env") "againframe")
+	    (progn (org-entry-delete nil "BEAMER_env")
+		   (org-entry-delete nil "BEAMER_ref")
+		   (org-entry-delete nil "BEAMER_act"))
+	  (org-entry-put nil "BEAMER_env" "againframe")
+	  (org-set-property
+	   "BEAMER_ref"
+	   (read-string "Frame reference (*Title, #custom-id, id:...): "))
+	  (org-set-property "BEAMER_act"
+			    (read-string "Overlay specification: "))))
+       ((string-match (concat ":B_\\(" (mapconcat 'car envs "\\|") "\\):") tags)
 	(org-entry-put nil "BEAMER_env" (match-string 1 tags)))
        (t (org-entry-delete nil "BEAMER_env"))))))
 
@@ -1050,8 +1130,8 @@ aid, but the tag does not have any semantic meaning."
       (progn
 	(org-back-to-heading t)
 	(org-reveal)
-	(org-entry-put nil "LaTeX_CLASS" "beamer")
-	(org-entry-put nil "LaTeX_CLASS_OPTIONS" "[presentation]")
+	(org-entry-put nil "EXPORT_LaTeX_CLASS" "beamer")
+	(org-entry-put nil "EXPORT_LaTeX_CLASS_OPTIONS" "[presentation]")
 	(org-entry-put nil "EXPORT_FILE_NAME" "presentation.pdf")
 	(when org-e-beamer-column-view-format
 	  (org-entry-put nil "COLUMNS" org-e-beamer-column-view-format))

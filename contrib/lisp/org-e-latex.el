@@ -37,6 +37,7 @@
 
 (eval-when-compile (require 'cl))
 (require 'org-export)
+(require 'org-e-publish)
 
 (defvar org-export-latex-default-packages-alist)
 (defvar org-export-latex-packages-alist)
@@ -71,7 +72,6 @@
    (latex-fragment . org-e-latex-latex-fragment)
    (line-break . org-e-latex-line-break)
    (link . org-e-latex-link)
-   (macro . org-e-latex-macro)
    (paragraph . org-e-latex-paragraph)
    (plain-list . org-e-latex-plain-list)
    (plain-text . org-e-latex-plain-text)
@@ -96,7 +96,14 @@
    (underline . org-e-latex-underline)
    (verbatim . org-e-latex-verbatim)
    (verse-block . org-e-latex-verse-block))
-  :export-block "LATEX"
+  :export-block ("LATEX" "TEX")
+  :menu-entry
+  (?l "Export to LaTeX"
+      ((?L "As TEX buffer" org-e-latex-export-as-latex)
+       (?l "As TEX file" org-e-latex-export-to-latex)
+       (?p "As PDF file" org-e-latex-export-to-pdf)
+       (?o "As PDF file and open"
+	   (lambda (s v b) (org-open-file (org-e-latex-export-to-pdf s v b))))))
   :options-alist ((:date "DATE" nil org-e-latex-date-format t)
 		  (:latex-class "LATEX_CLASS" nil org-e-latex-default-class t)
 		  (:latex-class-options "LATEX_CLASS_OPTIONS" nil nil t)
@@ -323,6 +330,12 @@ argument."
   :group 'org-export-e-latex
   :type 'string)
 
+(defcustom org-e-latex-toc-command "\\tableofcontents\n\\vspace*{1cm}\n\n"
+  "LaTeX command to set the table of contents, list of figures...
+This command only applies to the table of contents generated with
+toc:nil option, not to those generated with #+TOC keyword."
+  :group 'org-export-e-latex
+  :type 'string)
 
 ;;;; Headline
 
@@ -778,6 +791,18 @@ file name as its single argument."
 		   "bibtex %b"
 		   "pdflatex -interaction nonstopmode -output-directory %o %f"
 		   "pdflatex -interaction nonstopmode -output-directory %o %f"))
+	  (const :tag "2 runs of xelatex"
+		 ("xelatex -interaction nonstopmode -output-directory %o %f"
+		  "xelatex -interaction nonstopmode -output-directory %o %f"))
+	  (const :tag "3 runs of xelatex"
+		 ("xelatex -interaction nonstopmode -output-directory %o %f"
+		  "xelatex -interaction nonstopmode -output-directory %o %f"
+		  "xelatex -interaction nonstopmode -output-directory %o %f"))
+	  (const :tag "xelatex,bibtex,xelatex,xelatex"
+		 ("xelatex -interaction nonstopmode -output-directory %o %f"
+		  "bibtex %b"
+		  "xelatex -interaction nonstopmode -output-directory %o %f"
+		  "xelatex -interaction nonstopmode -output-directory %o %f"))
 	  (const :tag "texi2dvi"
 		 ("texi2dvi -p -b -c -V %f"))
 	  (const :tag "rubber"
@@ -796,35 +821,49 @@ These are the .aux, .log, .out, and .toc files."
   :group 'org-export-e-latex
   :type 'boolean)
 
+(defcustom org-e-latex-known-errors
+  '(("Reference.*?undefined" .  "[undefined reference]")
+    ("Citation.*?undefined" .  "[undefined citation]")
+    ("Undefined control sequence" .  "[undefined control sequence]")
+    ("^! LaTeX.*?Error" .  "[LaTeX error]")
+    ("^! Package.*?Error" .  "[package error]")
+    ("Runaway argument" .  "Runaway argument"))
+  "Alist of regular expressions and associated messages for the user.
+The regular expressions are used to find possible errors in the
+log of a latex-run."
+  :group 'org-export-e-latex
+  :type '(repeat
+	  (cons
+	   (string :tag "Regexp")
+	   (string :tag "Message"))))
+
 
 
 ;;; Internal Functions
 
-(defun org-e-latex--caption/label-string (caption label info)
-  "Return caption and label LaTeX string for floats.
+(defun org-e-latex--caption/label-string (element info)
+  "Return caption and label LaTeX string for ELEMENT.
 
-CAPTION is a cons cell of secondary strings, the car being the
-standard caption and the cdr its short form.  LABEL is a string
-representing the label.  INFO is a plist holding contextual
-information.
-
-If there's no caption nor label, return the empty string.
+INFO is a plist holding contextual information.  If there's no
+caption nor label, return the empty string.
 
 For non-floats, see `org-e-latex--wrap-label'."
-  (let ((label-str (if label (format "\\label{%s}" label) "")))
+  (let* ((label (org-element-property :name element))
+	 (label-str (if (not (org-string-nw-p label)) ""
+		      (format "\\label{%s}"
+			      (org-export-solidify-link-text label))))
+	 (main (org-export-get-caption element))
+	 (short (org-export-get-caption element t)))
     (cond
-     ((and (not caption) (not label)) "")
-     ((not caption) (format "\\label{%s}\n" label))
+     ((and (not main) (equal label-str "")) "")
+     ((not main) (concat label-str "\n"))
      ;; Option caption format with short name.
-     ((cdr caption)
-      (format "\\caption[%s]{%s%s}\n"
-	      (org-export-data (cdr caption) info)
-	      label-str
-	      (org-export-data (car caption) info)))
+     (short (format "\\caption[%s]{%s%s}\n"
+		    (org-export-data short info)
+		    label-str
+		    (org-export-data main info)))
      ;; Standard caption format.
-     (t (format "\\caption{%s%s}\n"
-		label-str
-		(org-export-data (car caption) info))))))
+     (t (format "\\caption{%s%s}\n" label-str (org-export-data main info))))))
 
 (defun org-e-latex--guess-babel-language (header info)
   "Set Babel's language according to LANGUAGE keyword.
@@ -908,9 +947,9 @@ is a plist used as a communication channel."
 This function shouldn't be used for floats.  See
 `org-e-latex--caption/label-string'."
   (let ((label (org-element-property :name element)))
-    (if (or (not output) (not label) (string= output "") (string= label ""))
-	output
-      (concat (format "\\label{%s}\n" label) output))))
+    (if (not (and (org-string-nw-p output) (org-string-nw-p label))) output
+      (concat (format "\\label{%s}\n" (org-export-solidify-link-text label))
+	      output))))
 
 (defun org-e-latex--text-markup (text markup)
   "Format TEXT depending on MARKUP text markup.
@@ -1009,11 +1048,10 @@ holding export options."
 	(let* ((header (nth 1 (assoc class org-e-latex-classes)))
 	       (document-class-string
 		(and (stringp header)
-		     (if class-options
-			 (replace-regexp-in-string
-			  "^[ \t]*\\\\documentclass\\(\\[.*?\\]\\)"
-			  class-options header t nil 1)
-		       header))))
+		     (if (not class-options) header
+		       (replace-regexp-in-string
+			"^[ \t]*\\\\documentclass\\(\\(\\[.*\\]\\)?\\)"
+			class-options header t nil 1)))))
 	  (when document-class-string
 	    (org-e-latex--guess-babel-language
 	     (org-e-latex--guess-inputenc
@@ -1063,7 +1101,7 @@ holding export options."
        (when depth
 	 (concat (when (wholenump depth)
 		   (format "\\setcounter{tocdepth}{%d}\n" depth))
-		 "\\tableofcontents\n\\vspace*{1cm}\n\n")))
+		 org-e-latex-toc-command)))
      ;; Document's body.
      contents
      ;; Creator.
@@ -1192,7 +1230,7 @@ information."
 (defun org-e-latex-export-block (export-block contents info)
   "Transcode a EXPORT-BLOCK element from Org to LaTeX.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  (when (string= (org-element-property :type export-block) "LATEX")
+  (when (member (org-element-property :type export-block) '("LATEX" "TEX"))
     (org-remove-indentation (org-element-property :value export-block))))
 
 
@@ -1650,7 +1688,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 	(insert value)
 	(goto-char (point-min))
 	(forward-line)
-	(insert (format "\\label{%s}\n" label))
+	(insert (format "\\label{%s}\n" (org-export-solidify-link-text label)))
 	(buffer-string)))))
 
 
@@ -1680,10 +1718,7 @@ used as a communication channel."
 	 (path (let ((raw-path (org-element-property :path link)))
 		 (if (not (file-name-absolute-p raw-path)) raw-path
 		   (expand-file-name raw-path))))
-	 (caption (org-e-latex--caption/label-string
-		   (org-element-property :caption parent)
-		   (org-element-property :name parent)
-		   info))
+	 (caption (org-e-latex--caption/label-string parent info))
 	 ;; Retrieve latex attributes from the element around.
 	 (attr (let ((raw-attr
 		      (mapconcat #'identity
@@ -1819,15 +1854,6 @@ INFO is a plist holding contextual information.  See
      (path (format "\\url{%s}" path))
      ;; No path, only description.  Try to do something useful.
      (t (format org-e-latex-link-with-unknown-path-format desc)))))
-
-
-;;;; Macro
-
-(defun org-e-latex-macro (macro contents info)
-  "Transcode a MACRO element from Org to LaTeX.
-CONTENTS is nil.  INFO is a plist holding contextual information."
-  ;; Use available tools.
-  (org-export-expand-macro macro info))
 
 
 ;;;; Paragraph
@@ -2035,7 +2061,7 @@ contextual information."
     (cond
      ;; Case 1.  No source fontification.
      ((not org-e-latex-listings)
-      (let ((caption-str (org-e-latex--caption/label-string caption label info))
+      (let ((caption-str (org-e-latex--caption/label-string src-block info))
 	    (float-env (when caption "\\begin{figure}[H]\n%s\n\\end{figure}")))
 	(format
 	 (or float-env "%s")
@@ -2049,10 +2075,10 @@ contextual information."
 			 custom-env))
      ;; Case 3.  Use minted package.
      ((eq org-e-latex-listings 'minted)
-      (let ((float-env (when (or label caption)
-			 (format "\\begin{listing}[H]\n%%s\n%s\\end{listing}"
-				 (org-e-latex--caption/label-string
-				  caption label info))))
+      (let ((float-env
+	     (when (or label caption)
+	       (format "\\begin{listing}[H]\n%%s\n%s\\end{listing}"
+		       (org-e-latex--caption/label-string src-block info))))
 	    (body
 	     (format
 	      "\\begin{minted}[%s]{%s}\n%s\\end{minted}"
@@ -2090,11 +2116,12 @@ contextual information."
 	     (or (cadr (assq (intern lang) org-e-latex-listings-langs)) lang))
 	    (caption-str
 	     (when caption
-	       (let ((main (org-export-data (car caption) info)))
-		 (if (not (cdr caption)) (format "{%s}" main)
+	       (let ((main (org-export-get-caption src-block))
+		     (secondary (org-export-get-caption src-block t)))
+		 (if (not secondary) (format "{%s}" (org-export-data main info))
 		   (format "{[%s]%s}"
-			   (org-export-data (cdr caption) info)
-			   main))))))
+			   (org-export-data secondary info)
+			   (org-export-data main info)))))))
 	(concat
 	 ;; Options.
 	 (format "\\lstset{%s}\n"
@@ -2288,8 +2315,7 @@ channel.
 
 This function assumes TABLE has `org' as its `:type' attribute."
   (let* ((label (org-element-property :name table))
-	 (caption (org-e-latex--caption/label-string
-		   (org-element-property :caption table) label info))
+	 (caption (org-e-latex--caption/label-string table info))
 	 (attr (mapconcat 'identity
 			  (org-element-property :attr_latex table)
 			  " "))
@@ -2307,7 +2333,7 @@ This function assumes TABLE has `org' as its `:type' attribute."
 	 (float-env (cond
 		     ((string= "longtable" table-env) nil)
 		     ((and attr (string-match "\\<sidewaystable\\>" attr))
-		      "sidewaystables")
+		      "sidewaystable")
 		     ((and attr
 			   (or (string-match (regexp-quote "table*") attr)
 			       (string-match "\\<multicolumn\\>" attr)))
@@ -2531,7 +2557,7 @@ contextual information."
 
 
 
-;;; Interactive functions
+;;; End-user functions
 
 ;;;###autoload
 (defun org-e-latex-export-as-latex
@@ -2641,55 +2667,55 @@ TEXFILE is the name of the file being compiled.  Processing is
 done through the command specified in `org-e-latex-pdf-process'.
 
 Return PDF file name or an error if it couldn't be produced."
-  (let* ((wconfig (current-window-configuration))
-	 (texfile (file-truename texfile))
+  (let* ((texfile (file-truename texfile))
 	 (base (file-name-sans-extension texfile))
+	 ;; Make sure `default-directory' is set to TEXFILE directory,
+	 ;; not to whatever value the current buffer may have.
+	 (default-directory (file-name-directory texfile))
 	 errors)
     (message (format "Processing LaTeX file %s ..." texfile))
-    (unwind-protect
-	(progn
-	  (cond
-	   ;; A function is provided: Apply it.
-	   ((functionp org-e-latex-pdf-process)
-	    (funcall org-e-latex-pdf-process (shell-quote-argument texfile)))
-	   ;; A list is provided: Replace %b, %f and %o with appropriate
-	   ;; values in each command before applying it.  Output is
-	   ;; redirected to "*Org PDF LaTeX Output*" buffer.
-	   ((consp org-e-latex-pdf-process)
-	    (let* ((out-dir (or (file-name-directory texfile) "./"))
-		   (outbuf (get-buffer-create "*Org PDF LaTeX Output*")))
-	      (mapc
-	       (lambda (command)
-		 (shell-command
-		  (replace-regexp-in-string
-		   "%b" (shell-quote-argument base)
-		   (replace-regexp-in-string
-		    "%f" (shell-quote-argument texfile)
-		    (replace-regexp-in-string
-		     "%o" (shell-quote-argument out-dir) command t t) t t) t t)
-		  outbuf))
-	       org-e-latex-pdf-process)
-	      ;; Collect standard errors from output buffer.
-	      (setq errors (org-e-latex--collect-errors outbuf))))
-	   (t (error "No valid command to process to PDF")))
-	  (let ((pdffile (concat base ".pdf")))
-	    ;; Check for process failure.  Provide collected errors if
-	    ;; possible.
-	    (if (not (file-exists-p pdffile))
-		(error (concat (format "PDF file %s wasn't produced" pdffile)
-			       (when errors (concat ": " errors))))
-	      ;; Else remove log files, when specified, and signal end of
-	      ;; process to user, along with any error encountered.
-	      (when org-e-latex-remove-logfiles
-		(dolist (ext org-e-latex-logfiles-extensions)
-		  (let ((file (concat base "." ext)))
-		    (when (file-exists-p file) (delete-file file)))))
-	      (message (concat "Process completed"
-			       (if (not errors) "."
-				 (concat " with errors: " errors)))))
-	    ;; Return output file name.
-	    pdffile))
-      (set-window-configuration wconfig))))
+    (save-window-excursion
+      (cond
+       ;; A function is provided: Apply it.
+       ((functionp org-e-latex-pdf-process)
+	(funcall org-e-latex-pdf-process (shell-quote-argument texfile)))
+       ;; A list is provided: Replace %b, %f and %o with appropriate
+       ;; values in each command before applying it.  Output is
+       ;; redirected to "*Org PDF LaTeX Output*" buffer.
+       ((consp org-e-latex-pdf-process)
+	(let* ((out-dir (file-name-directory texfile))
+	       (outbuf (get-buffer-create "*Org PDF LaTeX Output*")))
+	  (mapc
+	   (lambda (command)
+	     (shell-command
+	      (replace-regexp-in-string
+	       "%b" (shell-quote-argument base)
+	       (replace-regexp-in-string
+		"%f" (shell-quote-argument texfile)
+		(replace-regexp-in-string
+		 "%o" (shell-quote-argument out-dir) command t t) t t) t t)
+	      outbuf))
+	   org-e-latex-pdf-process)
+	  ;; Collect standard errors from output buffer.
+	  (setq errors (org-e-latex--collect-errors outbuf))))
+       (t (error "No valid command to process to PDF")))
+      (let ((pdffile (concat base ".pdf")))
+	;; Check for process failure.  Provide collected errors if
+	;; possible.
+	(if (not (file-exists-p pdffile))
+	    (error (concat (format "PDF file %s wasn't produced" pdffile)
+			   (when errors (concat ": " errors))))
+	  ;; Else remove log files, when specified, and signal end of
+	  ;; process to user, along with any error encountered.
+	  (when org-e-latex-remove-logfiles
+	    (dolist (ext org-e-latex-logfiles-extensions)
+	      (let ((file (concat base "." ext)))
+		(when (file-exists-p file) (delete-file file)))))
+	  (message (concat "Process completed"
+			   (if (not errors) "."
+			     (concat " with errors: " errors)))))
+	;; Return output file name.
+	pdffile))))
 
 (defun org-e-latex--collect-errors (buffer)
   "Collect some kind of errors from \"pdflatex\" command output.
@@ -2701,26 +2727,40 @@ none."
   (with-current-buffer buffer
     (save-excursion
       (goto-char (point-max))
-      ;; Find final "pdflatex" run.
-      (when (re-search-backward "^[ \t]*This is pdf.*?TeX.*?Version" nil t)
+      (when (re-search-backward "^[ \t]*This is .*?TeX.*?Version" nil t)
 	(let ((case-fold-search t)
 	      (errors ""))
-	  (when (save-excursion
-		  (re-search-forward "Reference.*?undefined" nil t))
-	    (setq errors (concat errors " [undefined reference]")))
-	  (when (save-excursion
-		  (re-search-forward "Citation.*?undefined" nil t))
-	    (setq errors (concat errors " [undefined citation]")))
-	  (when (save-excursion
-		  (re-search-forward "Undefined control sequence" nil t))
-	    (setq errors (concat errors " [undefined control sequence]")))
-	  (when (save-excursion
-		  (re-search-forward "^! LaTeX.*?Error" nil t))
-	    (setq errors (concat errors " [LaTeX error]")))
-	  (when (save-excursion
-		  (re-search-forward "^! Package.*?Error" nil t))
-	    (setq errors (concat errors " [package error]")))
+	  (dolist (latex-error org-e-latex-known-errors)
+	    (when (save-excursion (re-search-forward (car latex-error) nil t))
+	      (setq errors (concat errors " " (cdr latex-error)))))
 	  (and (org-string-nw-p errors) (org-trim errors)))))))
+
+;;;###autoload
+(defun org-e-latex-publish-to-latex (plist filename pub-dir)
+  "Publish an Org file to LaTeX.
+
+FILENAME is the filename of the Org file to be published.  PLIST
+is the property list for the given project.  PUB-DIR is the
+publishing directory.
+
+Return output file name."
+  (org-e-publish-org-to 'e-latex filename ".tex" plist pub-dir))
+
+;;;###autoload
+(defun org-e-latex-publish-to-pdf (plist filename pub-dir)
+  "Publish an Org file to PDF (via LaTeX).
+
+FILENAME is the filename of the Org file to be published.  PLIST
+is the property list for the given project.  PUB-DIR is the
+publishing directory.
+
+Return output file name."
+  ;; Unlike to `org-e-latex-publish-to-latex', PDF file is generated
+  ;; in working directory and then moved to publishing directory.
+  (org-e-publish-attachment
+   plist
+   (org-e-latex-compile (org-e-publish-org-to 'e-latex filename ".tex" plist))
+   pub-dir))
 
 
 (provide 'org-e-latex)

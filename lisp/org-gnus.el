@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'org)
+(require 'gnus-util)
 (eval-when-compile (require 'gnus-sum))
 
 ;; Declare external functions and variables
@@ -63,6 +64,12 @@ So if following a link to a Gnus article takes ages, try setting
 this variable to `t'."
   :group 'org-link-store
   :version "24.1"
+  :type 'boolean)
+
+(defcustom org-gnus-no-server nil
+  "Should Gnus be started using `gnus-no-server'?"
+  :group 'org-gnus
+  ;; :version "24.3"
   :type 'boolean)
 
 
@@ -206,7 +213,7 @@ If `org-store-link' was called with a prefix arg the meaning of
               desc link
               newsgroup xarchive)       ; those are always nil for gcc
           (and (not gcc)
-               (error "Can not create link: No Gcc header found."))
+               (error "Can not create link: No Gcc header found"))
           (org-store-link-props :type "gnus" :from from :subject subject
                                 :message-id id :group gcc :to to)
           (setq desc (org-email-link-description)
@@ -286,7 +293,7 @@ If `org-store-link' was called with a prefix arg the meaning of
 
 (defun org-gnus-no-new-news ()
   "Like `M-x gnus' but doesn't check for new news."
-  (if (not (gnus-alive-p)) (gnus)))
+  (if (not (gnus-alive-p)) (if org-gnus-no-server (gnus-no-server) (gnus))))
 
 (provide 'org-gnus)
 

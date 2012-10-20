@@ -10,13 +10,6 @@ SUBDIRS       = $(OTHERDIRS) $(LISPDIRS)
 INSTSUB       = $(SUBDIRS:%=install-%)
 ORG_MAKE_DOC ?= info html pdf
 
-ORG_FROM_CONTRIB = $(wildcard \
-			$(addsuffix .el, \
-			$(addprefix contrib/lisp/, \
-			$(basename \
-			$(notdir $(ORG_ADD_CONTRIB))))))
-ORG_TO_LISP      = $(ORG_FROM_CONTRIB:contrib/%=%)
-
 ifneq ($(wildcard .git),)
   GITVERSION ?= $(shell git describe --abbrev=6 HEAD)
   ORGVERSION ?= $(subst release_,,$(shell git describe --abbrev=0 HEAD))
@@ -35,10 +28,10 @@ endif
 	check test install $(INSTSUB) \
 	info html pdf card refcard doc docs \
 	autoloads cleanall clean $(CLEANDIRS:%=clean%) \
-	clean-install cleanelc cleandirs \
+	clean-install cleanelc cleandirs cleanaddcontrib \
 	cleanlisp cleandoc cleandocs cleantest \
 	compile compile-dirty uncompiled \
-	config config-test config-exe config-all config-eol
+	config config-test config-exe config-all config-eol config-version
 
 CONF_BASE = EMACS DESTDIR ORGCM ORG_MAKE_DOC
 CONF_DEST = lispdir infodir datadir testdir
@@ -53,8 +46,12 @@ config config-all::
 	$(foreach var,$(CONF_BASE),$(info $(var)	= $($(var))$(EOL)))
 	$(foreach var,$(CONF_DEST),$(info $(var)	= $(DESTDIR)$($(var))$(EOL)))
 	$(info ========= Additional files from contrib/lisp)
-	$(info ORG_FROM_CONTRIB =)
-	$(info $(ORG_TO_LISP:lisp/%=%))
+	$(info $(notdir \
+		$(wildcard \
+		$(addsuffix .el, \
+		$(addprefix contrib/lisp/, \
+		$(basename \
+		$(notdir $(ORG_ADD_CONTRIB))))))))
 config-test config-all::
 	$(info )
 	$(info ========= Test configuration)
@@ -67,7 +64,9 @@ config-cmd config-all::
 	$(info )
 	$(info ========= Commands used by make)
 	$(foreach var,$(CONF_CALL),$(info $(var)	= $($(var))$(EOL)))
-config config-test config-exe config-all::
+config config-test config-exe config-all config-version::
+	$(info ========= Org version)
+	$(info make:  Org-mode version $(ORGVERSION) ($(GITVERSION) => $(lispdir)))
 	@echo ""
 
 oldorg:	compile info	# what the old makefile did when no target was specified
@@ -89,9 +88,6 @@ local.mk:
 	-@$(MAKE_LOCAL_MK)
 
 all compile::
-ifneq ($(ORG_FROM_CONTRIB),)
-	$(CP) $(ORG_FROM_CONTRIB) lisp/
-endif
 	$(foreach dir, doc lisp, $(MAKE) -C $(dir) clean;)
 compile compile-dirty::
 	$(MAKE) -C lisp $@
@@ -134,22 +130,20 @@ cleandirs:
 
 clean:	cleanlisp cleandoc
 
-cleanall: cleandirs cleantest
+cleanall: cleandirs cleantest cleanaddcontrib
 	-$(FIND) . \( -name \*~ -o -name \*# -o -name .#\* \) -exec $(RM) {} \;
 	-$(FIND) $(CLEANDIRS) \( -name \*~ -o -name \*.elc \) -exec $(RM) {} \;
 
 $(CLEANDIRS:%=clean%):
 	-$(FIND) $(@:clean%=%) \( -name \*~ -o -name \*.elc \) -exec $(RM) {} \;
 
-ifneq ($(ORG_TO_LISP),)
-cleanlisp:	cleanaddcontrib
-cleanaddcontrib:
-	$(RM) $(ORG_TO_LISP)
-endif
-
 cleanelc:
 	$(MAKE) -C lisp $@
 
+cleanaddcontrib:
+	-$(RM) $(wildcard $(addprefix lisp/,$(notdir $(wildcard contrib/lisp/*.el))))
+
+cleanlisp:	cleanaddcontrib
 cleanlisp cleandoc:
 	$(MAKE) -C $(@:clean%=%) clean
 

@@ -189,17 +189,17 @@ All this depends on running `org-clock-persistence-insinuate' in .emacs"
   :type 'boolean)
 
 (defcustom org-clock-sound nil
-  "Sound that will used for notifications.
-Possible values:
+  "Sound to use for notifications.
+Possible values are:
 
-nil        no sound played.
-t          standard Emacs beep
-file name  play this sound file.  If not possible, fall back to beep"
+nil        No sound played
+t          Standard Emacs beep
+file name  Play this sound file, fall back to beep"
   :group 'org-clock
   :type '(choice
 	  (const :tag "No sound" nil)
 	  (const :tag "Standard beep" t)
-	  (file :tag "Play sound file")))
+	  (file  :tag "Play sound file")))
 
 (defcustom org-clock-modeline-total 'auto
   "Default setting for the time included for the mode line clock.
@@ -577,6 +577,14 @@ If not, show simply the clocked time like 01:50."
 		       h m org-clock-heading)
 		      'face 'org-mode-line-clock))))
 
+(defun org-clock-get-last-clock-out-time ()
+  "Get the last clock-out time for the current subtree."
+  (save-excursion
+    (let ((end (save-excursion (org-end-of-subtree))))
+      (when (re-search-forward (concat org-clock-string
+				       ".*\\]--\\(\\[[^]]+\\]\\)") end t)
+	(org-time-string-to-time (match-string 1))))))
+
 (defun org-clock-update-mode-line ()
   (if org-clock-effort
       (org-clock-notify-once-if-expired)
@@ -666,9 +674,10 @@ Notification is shown only once."
 	(setq org-clock-notification-was-shown nil)))))
 
 (defun org-notify (notification &optional play-sound)
-  "Send a NOTIFICATION and maybe PLAY-SOUND."
+  "Send a NOTIFICATION and maybe PLAY-SOUND.
+If PLAY-SOUND is non-nil, it overrides `org-clock-sound'."
   (org-show-notification notification)
-  (if play-sound (org-clock-play-sound)))
+  (if play-sound (org-clock-play-sound play-sound)))
 
 (defun org-show-notification (notification)
   "Show notification.
@@ -693,21 +702,23 @@ use libnotify if available, or fall back on a message."
 	;; a fall back option
 	(t (message "%s" notification))))
 
-(defun org-clock-play-sound ()
+(defun org-clock-play-sound (&optional clock-sound)
   "Play sound as configured by `org-clock-sound'.
-Use alsa's aplay tool if available."
-  (cond
-   ((not org-clock-sound))
-   ((eq org-clock-sound t) (beep t) (beep t))
-   ((stringp org-clock-sound)
-    (let ((file (expand-file-name org-clock-sound)))
-      (if (file-exists-p file)
-	  (if (executable-find "aplay")
-	      (start-process "org-clock-play-notification" nil
-			     "aplay" file)
-	    (condition-case nil
-		(play-sound-file file)
-	      (error (beep t) (beep t)))))))))
+Use alsa's aplay tool if available.
+If CLOCK-SOUND is non-nil, it overrides `org-clock-sound'."
+  (let ((org-clock-sound (or clock-sound org-clock-sound)))
+    (cond
+     ((not org-clock-sound))
+     ((eq org-clock-sound t) (beep t) (beep t))
+     ((stringp org-clock-sound)
+      (let ((file (expand-file-name org-clock-sound)))
+	(if (file-exists-p file)
+	    (if (executable-find "aplay")
+		(start-process "org-clock-play-notification" nil
+			       "aplay" file)
+	      (condition-case nil
+		  (play-sound-file file)
+		(error (beep t) (beep t))))))))))
 
 (defvar org-clock-mode-line-entry nil
   "Information for the mode line about the running clock.")
@@ -962,6 +973,7 @@ to be CLOCKED OUT.")))
 	    (not (memq ch '(?K ?G ?S ?C))))
        fail-quietly)))))
 
+;;;###autoload
 (defun org-resolve-clocks (&optional only-dangling-p prompt-fn last-valid)
   "Resolve all currently open org-mode clocks.
 If `only-dangling-p' is non-nil, only ask to resolve dangling
@@ -1001,7 +1013,8 @@ If `only-dangling-p' is non-nil, only ask to resolve dangling
 
 (defvar org-x11idle-exists-p
   ;; Check that x11idle exists
-  (and (eq (call-process-shell-command "command" nil nil nil "-v" "x11idle") 0)
+  (and (eq window-system 'x)
+       (eq (call-process-shell-command "command" nil nil nil "-v" "x11idle") 0)
        ;; Check that x11idle can retrieve the idle time
        (eq (call-process-shell-command "x11idle" nil nil nil) 0)))
 
@@ -1058,6 +1071,8 @@ so long."
   (setq org-clock-current-task nil))
 
 (defvar org-clock-out-time nil) ; store the time of the last clock-out
+
+;;;###autoload
 (defun org-clock-in (&optional select start-time)
   "Start the clock on the current item.
 If necessary, clock-out of the currently active clock.
@@ -1171,7 +1186,8 @@ make this the default behavior.)"
 		  (cond ((and org-clock-heading-function
 			      (functionp org-clock-heading-function))
 			 (funcall org-clock-heading-function))
-			((looking-at org-complex-heading-regexp)
+			((and (looking-at org-complex-heading-regexp)
+			      (match-string 4))
 			 (replace-regexp-in-string
 			  "\\[\\[.*?\\]\\[\\(.*?\\)\\]\\]" "\\1"
 			  (match-string 4)))
@@ -1426,6 +1442,7 @@ line and position cursor in that line."
 	    (and (re-search-forward org-property-end-re nil t)
 		 (goto-char (match-beginning 0))))))))
 
+;;;###autoload
 (defun org-clock-out (&optional switch-to-state fail-quietly at-time)
   "Stop the currently running clock.
 Throw an error if there is no running clock and FAIL-QUIETLY is nil.
@@ -1585,6 +1602,7 @@ UPDOWN tells whether to change 'up or 'down."
 			     ((eq org-ts-what 'year) (* 24 3600 365.2)))))
 	     org-ts-what 'updown)))))))
 
+;;;###autoload
 (defun org-clock-cancel ()
   "Cancel the running clock by removing the start timestamp."
   (interactive)
@@ -1611,6 +1629,7 @@ UPDOWN tells whether to change 'up or 'down."
   (message "Clock canceled")
   (run-hooks 'org-clock-cancel-hook))
 
+;;;###autoload
 (defun org-clock-goto (&optional select)
   "Go to the currently clocked-in entry, or to the most recently clocked one.
 With prefix arg SELECT, offer recently clocked tasks for selection."
@@ -1649,6 +1668,7 @@ With prefix arg SELECT, offer recently clocked tasks for selection."
   (let ((range (org-clock-special-range 'today)))
     (org-clock-sum (car range) (cadr range) nil :org-clock-minutes-today)))
 
+;;;###autoload
 (defun org-clock-sum (&optional tstart tend headline-filter propname)
   "Sum the times for each subtree.
 Puts the resulting times in minutes as a text property on each headline.
@@ -1747,6 +1767,7 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
       (org-clock-sum tstart)
       org-clock-file-total-minutes)))
 
+;;;###autoload
 (defun org-clock-display (&optional total-only)
   "Show subtree times in the entire buffer.
 If TOTAL-ONLY is non-nil, only show the total time for the entire file
@@ -1857,7 +1878,7 @@ and is only done if the variable `org-clock-out-when-done' is not nil."
 	  'org-clock-out-if-current)
 
 ;;;###autoload
-(defun org-get-clocktable (&rest props)
+(defun org-clock-get-clocktable (&rest props)
   "Get a formatted clocktable with parameters according to PROPS.
 The table is created in a temporary buffer, fully formatted and
 fontified, and then returned."
@@ -1877,6 +1898,7 @@ fontified, and then returned."
 				(re-search-forward "^[ \t]*#\\+END" nil t)
 				(point-at-bol)))))
 
+;;;###autoload
 (defun org-clock-report (&optional arg)
   "Create a table containing a report about clocked time.
 If the cursor is inside an existing clocktable block, then the table
@@ -2012,9 +2034,8 @@ the returned times will be formatted strings."
      ((string-match "\\([-+][0-9]+\\)$" skey)
       (setq shift (string-to-number (match-string 1 skey))
             key (intern (substring skey 0 (match-beginning 1))))
-      (if(and (memq key '(quarter thisq)) (> shift 0))
-	  (error "Looking forward with quarters isn't implemented.")
-        ())))
+      (if (and (memq key '(quarter thisq)) (> shift 0))
+	  (error "Looking forward with quarters isn't implemented"))))
 
     (when (= shift 0)
       (cond ((eq key 'yesterday) (setq key 'today   shift -1))
@@ -2164,6 +2185,7 @@ the currently selected interval size."
 	  (org-update-dblock)
 	  t)))))
 
+;;;###autoload
 (defun org-dblock-write:clocktable (params)
   "Write the standard clocktable."
   (setq params (org-combine-plists org-clocktable-defaults params))
@@ -2327,13 +2349,14 @@ from the dynamic block definition."
      (or header
 	 ;; Format the standard header
 	 (concat
+	  "#+CAPTION: "
 	  (nth 9 lwords) " ["
 	  (substring
 	   (format-time-string (cdr org-time-stamp-formats))
 	   1 -1)
 	  "]"
 	  (if block (concat ", for " range-text ".") "")
-	  "\n\n")))
+	  "\n")))
 
     ;; Insert the narrowing line
     (when (and narrow (integerp narrow) (not narrow-cut-p))
@@ -2674,6 +2697,48 @@ This function is made for clock tables."
 (defvar org-clock-loaded nil
   "Was the clock file loaded?")
 
+(defun org-clock-update-time-maybe ()
+  "If this is a CLOCK line, update it and return t.
+Otherwise, return nil."
+  (interactive)
+  (save-excursion
+    (beginning-of-line 1)
+    (skip-chars-forward " \t")
+    (when (looking-at org-clock-string)
+      (let ((re (concat "[ \t]*" org-clock-string
+			" *[[<]\\([^]>]+\\)[]>]\\(-+[[<]\\([^]>]+\\)[]>]"
+			"\\([ \t]*=>.*\\)?\\)?"))
+	    ts te h m s neg)
+	(cond
+	 ((not (looking-at re))
+	  nil)
+	 ((not (match-end 2))
+	  (when (and (equal (marker-buffer org-clock-marker) (current-buffer))
+		     (> org-clock-marker (point))
+		     (<= org-clock-marker (point-at-eol)))
+	    ;; The clock is running here
+	    (setq org-clock-start-time
+		  (apply 'encode-time
+			 (org-parse-time-string (match-string 1))))
+	    (org-clock-update-mode-line)))
+	 (t
+	  (and (match-end 4) (delete-region (match-beginning 4) (match-end 4)))
+	  (end-of-line 1)
+	  (setq ts (match-string 1)
+		te (match-string 3))
+	  (setq s (- (org-float-time
+		      (apply 'encode-time (org-parse-time-string te)))
+		     (org-float-time
+		      (apply 'encode-time (org-parse-time-string ts))))
+		neg (< s 0)
+		s (abs s)
+		h (floor (/ s 3600))
+		s (- s (* 3600 h))
+		m (floor (/ s 60))
+		s (- s (* 60 s)))
+	  (insert " => " (format (if neg "-%d:%02d" "%2d:%02d") h m))
+	  t))))))
+
 (defun org-clock-save ()
   "Persist various clock-related data to disk.
 The details of what will be saved are regulated by the variable
@@ -2765,15 +2830,13 @@ The details of what will be saved are regulated by the variable
 		(if (outline-invisible-p)
 		    (org-show-context))))))))))
 
-;;;###autoload
-(defun org-clock-persistence-insinuate ()
-  "Set up hooks for clock persistence."
-  (add-hook 'org-mode-hook 'org-clock-load)
-  (add-hook 'kill-emacs-hook 'org-clock-save))
-
 ;; Suggested bindings
 (org-defkey org-mode-map "\C-c\C-x\C-e" 'org-clock-modify-effort-estimate)
 
 (provide 'org-clock)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-clock.el ends here

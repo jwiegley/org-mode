@@ -210,6 +210,7 @@ not be modified.  Use the variables `org-export-html-style' to add
 your own style information."
   :group 'org-export-html
   :type 'boolean)
+
 ;;;###autoload
 (put 'org-export-html-style-include-default 'safe-local-variable 'booleanp)
 
@@ -763,7 +764,7 @@ The default is an extended format of the ISO 8601 specification."
   (when (and org-current-export-file
 	     (plist-get parameters :LaTeX-fragments))
     (org-format-latex
-     (concat "ltxpng/" (file-name-sans-extension
+     (concat org-latex-preview-ltxpng-directory (file-name-sans-extension
 			(file-name-nondirectory
 			 org-current-export-file)))
      org-current-export-dir nil "Creating LaTeX image %s"
@@ -2031,7 +2032,7 @@ PUB-DIR is set, use this as the publishing directory."
 (defun org-export-html-format-image (src par-open)
   "Create image tag with source and attributes."
   (save-match-data
-    (if (string-match "^ltxpng/" src)
+    (if (string-match (regexp-quote org-latex-preview-ltxpng-directory) src)
 	(format "<img src=\"%s\" alt=\"%s\"/>"
                 src (org-find-text-property-in-string 'org-latex-src src))
       (let* ((caption (org-find-text-property-in-string 'org-caption src))
@@ -2380,7 +2381,6 @@ the settings define in the org-... variables."
 			    (plist-get htmlize-buffer-places 'content-end)))
       (kill-buffer htmlbuf))))
 
-;;;###autoload
 (defun org-export-htmlize-generate-css ()
   "Create the CSS for all font definitions in the current Emacs session.
 Use this to create face definitions in your CSS style file that can then
@@ -2748,5 +2748,9 @@ the alist of previous items."
      (t org-line))))
 
 (provide 'org-html)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-html.el ends here

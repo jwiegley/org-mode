@@ -36,7 +36,7 @@
 (declare-function org-clock-sum-today "org-clock" (&optional headline-filter))
 
 (when (featurep 'xemacs)
-  (error "Do not load this file into XEmacs, use 'org-colview-xemacs.el'."))
+  (error "Do not load this file into XEmacs, use `org-colview-xemacs.el'"))
 
 ;;; Column View
 
@@ -589,9 +589,9 @@ an integer, select that value."
       (if (= nth -1) (setq nth 9)))
     (when (equal key "ITEM")
       (error "Cannot edit item headline from here"))
-    (unless (or allowed (member key '("SCHEDULED" "DEADLINE")))
+    (unless (or allowed (member key '("SCHEDULED" "DEADLINE" "CLOCKSUM")))
       (error "Allowed values for this property have not been defined"))
-    (if (member key '("SCHEDULED" "DEADLINE"))
+    (if (member key '("SCHEDULED" "DEADLINE" "CLOCKSUM"))
 	(setq nval (if previous 'earlier 'later))
       (if previous (setq allowed (reverse allowed)))
       (cond
@@ -681,11 +681,12 @@ around it."
 
 (defun org-columns-goto-top-level ()
   (when (condition-case nil (org-back-to-heading) (error nil))
-    (org-entry-get nil "COLUMNS" t)
-    (if (marker-position org-entry-property-inherited-from)
-	(move-marker org-columns-top-level-marker org-entry-property-inherited-from)
-      (move-marker org-columns-top-level-marker (point)))))
+    (org-entry-get nil "COLUMNS" t))
+  (if (marker-position org-entry-property-inherited-from)
+      (move-marker org-columns-top-level-marker org-entry-property-inherited-from)
+    (move-marker org-columns-top-level-marker (point))))
 
+;;;###autoload
 (defun org-columns (&optional columns-fmt-string)
   "Turn on column view on an org-mode file.
 When COLUMNS-FMT-STRING is non-nil, use it as the column format."
@@ -1222,6 +1223,7 @@ of fields."
 	      (push row tbl)))))
       (append (list title 'hline) (nreverse tbl)))))
 
+;;;###autoload
 (defun org-dblock-write:columnview (params)
   "Write the column view table.
 PARAMS is a property list of parameters:
@@ -1334,6 +1336,7 @@ and tailing newline characters."
       (t (error "Garbage in listtable: %s" x))))
    tbl "\n"))
 
+;;;###autoload
 (defun org-insert-columns-dblock ()
   "Create a dynamic block capturing a column view table."
   (interactive)
@@ -1357,6 +1360,7 @@ and tailing newline characters."
 (defvar org-agenda-columns-compute-summary-properties); defined in org-agenda.el
 (defvar org-agenda-columns-add-appointments-to-effort-sum); as well
 
+;;;###autoload
 (defun org-agenda-columns ()
   "Turn on or update column view in the agenda."
   (interactive)
@@ -1368,8 +1372,7 @@ and tailing newline characters."
     (cond
      ((and (boundp 'org-agenda-overriding-columns-format)
 	   org-agenda-overriding-columns-format)
-      (setq fmt org-agenda-overriding-columns-format)
-      (org-set-local 'org-agenda-overriding-columns-format fmt))
+      (setq fmt org-agenda-overriding-columns-format))
      ((setq m (org-get-at-bol 'org-hd-marker))
       (setq fmt (or (org-entry-get m "COLUMNS" t)
 		    (with-current-buffer (marker-buffer m)
@@ -1425,7 +1428,8 @@ and tailing newline characters."
 This will add overlays to the date lines, to show the summary for each day."
   (let* ((fmt (mapcar (lambda (x)
 			(if (string-match "CLOCKSUM.*" (car x))
-			    (list (match-string 0) (nth 1 x) (nth 2 x) ":" 'add_times
+			    (list (match-string 0 (car x))
+				  (nth 1 x) (nth 2 x) ":" 'add_times
 				  nil '+ nil)
 			  x))
 		      org-columns-current-fmt-compiled))

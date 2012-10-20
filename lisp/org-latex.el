@@ -330,7 +330,7 @@ its description and the Org's version number, as a string.  Set
 this option to the empty string if you don't want to include
 hyperref options altogether."
   :type 'string
-  ;; :version "24.3"
+  :version "24.3"
   :group 'org-export-latex)
 
 (defcustom org-export-latex-footnote-separator "\\textsuperscript{,}\\,"
@@ -649,7 +649,7 @@ and `org-export-with-tags' instead."
 (defcustom org-export-latex-link-with-unknown-path-format "\\texttt{%s}"
   "Format string for links with unknown path type."
   :group 'org-export-latex
-  ;; :version "24.3"
+  :version "24.3"
   :type 'string)
 
 (defcustom org-export-latex-inline-image-extensions
@@ -2898,5 +2898,9 @@ The conversion is made depending of STRING-BEFORE and STRING-AFTER."
 
 (provide 'org-export-latex)
 (provide 'org-latex)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-latex.el ends here

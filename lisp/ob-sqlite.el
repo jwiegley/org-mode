@@ -33,7 +33,8 @@
 (declare-function org-fill-template "org" (template alist))
 (declare-function org-table-convert-region "org-table"
 		  (beg0 end0 &optional separator))
-(declare-function orgtbl-to-csv "org-table" (TABLE PARAMS))
+(declare-function orgtbl-to-csv "org-table" (table params))
+(declare-function org-table-to-lisp "org-table" (&optional txt))
 
 (defvar org-babel-default-header-args:sqlite '())
 
@@ -71,7 +72,7 @@ This function is called by `org-babel-execute-src-block'."
 			   (list :header :echo :bail :column
 				 :csv :html :line :list))))
 	exit-code)
-    (unless db (error "ob-sqlite: can't evaluate without a database."))
+    (unless db (error "ob-sqlite: can't evaluate without a database"))
     (with-temp-buffer
       (insert
        (org-babel-eval

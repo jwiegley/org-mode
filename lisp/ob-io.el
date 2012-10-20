@@ -38,11 +38,11 @@
 (require 'ob-eval)
 (eval-when-compile (require 'cl))
 
+(defvar org-babel-tangle-lang-exts) ;; Autoloaded
 (add-to-list 'org-babel-tangle-lang-exts '("io" . "io"))
 (defvar org-babel-default-header-args:io '())
 (defvar org-babel-io-command "io"
   "Name of the command to use for executing Io code.")
-
 
 (defun org-babel-execute:io (body params)
   "Execute a block of Io code with org-babel.  This function is
@@ -85,7 +85,7 @@ Emacs-lisp table, otherwise return the results as a string."
 If RESULT-TYPE equals 'output then return standard output as a string.
 If RESULT-TYPE equals 'value then return the value of the last statement
 in BODY as elisp."
-  (when session (error "Sessions are not supported for Io.  Yet."))
+  (when session (error "Sessions are not (yet) supported for Io"))
   (case result-type
     (output
      (if (member "repl" result-params)
@@ -107,7 +107,7 @@ in BODY as elisp."
 
 (defun org-babel-prep-session:io (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS."
-  (error "Sessions are not supported for Io.  Yet."))
+  (error "Sessions are not (yet) supported for Io"))
 
 (defun org-babel-io-initiate-session (&optional session)
   "If there is not a current inferior-process-buffer in SESSION

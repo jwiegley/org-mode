@@ -127,10 +127,10 @@ set of output formats.
 
   `:publishing-function'
 
-    Function to publish file.  The default is
-    `org-e-publish-org-to-ascii', but other values are possible.
-    May also be a list of functions, in which case each function
-    in the list is invoked in turn.
+    Function to publish file.  Each back-end may define its
+    own (i.e. `org-e-latex-publish-to-pdf',
+    `org-e-html-publish-to-html').  May be a list of functions,
+    in which case each function in the list is invoked in turn.
 
 Another property allows you to insert code that prepares
 a project for publishing.  For example, you could call GNU Make
@@ -350,7 +350,7 @@ still decide about that independently."
   "Update publishing timestamp for file FILENAME.
 If there is no timestamp, create one."
   (let ((key (org-e-publish-timestamp-filename filename pub-dir pub-func))
-	(stamp (org-e-publish-cache-ctime-of-src filename base-dir)))
+	(stamp (org-e-publish-cache-ctime-of-src filename)))
     (org-e-publish-cache-set key stamp)))
 
 (defun org-e-publish-remove-all-timestamps ()
@@ -538,19 +538,22 @@ matching filenames."
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Pluggable publishing back-end functions
+;;; Tools for publishing functions in back-ends
 
-(defun org-e-publish-org-to (backend filename extension plist pub-dir)
+(defun org-e-publish-org-to (backend filename extension plist &optional pub-dir)
   "Publish an Org file to a specified back-end.
 
 BACKEND is a symbol representing the back-end used for
 transcoding.  FILENAME is the filename of the Org file to be
 published.  EXTENSION is the extension used for the output
 string, with the leading dot.  PLIST is the property list for the
-given project.  PUB-DIR is the publishing directory.
+given project.
+
+Optional argument PUB-DIR, when non-nil is the publishing
+directory.
 
 Return output file name."
-  (unless (file-exists-p pub-dir) (make-directory pub-dir t))
+  (unless (or (not pub-dir) (file-exists-p pub-dir)) (make-directory pub-dir t))
   ;; Check if a buffer visiting FILENAME is already open.
   (let* ((visitingp (find-buffer-visiting filename))
 	 (work-buffer (or visitingp (find-file-noselect filename))))
@@ -571,80 +574,6 @@ Return output file name."
       (unless visitingp (kill-buffer work-buffer)))))
 
 (defvar project-plist)
-(defun org-e-publish-org-to-latex (plist filename pub-dir)
-  "Publish an Org file to LaTeX.
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-publish-org-to 'e-latex filename ".tex" plist pub-dir))
-
-(defun org-e-publish-org-to-pdf (plist filename pub-dir)
-  "Publish an Org file to PDF \(via LaTeX).
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-latex-compile
-   (org-e-publish-org-to 'e-latex filename ".tex" plist pub-dir)))
-
-(defun org-e-publish-org-to-html (plist filename pub-dir)
-  "Publish an org file to HTML.
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-publish-org-to 'e-html filename "html" plist pub-dir))
-
-;; TODO: Not implemented yet.
-;; (defun org-e-publish-org-to-org (plist filename pub-dir)
-;;   "Publish an org file to HTML.
-;;
-;; FILENAME is the filename of the Org file to be published.  PLIST
-;; is the property list for the given project.  PUB-DIR is the
-;; publishing directory.
-;;
-;; Return output file name."
-;;   (org-e-publish-org-to "org" plist filename pub-dir))
-
-(defun org-e-publish-org-to-ascii (plist filename pub-dir)
-  "Publish an Org file to ASCII.
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-publish-org-to
-   'e-ascii filename ".txt" `(:ascii-charset ascii ,@plist) pub-dir))
-
-(defun org-e-publish-org-to-latin1 (plist filename pub-dir)
-  "Publish an Org file to Latin-1.
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-publish-org-to
-   'e-ascii filename ".txt" `(:ascii-charset latin1 ,@plist) pub-dir))
-
-(defun org-e-publish-org-to-utf8 (plist filename pub-dir)
-  "Publish an org file to UTF-8.
-
-FILENAME is the filename of the Org file to be published.  PLIST
-is the property list for the given project.  PUB-DIR is the
-publishing directory.
-
-Return output file name."
-  (org-e-publish-org-to
-   'e-ascii filename ".txt" `(:ascii-charset utf-8 ,@plist) pub-dir))
 
 (defun org-e-publish-attachment (plist filename pub-dir)
   "Publish a file with no transformation of any kind.
@@ -682,7 +611,7 @@ See `org-e-publish-projects'."
 	 (ftname (expand-file-name filename))
 	 (publishing-function
 	  (or (plist-get project-plist :publishing-function)
-	      'org-e-publish-org-to-ascii))
+	      (error "No publishing function chosen")))
 	 (base-dir
 	  (file-name-as-directory
 	   (expand-file-name
@@ -854,7 +783,8 @@ Default for SITEMAP-FILENAME is 'sitemap.org'."
      (with-current-buffer buffer
        (org-mode)
        (setq title
-	     (or (plist-get (org-export-get-environment) :title)
+	     (or (org-element-interpret-data
+		  (plist-get (org-export-get-environment) :title))
 		 (file-name-nondirectory (file-name-sans-extension file)))))
      (unless visiting (kill-buffer buffer))
      (org-e-publish-cache-set-file-property file :title title)
@@ -1128,14 +1058,11 @@ the file including them will be republished as well."
 	(while (re-search-forward
 		"^#\\+INCLUDE:[ \t]+\"\\([^\t\n\r\"]*\\)\"[ \t]*.*$" nil t)
 	  (let* ((included-file (expand-file-name (match-string 1))))
-	    (add-to-list
-	     'included-files-ctime
-	     (org-e-publish-cache-ctime-of-src included-file base-dir)
-	     t))))
-      ;; FIXME: don't kill current buffer.
+	    (add-to-list 'included-files-ctime
+			 (org-e-publish-cache-ctime-of-src included-file) t))))
       (unless visiting (kill-buffer buf)))
     (if (null pstamp) t
-      (let ((ctime (org-e-publish-cache-ctime-of-src filename base-dir)))
+      (let ((ctime (org-e-publish-cache-ctime-of-src filename)))
 	(or (< pstamp ctime)
 	    (when included-files-ctime
 	      (not (null (delq nil (mapcar (lambda(ct) (< ctime ct))
@@ -1187,10 +1114,11 @@ Returns value on success, else nil."
     (error "`org-e-publish-cache-set' called, but no cache present"))
   (puthash key value org-e-publish-cache))
 
-(defun org-e-publish-cache-ctime-of-src (f base-dir)
-  "Get the FILENAME ctime as an integer."
+(defun org-e-publish-cache-ctime-of-src (file)
+  "Get the ctime of FILE as an integer."
   (let ((attr (file-attributes
-	       (expand-file-name (or (file-symlink-p f) f) base-dir))))
+	       (expand-file-name (or (file-symlink-p file) file)
+				 (file-name-directory file)))))
     (+ (lsh (car (nth 5 attr)) 16)
        (cadr (nth 5 attr)))))
 

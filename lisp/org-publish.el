@@ -338,7 +338,7 @@ function can still decide about that independently."
   "Update publishing timestamp for file FILENAME.
 If there is no timestamp, create one."
   (let ((key (org-publish-timestamp-filename filename pub-dir pub-func))
-	(stamp (org-publish-cache-ctime-of-src filename base-dir)))
+	(stamp (org-publish-cache-ctime-of-src filename)))
     (org-publish-cache-set key stamp)))
 
 (defun org-publish-remove-all-timestamps ()
@@ -922,7 +922,6 @@ directory and force publishing all files."
 	   (if force nil org-publish-use-timestamps-flag)))
       (org-publish-projects org-publish-project-alist))))
 
-
 ;;;###autoload
 (defun org-publish-current-file (&optional force)
   "Publish the current file.
@@ -1128,12 +1127,12 @@ so that the file including them will be republished as well."
 	(while (re-search-forward "^#\\+include:[ \t]+\"\\([^\t\n\r\"]*\\)\"[ \t]*.*$" nil t)
 	  (let* ((included-file (expand-file-name (match-string 1))))
 	    (add-to-list 'included-files-ctime
-			 (org-publish-cache-ctime-of-src included-file base-dir) t))))
+			 (org-publish-cache-ctime-of-src included-file) t))))
       ;; FIXME don't kill current buffer
       (unless visiting (kill-buffer buf)))
     (if (null pstamp)
 	t
-      (let ((ctime (org-publish-cache-ctime-of-src filename base-dir)))
+      (let ((ctime (org-publish-cache-ctime-of-src filename)))
 	(or (< pstamp ctime)
 	    (when included-files-ctime
 	      (not (null (delq nil (mapcar (lambda(ct) (< ctime ct))
@@ -1188,13 +1187,18 @@ Returns value on success, else nil."
       (error "`org-publish-cache-set' called, but no cache present"))
   (puthash key value org-publish-cache))
 
-(defun org-publish-cache-ctime-of-src (f base-dir)
-  "Get the FILENAME ctime as an integer."
+(defun org-publish-cache-ctime-of-src (file)
+  "Get the ctime of filename F as an integer."
   (let ((attr (file-attributes
-	       (expand-file-name (or (file-symlink-p f) f) base-dir))))
+	       (expand-file-name (or (file-symlink-p file) file)
+				 (file-name-directory file)))))
     (+ (lsh (car (nth 5 attr)) 16)
        (cadr (nth 5 attr)))))
 
 (provide 'org-publish)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-publish.el ends here

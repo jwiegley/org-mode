@@ -61,7 +61,14 @@ Some other text
   (should-not
    (org-test-with-temp-text "#+BEGIN_CENTER\n\\alpha\n#+END_CENTER"
      (org-element-map
-      (org-element-parse-buffer) 'entity 'identity nil nil 'center-block))))
+      (org-element-parse-buffer) 'entity 'identity nil nil 'center-block)))
+  ;; Use WITH-AFFILIATED argument.
+  (should
+   (equal
+    '("a" "1" "b" "2")
+    (org-test-with-temp-text "#+CAPTION[a]: 1\n#+CAPTION[b]: 2\nParagraph"
+      (org-element-map
+       (org-element-at-point) 'plain-text 'identity nil nil nil t)))))
 
 
 
@@ -153,6 +160,52 @@ Some other text
 
 
 ;;; Test Parsers
+
+;;;; Affiliated Keywords
+
+(ert-deftest test-org-element/affiliated-keywords-parser ()
+  "Test affiliated keywords parsing."
+  ;; Read simple keywords.
+  (should
+   (equal "para"
+	  (org-element-property
+	   :name
+	   (org-test-with-temp-text "#+NAME: para\nParagraph"
+	     (org-element-at-point)))))
+  (should
+   (= 1
+      (org-element-property
+       :begin
+       (org-test-with-temp-text "#+NAME: para\nParagraph"
+	 (org-element-at-point)))))
+  ;; Parse multiple keywords.
+  (should
+   (equal
+    '("line2" "line1")
+    (org-element-property
+     :attr_ascii
+     (org-test-with-temp-text
+	 "#+ATTR_ASCII: line1\n#+ATTR_ASCII: line2\nParagraph"
+       (org-element-at-point)))))
+  ;; Parse "parsed" keywords.
+  (should
+   (equal
+    '(("caption"))
+    (org-test-with-temp-text "#+CAPTION: caption\nParagraph"
+      (car (org-element-property :caption (org-element-at-point))))))
+  ;; Parse dual keywords.
+  (should
+   (equal
+    '((("long") "short"))
+    (org-test-with-temp-text "#+CAPTION[short]: long\nParagraph"
+      (org-element-property :caption (org-element-at-point)))))
+  ;; Allow multiple caption keywords.
+  (should
+   (equal
+    '((("l2") "s2") (("l1") "s1"))
+    (org-test-with-temp-text "#+CAPTION[s1]: l1\n#+CAPTION[s2]: l2\nParagraph"
+      (org-element-property :caption (org-element-at-point))))))
+
 
 ;;;; Babel Call
 
@@ -431,7 +484,13 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
   (should-not
    (org-test-with-temp-text "#+BEGIN_EXAMPLE"
      (org-element-map
-      (org-element-parse-buffer) 'example-block 'identity nil t))))
+      (org-element-parse-buffer) 'example-block 'identity nil t)))
+  ;; Properly un-escape code.
+  (should
+   (equal "* Headline\n #+keyword\nText\n"
+	  (org-test-with-temp-text
+	      "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText\n#+END_EXAMPLE"
+	    (org-element-property :value (org-element-at-point))))))
 
 (ert-deftest test-org-element/block-switches ()
   "Test `example-block' and `src-block' switches parsing."
@@ -631,7 +690,11 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
        (org-test-with-temp-text "[fn:1] Definition\n| a | b |"
 	 (org-element-map
 	  (org-element-parse-buffer)
-	  'footnote-definition 'identity nil t))))))
+	  'footnote-definition 'identity nil t)))))
+  ;; Footnote starting with special syntax.
+  (should-not
+   (org-test-with-temp-text "[fn:1] - no item"
+     (org-element-map (org-element-parse-buffer) 'item 'identity))))
 
 
 ;;;; Footnotes Reference.
@@ -689,19 +752,31 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
       (should-not (org-element-property :quotedp (org-element-at-point)))))
   ;; Standard position.
   (org-test-with-temp-text "* QUOTE Headline"
-    (let ((org-quote-string "QUOTE"))
-      (let ((headline (org-element-at-point)))
-	(should (org-element-property :quotedp headline))
-	;; Test removal from raw value.
-	(should (equal (org-element-property :raw-value headline) "Headline"))))
-    ;; Case sensitivity.
-    (let ((org-quote-string "Quote"))
-      (should-not (org-element-property :quotedp (org-element-at-point)))))
+    (let* ((org-quote-string "QUOTE")
+	   (headline (org-element-at-point)))
+      (should (org-element-property :quotedp headline))
+      ;; Test removal from raw value.
+      (should (equal (org-element-property :raw-value headline) "Headline"))))
+  ;; Case sensitivity.
+  (org-test-with-temp-text "* QUOTE Headline"
+    (let* ((org-quote-string "Quote")
+	   (headline (org-element-at-point)))
+      (should-not (org-element-property :quotedp headline))
+      (should (equal (org-element-property :raw-value headline)
+		     "QUOTE Headline"))))
   ;; With another keyword.
   (org-test-with-temp-text "* TODO QUOTE Headline"
-    (let ((org-quote-string "QUOTE")
-	  (org-todo-keywords '((sequence "TODO" "DONE"))))
-      (should (org-element-property :quotedp (org-element-at-point))))))
+    (let* ((org-quote-string "QUOTE")
+	   (org-todo-keywords '((sequence "TODO" "DONE")))
+	   (headline (org-element-at-point)))
+      (should (org-element-property :quotedp headline))
+      (should (equal (org-element-property :raw-value headline) "Headline"))))
+  ;; With the keyword only.
+  (org-test-with-temp-text "* QUOTE"
+    (let* ((org-quote-string "QUOTE")
+	   (headline (org-element-at-point)))
+      (should (org-element-property :quotedp headline))
+      (should (equal (org-element-property :raw-value headline) "")))))
 
 (ert-deftest test-org-element/headline-comment-keyword ()
   "Test COMMENT keyword recognition."
@@ -711,19 +786,30 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
       (should-not (org-element-property :commentedp (org-element-at-point)))))
   ;; Standard position.
   (org-test-with-temp-text "* COMMENT Headline"
-    (let ((org-comment-string "COMMENT"))
-      (let ((headline (org-element-at-point)))
-	(should (org-element-property :commentedp headline))
-	;; Test removal from raw value.
-	(should (equal (org-element-property :raw-value headline) "Headline"))))
-    ;; Case sensitivity.
-    (let ((org-comment-string "Comment"))
-      (should-not (org-element-property :commentedp (org-element-at-point)))))
+    (let ((org-comment-string "COMMENT")
+	  (headline (org-element-at-point)))
+      (should (org-element-property :commentedp headline))
+      (should (equal (org-element-property :raw-value headline) "Headline"))))
+  ;; Case sensitivity.
+  (org-test-with-temp-text "* COMMENT Headline"
+    (let* ((org-comment-string "Comment")
+	   (headline (org-element-at-point)))
+      (should-not (org-element-property :commentedp headline))
+      (should (equal (org-element-property :raw-value headline)
+		     "COMMENT Headline"))))
   ;; With another keyword.
   (org-test-with-temp-text "* TODO COMMENT Headline"
-    (let ((org-comment-string "COMMENT")
-	  (org-todo-keywords '((sequence "TODO" "DONE"))))
-      (should (org-element-property :commentedp (org-element-at-point))))))
+    (let* ((org-comment-string "COMMENT")
+	   (org-todo-keywords '((sequence "TODO" "DONE")))
+	   (headline (org-element-at-point)))
+      (should (org-element-property :commentedp headline))
+      (should (equal (org-element-property :raw-value headline) "Headline"))))
+  ;; With the keyword only.
+  (org-test-with-temp-text "* COMMENT"
+    (let* ((org-comment-string "COMMENT")
+	   (headline (org-element-at-point)))
+      (should (org-element-property :commentedp headline))
+      (should (equal (org-element-property :raw-value headline) "")))))
 
 (ert-deftest test-org-element/headline-archive-tag ()
   "Test ARCHIVE tag recognition."
@@ -787,6 +873,10 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"
   "Test `inline-src-block' parser."
   (should
    (org-test-with-temp-text "src_emacs-lisp{(+ 1 1)}"
+     (org-element-map (org-element-parse-buffer) 'inline-src-block 'identity)))
+  ;; Test parsing at the beginning of an item.
+  (should
+   (org-test-with-temp-text "- src_emacs-lisp{(+ 1 1)}"
      (org-element-map (org-element-parse-buffer) 'inline-src-block 'identity))))
 
 
@@ -917,7 +1007,13 @@ DEADLINE: <2012-03-29 thu.>"
     (should
      (org-element-property
       :hiddenp
-      (org-element-map (org-element-parse-buffer) 'item 'identity nil t)))))
+      (org-element-map (org-element-parse-buffer) 'item 'identity nil t))))
+  ;; Item starting with special syntax.
+  (should
+   (equal '(("- item"))
+	  (org-test-with-temp-text "- - item"
+	    (org-element-map
+	     (org-element-parse-buffer) 'paragraph 'org-element-contents)))))
 
 
 ;;;; Keyword
@@ -1145,6 +1241,32 @@ e^{i\\pi}+1=0
      (org-element-map (org-element-parse-buffer) 'macro 'identity))))
 
 
+;;;; Node Property
+
+(ert-deftest test-org-element/node-property ()
+  "Test `node-property' parser."
+  ;; Standard test.
+  (should
+   (equal '("abc" "value")
+	  (org-test-with-temp-text ":PROPERTIES:\n:abc: value\n:END:"
+	    (progn (forward-line)
+		   (let ((element (org-element-at-point)))
+		     (list (org-element-property :key element)
+			   (org-element-property :value element)))))))
+  ;; Value should be trimmed.
+  (should
+   (equal "value"
+	  (org-test-with-temp-text ":PROPERTIES:\n:abc: value  \n:END:"
+	    (progn (forward-line)
+		   (let ((element (org-element-at-point)))
+		     (org-element-property :value element))))))
+  ;; A node property requires to be wrapped within a property drawer.
+  (should-not
+   (eq 'node-property
+       (org-test-with-temp-text ":abc: value"
+	 (org-element-type (org-element-at-point))))))
+
+
 ;;;; Paragraph
 
 (ert-deftest test-org-element/paragraph-parser ()
@@ -1345,7 +1467,13 @@ Outside list"
   ;; A section cannot be empty.
   (should-not
    (org-test-with-temp-text "* Headline 1\n* Headline 2"
-     (org-element-map (org-element-parse-buffer) 'section 'identity))))
+     (org-element-map (org-element-parse-buffer) 'section 'identity)))
+  ;; A section doesn't contain sub-trees.
+  (should-not
+   (org-test-with-temp-text "* Head\nText\n** Sub-Head"
+     (org-element-map
+      (org-element-map (org-element-parse-buffer) 'section 'identity nil t)
+      'headline 'identity))))
 
 
 ;;;; Special Block
@@ -1393,7 +1521,13 @@ Outside list"
   ;; Ignore incomplete block.
   (should-not
    (org-test-with-temp-text "#+BEGIN_SRC"
-     (org-element-map (org-element-parse-buffer) 'src-block 'identity))))
+     (org-element-map (org-element-parse-buffer) 'src-block 'identity)))
+  ;; Properly un-escape code.
+  (should
+   (equal "* Headline\n #+keyword\nText\n"
+	  (org-test-with-temp-text
+	      "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText\n#+END_SRC"
+	    (org-element-property :value (org-element-at-point))))))
 
 
 ;;;; Statistics Cookie
@@ -1479,7 +1613,9 @@ Outside list"
 	(length (org-element-property
 		 :tblfm
 		 (org-element-map
-		  (org-element-parse-buffer) 'table 'identity nil t)))))))
+		  (org-element-parse-buffer) 'table 'identity nil t))))))
+  ;; Do not error when parsing a table with trailing white spaces.
+  (should (org-test-with-temp-text "| a |\n  " (org-element-parse-buffer))))
 
 
 ;;;; Table Cell
@@ -1620,7 +1756,7 @@ Outside list"
 
 ;;; Test Interpreters.
 
-(ert-deftest test-org-element/interpret-affiliated-keywords ()
+(ert-deftest test-org-element/affiliated-keywords-interpreter ()
   "Test if affiliated keywords are correctly interpreted."
   ;; Interpret simple keywords.
   (should
@@ -1632,20 +1768,27 @@ Outside list"
   (should
    (equal
     (org-element-interpret-data
-     '(org-data nil (paragraph (:attr_ascii ("line1" "line2")) "Paragraph")))
+     '(org-data nil (paragraph (:attr_ascii ("line2" "line1")) "Paragraph")))
     "#+ATTR_ASCII: line1\n#+ATTR_ASCII: line2\nParagraph\n"))
   ;; Interpret parsed keywords.
   (should
    (equal
     (org-element-interpret-data
-     '(org-data nil (paragraph (:caption ("caption")) "Paragraph")))
+     '(org-data nil (paragraph (:caption (("caption"))) "Paragraph")))
     "#+CAPTION: caption\nParagraph\n"))
   ;; Interpret dual keywords.
   (should
    (equal
     (org-element-interpret-data
-     '(org-data nil (paragraph (:caption (("long") "short")) "Paragraph")))
-    "#+CAPTION[short]: long\nParagraph\n")))
+     '(org-data nil (paragraph (:caption ((("long") "short"))) "Paragraph")))
+    "#+CAPTION[short]: long\nParagraph\n"))
+  ;; Interpret multiple parsed dual keywords.
+  (should
+   (equal
+    (org-element-interpret-data
+     '(org-data nil (paragraph
+		     (:caption ((("l2") "s2") (("l1") "s1"))) "Paragraph")))
+    "#+CAPTION[s1]: l1\n#+CAPTION[s2]: l2\nParagraph\n")))
 
 (ert-deftest test-org-element/center-block-interpreter ()
   "Test center block interpreter."
@@ -1854,7 +1997,12 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"))
   (should
    (equal (org-test-parse-and-interpret
 	   "#+BEGIN_EXAMPLE -n -k\n(+ 1 1)\n#+END_EXAMPLE")
-	  "#+BEGIN_EXAMPLE -n -k\n(+ 1 1)\n#+END_EXAMPLE\n")))
+	  "#+BEGIN_EXAMPLE -n -k\n(+ 1 1)\n#+END_EXAMPLE\n"))
+  ;; Preserve code escaping.
+  (should
+   (equal (org-test-parse-and-interpret
+	   "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText #+END_EXAMPLE")
+	  "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText #+END_EXAMPLE\n")))
 
 (ert-deftest test-org-element/export-block-interpreter ()
   "Test export block interpreter."
@@ -1918,7 +2066,12 @@ CLOSED: [2012-01-01] DEADLINE: <2012-01-01> SCHEDULED: <2012-01-01>\n"))))
    (equal (let ((org-edit-src-content-indentation 2))
 	    (org-test-parse-and-interpret
 	     "#+BEGIN_SRC emacs-lisp -n -k\n(+ 1 1)\n#+END_SRC"))
-	  "#+BEGIN_SRC emacs-lisp -n -k\n  (+ 1 1)\n#+END_SRC\n")))
+	  "#+BEGIN_SRC emacs-lisp -n -k\n  (+ 1 1)\n#+END_SRC\n"))
+  ;; Preserve code escaping.
+  (should
+   (equal (org-test-parse-and-interpret
+	   "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText #+END_SRC")
+	  "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText #+END_SRC\n")))
 
 (ert-deftest test-org-element/table-interpreter ()
   "Test table, table-row and table-cell interpreters."
@@ -2360,6 +2513,17 @@ Paragraph \\alpha."
    (eq 'underline
        (org-test-with-temp-text "* Headline _with_ underlining"
 	 (progn (search-forward "w")
+		(org-element-type (org-element-context))))))
+  ;; Find objects in objects.
+  (should
+   (eq 'macro
+       (org-test-with-temp-text "| a | {{{macro}}} |"
+	 (progn (search-forward "{")
+		(org-element-type (org-element-context))))))
+  (should
+   (eq 'table-cell
+       (org-test-with-temp-text "| a | b {{{macro}}} |"
+	 (progn (search-forward "b")
 		(org-element-type (org-element-context))))))
   ;; Correctly set `:parent' property.
   (should

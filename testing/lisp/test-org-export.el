@@ -57,7 +57,44 @@ already filled in `info'."
 
 
 
-;;; Tests
+;;; Internal Tests
+
+(ert-deftest test-org-export/bind-keyword ()
+  "Test reading #+BIND: keywords."
+  ;; Test with `org-export-all-BIND' set to t.
+  (should
+   (org-test-with-temp-text "#+BIND: variable value"
+     (let ((org-export-allow-BIND t))
+       (org-export--install-letbind-maybe)
+       (eq variable 'value))))
+  ;; Test with `org-export-all-BIND' set to nil.
+  (should-not
+   (org-test-with-temp-text "#+BIND: variable value"
+     (let ((org-export-allow-BIND nil))
+       (org-export--install-letbind-maybe)
+       (boundp 'variable))))
+  ;; Test with `org-export-all-BIND' set to 'confirm and
+  ;; `org-export--allow-BIND-local' to t .
+  (should
+   (org-test-with-temp-text "#+BIND: variable value"
+     (let ((org-export-allow-BIND 'confirm))
+       (org-set-local 'org-export--allow-BIND-local t)
+       (org-export--install-letbind-maybe)
+       (eq variable 'value))))
+  ;; Test with `org-export-all-BIND' set to 'confirm and
+  ;; `org-export--allow-BIND-local' to nil.
+  (should-not
+   (org-test-with-temp-text "#+BIND: variable value"
+     (let ((org-export-allow-BIND 'confirm))
+       (org-set-local 'org-export--allow-BIND-local nil)
+       (org-export--install-letbind-maybe)
+       (boundp 'variable))))
+  ;; BIND keywords are case-insensitive.
+  (should
+   (org-test-with-temp-text "#+bind: variable value"
+     (let ((org-export-allow-BIND t))
+       (org-export--install-letbind-maybe)
+       (eq variable 'value)))))
 
 (ert-deftest test-org-export/parse-option-keyword ()
   "Test reading all standard #+OPTIONS: items."
@@ -392,6 +429,42 @@ body\n")))
     (should (equal (buffer-string)
 		   "#+BEGIN_SRC emacs-lisp\n(+ 2 1)\n#+END_SRC\n"))))
 
+(ert-deftest test-org-export/expand-macro ()
+  "Test macro expansion in an Org buffer."
+  ;; Standard macro expansion.
+  (should
+   (equal "#+MACRO: macro1 value\nvalue"
+	  (org-test-with-temp-text "#+MACRO: macro1 value\n{{{macro1}}}"
+	    (let (info)
+	      (org-export-expand-macro info) (buffer-string)))))
+  ;; Export specific macros.
+  (should
+   (equal "me 2012-03-29 me@here Title"
+	  (org-test-with-temp-text
+	      "
+#+TITLE: Title
+#+DATE: 2012-03-29
+#+AUTHOR: me
+#+EMAIL: me@here
+{{{author}}} {{{date}}} {{{email}}} {{{title}}}"
+	    (let ((info (org-export-get-environment)))
+	      (org-export-expand-macro info)
+	      (goto-char (point-max))
+	      (buffer-substring (line-beginning-position)
+				(line-end-position))))))
+  ;; Expand macros with templates in included files.
+  (should
+   (equal "success"
+	  (org-test-with-temp-text
+	      (format "#+INCLUDE: \"%s/examples/macro-templates.org\"
+{{{included-macro}}}" org-test-dir)
+	    (let (info)
+	      (org-export-expand-include-keyword)
+	      (org-export-expand-macro info)
+	      (goto-char (point-max))
+	      (buffer-substring (line-beginning-position)
+				(line-end-position)))))))
+
 (ert-deftest test-org-export/user-ignore-list ()
   "Test if `:ignore-list' accepts user input."
   (org-test-with-backend test
@@ -441,6 +514,27 @@ body\n")))
    (org-export-read-attribute
     :attr_html
     (org-test-with-temp-text "Paragraph" (org-element-at-point)))))
+
+(ert-deftest test-org-export/get-caption ()
+  "Test `org-export-get-caption' specifications."
+  ;; Without optional argument, return long caption
+  (should
+   (equal
+    '("l")
+    (org-test-with-temp-text "#+CAPTION[s]: l\nPara"
+      (org-export-get-caption (org-element-at-point)))))
+  ;; With optional argument, return short caption.
+  (should
+   (equal
+    '("s")
+    (org-test-with-temp-text "#+CAPTION[s]: l\nPara"
+      (org-export-get-caption (org-element-at-point) t))))
+  ;; Multiple lines are separated by white spaces.
+  (should
+   (equal
+    '("a" " " "b")
+    (org-test-with-temp-text "#+CAPTION: a\n#+CAPTION: b\nPara"
+      (org-export-get-caption (org-element-at-point))))))
 
 
 
@@ -656,7 +750,47 @@ Paragraph[fn:1]"
     (should-not
      (org-test-with-parsed-data "* Headline :ignore:"
        (org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			    info '("ignore"))))))
+			    info '("ignore"))))
+    ;; Allow tag inheritance.
+    (should
+     (equal
+      '(("tag") ("tag"))
+      (org-test-with-parsed-data "* Headline :tag:\n** Sub-heading"
+	(org-element-map
+	 tree 'headline
+	 (lambda (hl) (org-export-get-tags hl info nil t)) info))))))
+
+(ert-deftest test-org-export/get-node-property ()
+  "Test`org-export-get-node-property' specifications."
+  ;; Standard test.
+  (should
+   (equal "value"
+	  (org-test-with-parsed-data "* Headline
+  :PROPERTIES:
+  :prop:     value
+  :END:"
+	    (org-export-get-node-property
+	     :prop (org-element-map tree 'headline 'identity nil t)))))
+  ;; Test inheritance.
+  (should
+   (equal "value"
+	  (org-test-with-parsed-data "* Parent
+  :PROPERTIES:
+  :prop:     value
+  :END:
+** Headline
+   Paragraph"
+	    (org-export-get-node-property
+	     :prop (org-element-map tree 'paragraph 'identity nil t) t))))
+  ;; Cannot return a value before the first headline.
+  (should-not
+   (org-test-with-parsed-data "Paragraph
+* Headline
+  :PROPERTIES:
+  :prop:     value
+  :END:"
+     (org-export-get-node-property
+      :prop (org-element-map tree 'paragraph 'identity nil t)))))
 
 (ert-deftest test-org-export/first-sibling-p ()
   "Test `org-export-first-sibling-p' specifications."
@@ -975,78 +1109,6 @@ Another text. (ref:text)
 
 
 
-;;; Macro
-
-(ert-deftest test-org-export/define-macro ()
-  "Try defining various Org macro using in-buffer #+MACRO: keyword."
-  ;; Parsed macro.
-  (should (equal (org-test-with-temp-text "#+MACRO: one 1"
-		   (org-export--get-inbuffer-options))
-		 '(:macro-one ("1"))))
-  ;; Evaled macro.
-  (should (equal (org-test-with-temp-text "#+MACRO: two (eval (+ 1 1))"
-		   (org-export--get-inbuffer-options))
-		 '(:macro-two ("(eval (+ 1 1))"))))
-  ;; Incomplete macro.
-  (should-not (org-test-with-temp-text "#+MACRO: three"
-		(org-export--get-inbuffer-options)))
-  ;; Macro with newline character.
-  (should (equal (org-test-with-temp-text "#+MACRO: four a\\nb"
-		   (org-export--get-inbuffer-options))
-		 '(:macro-four ("a\nb"))))
-  ;; Macro with protected newline character.
-  (should (equal (org-test-with-temp-text "#+MACRO: five a\\\\nb"
-		   (org-export--get-inbuffer-options))
-		 '(:macro-five ("a\\nb"))))
-  ;; Recursive macro.
-  (org-test-with-temp-text "#+MACRO: six 6\n#+MACRO: seven 1 + {{{six}}}"
-    (should
-     (equal
-      (org-export--get-inbuffer-options)
-      '(:macro-six
-	("6")
-	:macro-seven
-	("1 + " (macro (:key "six" :value "{{{six}}}" :args nil :begin 5 :end 14
-			     :post-blank 0 :parent nil))))))))
-
-(ert-deftest test-org-export/expand-macro ()
-  "Test `org-export-expand-macro' specifications."
-  ;; Standard test.
-  (should
-   (equal
-    "some text"
-    (org-test-with-parsed-data "#+MACRO: macro some text\n{{{macro}}}"
-      (org-export-expand-macro
-       (org-element-map tree 'macro 'identity info t) info))))
-  ;; Macro with arguments.
-  (should
-   (equal
-    "some text"
-    (org-test-with-parsed-data "#+MACRO: macro $1 $2\n{{{macro(some,text)}}}"
-      (org-export-expand-macro
-       (org-element-map tree 'macro 'identity info t) info))))
-  ;; Macro with "eval"
-  (should
-   (equal
-    "3"
-    (org-test-with-parsed-data "#+MACRO: add (eval (+ $1 $2))\n{{{add(1,2)}}}"
-      (org-export-expand-macro
-       (org-element-map tree 'macro 'identity info t) info))))
-  ;; Nested macros.
-  (should
-   (equal
-    "inner outer"
-    (org-test-with-parsed-data
-	"#+MACRO: in inner\n#+MACRO: out {{{in}}} outer\n{{{out}}}"
-      (flet ((translate-macro (macro contents info)
-			      (org-export-expand-macro macro info)))
-	(org-export-expand-macro
-	 (org-element-map tree 'macro 'identity info t)
-	 (org-combine-plists
-	  info `(:translate-alist ((macro . translate-macro))))))))))
-
-
-
 ;;; Src-block and example-block
 
 (ert-deftest test-org-export/unravel-code ()
@@ -1077,20 +1139,7 @@ Another text. (ref:text)
 #+END_EXAMPLE"
       (goto-line 5)
       (should (equal (org-export-unravel-code (org-element-at-point))
-		     '("(+ 2 2)\n(+ 3 3)\n" (2 . "one")))))
-    ;; 5. Free up comma-protected lines.
-    ;;
-    ;; 5.1. In an Org source block, every line is protected.
-    (org-test-with-temp-text
-	"#+BEGIN_SRC org\n,* Test\n,# comment\n,Text\n#+END_SRC"
-      (should (equal (org-export-unravel-code (org-element-at-point))
-		     '("* Test\n# comment\nText\n"))))
-    ;; 5.2. In other blocks, only headlines, comments and keywords are
-    ;;      protected.
-    (org-test-with-temp-text
-	"#+BEGIN_EXAMPLE\n,* Headline\n, * Not headline\n,Keep\n#+END_EXAMPLE"
-      (should (equal (org-export-unravel-code (org-element-at-point))
-		     '("* Headline\n, * Not headline\n,Keep\n"))))))
+		     '("(+ 2 2)\n(+ 3 3)\n" (2 . "one")))))))
 
 
 

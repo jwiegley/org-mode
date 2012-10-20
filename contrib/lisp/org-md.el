@@ -56,6 +56,13 @@ This variable can be set to either `atx' or `setext'."
 (org-export-define-derived-backend md e-html
   :export-block ("MD" "MARKDOWN")
   :filters-alist ((:filter-parse-tree . org-md-separate-elements))
+  :menu-entry
+  (?m "Export to Markdown"
+      ((?M "To temporary buffer"
+	   (lambda (s v b) (org-md-export-as-markdown s v)))
+       (?m "To file" (lambda (s v b) (org-md-export-to-markdown s v)))
+       (?o "To file and open"
+	   (lambda (s v b) (org-open-file (org-md-export-to-markdown s v))))))
   :translate-alist ((bold . org-md-bold)
 		    (code . org-md-verbatim)
 		    (example-block . org-md-example-block)
@@ -280,10 +287,9 @@ a communication channel."
 					   ".")))))))
 	  ((org-export-inline-image-p link org-e-html-inline-image-rules)
 	   (format "![%s](%s)"
-		   (let ((caption
-			  (org-element-property
-			   :caption (org-export-get-parent-element link))))
-		     (when caption (org-export-data (car caption) info)))
+		   (let ((caption (org-export-get-caption
+				   (org-export-get-parent-element link))))
+		     (when caption (org-export-data caption info)))
 		   path))
 	  ((string= type "coderef")
 	   (let ((ref (org-element-property :path link)))

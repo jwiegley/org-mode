@@ -41,10 +41,8 @@
 (declare-function org-at-table.el-p "org" ())
 (declare-function org-get-indentation "org" (&optional line))
 (declare-function org-switch-to-buffer-other-window "org" (&rest args))
-(declare-function org-strip-protective-commas "org" (beg end))
 (declare-function org-pop-to-buffer-same-window
 		  "org-compat" (&optional buffer-or-name norecord label))
-(declare-function org-strip-protective-commas "org" (beg end))
 (declare-function org-base-buffer "org" (buffer))
 
 (defcustom org-edit-src-region-extra nil
@@ -272,8 +270,9 @@ buffer."
 	(setq line (org-current-line)
 	      col (current-column)))
       (if (and (setq buffer (org-edit-src-find-buffer beg end))
-	       (if org-src-ask-before-returning-to-edit-buffer
-		   (y-or-n-p "Return to existing edit buffer ([n] will revert changes)? ") t))
+	       (or (eq context 'save)
+		   (if org-src-ask-before-returning-to-edit-buffer
+		       (y-or-n-p "Return to existing edit buffer ([n] will revert changes)? ") t)))
 	  (org-src-switch-to-buffer buffer 'return)
 	(when buffer
 	  (with-current-buffer buffer
@@ -310,13 +309,8 @@ buffer."
 	     (error "Language mode `%s' fails with: %S" lang-f (nth 1 e)))))
 	(dolist (pair transmitted-variables)
 	  (org-set-local (car pair) (cadr pair)))
-	(if (derived-mode-p 'org-mode)
-	    (progn
-	      (goto-char (point-min))
-	      (while (re-search-forward "^," nil t)
-		(if (eq (org-current-line) line) (setq total-nindent (1+ total-nindent)))
-		(replace-match "")))
-	  (org-strip-protective-commas (point-min) (point-max)))
+	;; Remove protecting commas from visible part of buffer.
+	(org-unescape-code-in-region (point-min) (point-max))
 	(when markline
 	  (org-goto-line (1+ (- markline begline)))
 	  (org-move-to-column
@@ -589,6 +583,39 @@ the language, a switch telling if the content should be in a single line."
     (goto-char pos)
     (org-get-indentation)))
 
+(defun org-escape-code-in-region (beg end)
+  "Escape lines between BEG and END.
+Escaping happens when a line starts with \"*\", \"#+\", \",*\" or
+\",#+\" by appending a comma to it."
+  (interactive "r")
+  (save-excursion
+    (goto-char beg)
+    (while (re-search-forward "^[ \t]*,?\\(\\*\\|#\\+\\)" end t)
+      (replace-match ",\\1" nil nil nil 1))))
+
+(defun org-escape-code-in-string (s)
+  "Escape lines in string S.
+Escaping happens when a line starts with \"*\", \"#+\", \",*\" or
+\",#+\" by appending a comma to it."
+  (replace-regexp-in-string "^[ \t]*,?\\(\\*\\|#\\+\\)" ",\\1" s nil nil 1))
+
+(defun org-unescape-code-in-region (beg end)
+  "Un-escape lines between BEG and END.
+Un-escaping happens by removing the first comma on lines starting
+with \",*\", \",#+\", \",,*\" and \",,#+\"."
+  (interactive "r")
+  (save-excursion
+    (goto-char beg)
+    (while (re-search-forward "^[ \t]*,?\\(,\\)\\(?:\\*\\|#\\+\\)" end t)
+      (replace-match "" nil nil nil 1))))
+
+(defun org-unescape-code-in-string (s)
+  "Un-escape lines in string S.
+Un-escaping happens by removing the first comma on lines starting
+with \",*\", \",#+\", \",,*\" and \",,#+\"."
+  (replace-regexp-in-string
+   "^[ \t]*,?\\(,\\)\\(?:\\*\\|#\\+\\)" "" s nil nil 1))
+
 (defun org-edit-src-exit (&optional context)
   "Exit special edit and protect problematic lines."
   (interactive)
@@ -598,6 +625,7 @@ the language, a switch telling if the content should be in a single line."
   (let* ((beg org-edit-src-beg-marker)
 	 (end org-edit-src-end-marker)
 	 (ovl org-edit-src-overlay)
+	 (bufstr (buffer-string))
 	 (buffer (current-buffer))
 	 (single (org-bound-and-true-p org-edit-src-force-single-line))
 	 (macro (eq single 'macro-definition))
@@ -632,11 +660,12 @@ the language, a switch telling if the content should be in a single line."
 	(goto-char (point-min))
 	(if (looking-at "\\s-*") (replace-match " ")))
       (when (org-bound-and-true-p org-edit-src-from-org-mode)
-	(goto-char (point-min))
-	(while (re-search-forward
-		(if (derived-mode-p 'org-mode) "^\\(.\\)" "^\\([*]\\|[ \t]*#\\+\\)") nil t)
-	  (if (eq (org-current-line) line) (setq delta (1+ delta)))
-	  (replace-match ",\\1")))
+	(org-escape-code-in-region (point-min) (point-max))
+	(setq delta (+ delta
+		       (save-excursion
+			 (org-goto-line line)
+			 (if (looking-at "[ \t]*\\(,,\\)?\\(\\*\\|#+\\)") 1
+			   0)))))
       (when (org-bound-and-true-p org-edit-src-picture)
 	(setq preserve-indentation nil)
 	(untabify (point-min) (point-max))
@@ -651,13 +680,18 @@ the language, a switch telling if the content should be in a single line."
       (if (org-bound-and-true-p org-edit-src-picture)
 	  (setq total-nindent (+ total-nindent 2)))
       (setq code (buffer-string))
+      (when (eq context 'save)
+	(erase-buffer)
+	(insert bufstr))
       (set-buffer-modified-p nil))
     (org-src-switch-to-buffer (marker-buffer beg) (or context 'exit))
-    (kill-buffer buffer)
+    (if (eq context 'save) (save-buffer)
+      (kill-buffer buffer))
     (goto-char beg)
     (when allow-write-back-p
-      (delete-region beg end)
+      (delete-region beg (1- end))
       (insert code)
+      (delete-char 1)
       (goto-char beg)
       (if single (just-one-space)))
     (if (memq t (mapcar (lambda (overlay)
@@ -669,8 +703,9 @@ the language, a switch telling if the content should be in a single line."
       ;; Block is visible, put point where it was in the code buffer
       (org-goto-line (1- (+ (org-current-line) line)))
       (org-move-to-column (if preserve-indentation col (+ col total-nindent delta))))
-    (move-marker beg nil)
-    (move-marker end nil))
+    (unless (eq context 'save)
+      (move-marker beg nil)
+      (move-marker end nil)))
   (unless (eq context 'save)
     (when org-edit-src-saved-temp-window-config
       (set-window-configuration org-edit-src-saved-temp-window-config)
@@ -805,13 +840,13 @@ fontification of code blocks see `org-src-fontify-block' and
 	      (get-buffer-create
 	       (concat " org-src-fontification:" (symbol-name lang-mode)))
 	    (delete-region (point-min) (point-max))
-	    (insert (concat string " ")) ;; so there's a final property change
+	    (insert string " ") ;; so there's a final property change
 	    (unless (eq major-mode lang-mode) (funcall lang-mode))
 	    (font-lock-fontify-buffer)
 	    (setq pos (point-min))
 	    (while (setq next (next-single-property-change pos 'face))
 	      (put-text-property
-	       (+ start (1- pos)) (+ start next) 'face
+	       (+ start (1- pos)) (1- (+ start next)) 'face
 	       (get-text-property pos 'face) org-buffer)
 	      (setq pos next)))
 	  (add-text-properties

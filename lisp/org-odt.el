@@ -211,7 +211,7 @@ heuristically based on the values of `org-odt-lib-dir' and
 		  org-odt-styles-dir-list)
 	    nil)))
     (unless styles-dir
-      (error "Error (org-odt): Cannot find factory styles files.  Aborting."))
+      (error "Error (org-odt): Cannot find factory styles files, aborting"))
     styles-dir)
   "Directory that holds auxiliary XML files used by the ODT exporter.
 
@@ -243,9 +243,6 @@ standard Emacs.")
 
 (mapc
  (lambda (desc)
-   ;; Let Org open all OpenDocument files using system-registered app
-   (add-to-list 'org-file-apps
-		(cons (concat  "\\." (car desc) "\\'") 'system))
    ;; Let Emacs open all OpenDocument files in archive mode
    (add-to-list 'auto-mode-alist
 		(cons (concat  "\\." (car desc) "\\'") 'archive-mode)))
@@ -414,7 +411,10 @@ Interactive commands `org-export-as-odt' and
 then use `org-export-odt-convert-process' to convert the
 resulting document to this format.  During customization of this
 variable, the list of valid values are populated based on
-`org-export-odt-convert-capabilities'."
+`org-export-odt-convert-capabilities'.
+
+You can set this option on per-file basis using file local
+values.  See Info node `(emacs) File Variables'."
   :group 'org-export-odt
   :version "24.1"
   :type '(choice :convert-widget
@@ -425,6 +425,8 @@ variable, the list of valid values are populated based on
 		   ,@(mapcar (lambda (c)
 			       `(const :tag ,c ,c))
 			     (org-lparse-reachable-formats "odt")))))
+;;;###autoload
+(put 'org-export-odt-preferred-output-format 'safe-local-variable 'stringp)
 
 (defmacro org-odt-cleanup-xml-buffers (&rest body)
   `(let ((org-odt-zip-dir
@@ -1474,7 +1476,7 @@ is turned on."
 			       (" " "<text:s/>")
 			       ("	" "<text:tab/>")))
 	 (hfy-face-to-css 'org-odt-hfy-face-to-css)
-	 (hfy-optimisations-1 (copy-seq hfy-optimisations))
+	 (hfy-optimisations-1 (copy-sequence hfy-optimisations))
 	 (hfy-optimisations (add-to-list 'hfy-optimisations-1
 					 'body-text-only))
 	 (hfy-begin-span-handler
@@ -2074,7 +2076,7 @@ ATTR is a string of other attributes of the a element."
 	    until size
 	    do (setq size (org-odt-do-image-size
 			   probe-method file dpi embed-as)))
-      (or size (error "Cannot determine Image size.  Aborting ..."))
+      (or size (error "Cannot determine image size, aborting"))
       (setq width (car size) height (cdr size)))
     (cond
      (scale
@@ -2656,7 +2658,7 @@ using `org-open-file'."
 	 cache-dir display-msg)
     (cond
      ((eq latex-frag-opt 'dvipng)
-      (setq cache-dir "ltxpng/")
+      (setq cache-dir org-latex-preview-ltxpng-directory)
       (setq display-msg "Creating LaTeX image %s"))
      ((member latex-frag-opt '(mathjax t))
       (setq latex-frag-opt 'mathml)
@@ -2716,7 +2718,7 @@ Do this when translation to MathML fails."
 (defun org-export-odt-preprocess (parameters)
   (org-export-odt-preprocess-label-references))
 
-(declare-function archive-zip-extract "arc-mode.el" (archive name))
+(declare-function archive-zip-extract "arc-mode" (archive name))
 (defun org-odt-zip-extract-one (archive member &optional target)
   (require 'arc-mode)
   (let* ((target (or target default-directory))
@@ -2844,5 +2846,9 @@ formula file."
    nil nil nil (call-interactively 'org-export-as-odf)))
 
 (provide 'org-odt)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-odt.el ends here

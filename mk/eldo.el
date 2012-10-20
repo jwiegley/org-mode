@@ -69,7 +69,7 @@
 	       ((get a 'custom-type) (setq opts (cons a opts)))
 	       ((fboundp a) (setq funcs (cons a funcs)))
 	       (t (setq vars (cons a vars)))))))
-    (find-file (or eldo-file (read-file-name "File: ")))
+    (find-file (or eldo-file (read-file-name "Write to file: ")))
     (org-mode)
     (eldo-write-hooks hks)
     (eldo-write-commands cmds)
@@ -90,7 +90,7 @@
 	    (d (get h 'variable-documentation)))
 	(if (> (length val) 30) (setq val (concat (substring val 0 30) "...")))
 	(insert
-	 "  ~" val "~\n"
+	 " =" val "=\n"
 	 (if version (format "- *Since:* Emacs version %s\n" version) "")
 	 (format (concat "- *In file:* [[" eldo-git-raw-file "][%s]]\n") f f)
 	 (format (concat "- [[" eldo-git-search-string
@@ -109,7 +109,7 @@
 	    (key (mapconcat 'key-description (where-is-internal c eldo-keymaps) ", "))
 	    (args (help-function-arglist c t))
 	    (d (documentation c)))
-	(insert "\n** " (symbol-name c) (if args (format "  =%s=\n" args) "\n"))
+	(insert "\n** " (symbol-name c) (if args (format " =%s=\n" args) "\n"))
 	(org-set-property "CUSTOM_ID" (symbol-name c))
 	(insert
 	 (if (and key (not (string= key ""))) (format "\n- *Access:* ~%s~" key) "")
@@ -136,7 +136,7 @@
 	(if (> (length val) 30) (setq val (concat (substring val 0 30) "...")))
 	(if (> (length type) 30) (setq type (concat (substring type 0 30) "...")))
 	(insert
-	 "  ~" val "~\n\n"
+	 " =" val "=\n\n"
 	 (format "- *Type:* %s\n" type)
 	 (if version (format "- *Since:* Emacs version %s\n" version) "")
 	 (format (concat "- *In file:* [[" eldo-git-raw-file "][%s]]\n") f f)

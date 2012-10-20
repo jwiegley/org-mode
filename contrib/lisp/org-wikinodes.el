@@ -115,13 +115,14 @@ variable `org-wikinodes-scope'.
 
 If a target headline is not found, it may be created according to the
 setting of `org-wikinodes-create-targets'."
-  (if current-prefix-arg (org-wikinodes-clear-direcory-targets-cache))
+  (if current-prefix-arg (org-wikinodes-clear-directory-targets-cache))
   (let ((create org-wikinodes-create-targets)
 	visiting buffer m pos file rpl)
     (setq pos
 	  (or (org-find-exact-headline-in-buffer target (current-buffer))
 	      (and (eq org-wikinodes-scope 'directory)
-		   (setq file (org-wikinodes-which-file target))
+		   (setq file (org-wikinodes-which-file
+			       target (file-name-directory (buffer-file-name))))
 		   (org-find-exact-headline-in-buffer
 		    target (or (get-file-buffer file)
 			       (find-file-noselect file))))))
@@ -184,10 +185,10 @@ setting of `org-wikinodes-create-targets'."
 	     (org-in-regexp (format org-complex-heading-regexp-format
 				    org-wikinodes-camel-regexp))
 	     (org-in-regexp org-wikinodes-camel-regexp))
-    (org-wikinodes-clear-direcory-targets-cache)
+    (org-wikinodes-clear-directory-targets-cache)
     t))
 
-(defun org-wikinodes-clear-direcory-targets-cache ()
+(defun org-wikinodes-clear-directory-targets-cache ()
   "Clear the cache where to find wiki targets."
   (interactive)
   (setq org-wikinodes-directory-targets-cache nil)
@@ -238,12 +239,14 @@ setting of `org-wikinodes-create-targets'."
 (defun org-wikinodes-which-file (target &optional directory)
   "Return the file for wiki headline TARGET DIRECTORY.
 If there is no such wiki target, return nil."
-  (setq directory (expand-file-name (or directory default-directory)))
-  (unless (assoc directory org-wikinodes-directory-targets-cache)
-    (push (cons directory (org-wikinodes-get-links-for-directory directory))
-	  org-wikinodes-directory-targets-cache))
-  (cdr (assoc target (cdr (assoc directory
-				 org-wikinodes-directory-targets-cache)))))
+  (let* ((directory (expand-file-name (or directory default-directory)))
+	 (founddir (assoc directory org-wikinodes-directory-targets-cache))
+	 (foundfile (cdr (assoc target (cdr founddir)))))
+    (or foundfile
+	(and (push (cons directory (org-wikinodes-get-links-for-directory directory))
+		   org-wikinodes-directory-targets-cache)
+	     (cdr (assoc target (cdr (assoc directory
+					    org-wikinodes-directory-targets-cache))))))))
 
 ;;; Exporting Wiki links
 

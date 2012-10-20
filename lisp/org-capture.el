@@ -58,6 +58,9 @@
 (declare-function org-table-goto-line "org-table" (N))
 (declare-function org-pop-to-buffer-same-window "org-compat"
 		  (&optional buffer-or-name norecord label))
+(declare-function org-at-encrypted-entry-p "org-crypt" ())
+(declare-function org-encrypt-entry "org-crypt" ())
+(declare-function org-decrypt-entry "org-crypt" ())
 
 (defvar org-remember-default-headline)
 (defvar org-remember-templates)
@@ -241,7 +244,7 @@ be replaced with content and expanded in this order:
   %^g         Prompt for tags, with completion on tags in target file.
   %^G         Prompt for tags, with completion on all tags in all agenda files.
   %^t         Like %t, but prompt for date.  Similarly %^T, %^u, %^U.
-              You may define a prompt like %^{Please specify birthday.
+              You may define a prompt like: %^{Please specify birthday}t
   %^C         Interactive selection of which kill or clip to use.
   %^L         Like %^C, but insert as link.
   %^{prop}p   Prompt the user for a value for property `prop'.
@@ -368,7 +371,7 @@ The capture buffer is current and still narrowed."
   "When non-nil, add a bookmark pointing at the last stored
 position when capturing."
   :group 'org-capture
-  ;; :version "24.3"
+  :version "24.3"
   :type 'boolean)
 
 ;;; The property list for keeping information about the capture process
@@ -418,24 +421,27 @@ for a capture buffer.")
   "Hook for the minor `org-capture-mode'.")
 
 (define-minor-mode org-capture-mode
-  "Minor mode for special key bindings in a capture buffer."
+  "Minor mode for special key bindings in a capture buffer.
+
+Turning on this mode runs the normal hook `org-capture-mode-hook'."
   nil " Rem" org-capture-mode-map
   (org-set-local
    'header-line-format
-   "Capture buffer.  Finish `C-c C-c', refile `C-c C-w', abort `C-c C-k'.")
-  (run-hooks 'org-capture-mode-hook))
+   "Capture buffer.  Finish `C-c C-c', refile `C-c C-w', abort `C-c C-k'."))
 (define-key org-capture-mode-map "\C-c\C-c" 'org-capture-finalize)
 (define-key org-capture-mode-map "\C-c\C-k" 'org-capture-kill)
 (define-key org-capture-mode-map "\C-c\C-w" 'org-capture-refile)
 
 ;;; The main commands
 
-;;;###autoload
 (defvar org-capture-initial nil)
+(defvar org-capture-entry nil)
+
+;;;###autoload
 (defun org-capture-string (string &optional keys)
   (interactive "sInitial text: \n")
   (let ((org-capture-initial string)
-	(entry (org-capture-select-template keys)))
+	(org-capture-entry (org-capture-select-template keys)))
     (org-capture)))
 
 (defcustom org-capture-templates-contexts nil
@@ -467,7 +473,7 @@ Here it means: in `message-mode buffers', use \"d\" as the
 key for the capture template otherwise associated with \"d\".
 \(The template originally associated with \"q\" is not displayed
 to avoid duplicates.)"
-  ;; :version "24.3"
+  :version "24.3"
   :group 'org-capture
   :type '(repeat (list :tag "Rule"
 		       (string :tag "        Capture key")
@@ -482,6 +488,13 @@ to avoid duplicates.)"
 				      (const :tag "Not in mode" not-in-mode))
 				     (regexp))
 			       (function :tag "Custom function"))))))
+
+(defcustom org-capture-use-agenda-date nil
+  "Non-nil means use the date at point when capturing from agendas.
+When nil, you can still capturing using the date at point with \\[org-agenda-capture]]."
+  :group 'org-capture
+  :version "24.3"
+  :type 'boolean)
 
 ;;;###autoload
 (defun org-capture (&optional goto keys)
@@ -501,10 +514,17 @@ stored.
 
 When called with a `C-0' (zero) prefix, insert a template at point.
 
-Lisp programs can set KEYS to a string associated with a template in
-`org-capture-templates'.  In this case, interactive selection will be
-bypassed."
+Lisp programs can set KEYS to a string associated with a template
+in `org-capture-templates'.  In this case, interactive selection
+will be bypassed.
+
+If `org-capture-use-agenda-date' is non-nil, capturing from the
+agenda will use the date at point as the default date."
   (interactive "P")
+  (when (and org-capture-use-agenda-date
+	     (eq major-mode 'org-agenda-mode))
+    (setq org-overriding-default-time
+	  (org-get-cursor-date)))
   (cond
    ((equal goto '(4)) (org-capture-goto-target))
    ((equal goto '(16)) (org-capture-goto-last-stored))
@@ -515,7 +535,7 @@ bypassed."
 				org-capture-link-is-already-stored)
 			   (plist-get org-store-link-plist :annotation)
 			 (ignore-errors (org-store-link nil))))
-	   (entry (org-capture-select-template keys))
+	   (entry (or org-capture-entry (org-capture-select-template keys)))
 	   initial)
       (setq initial (or org-capture-initial
 			(and (org-region-active-p)
@@ -682,6 +702,11 @@ captured item after finalizing."
       ;; Run the hook
       (run-hooks 'org-capture-before-finalize-hook))
 
+    (when (org-capture-get :decrypted)
+      (save-excursion
+	(goto-char (org-capture-get :decrypted))
+	(org-encrypt-entry)))
+
     ;; Kill the indirect buffer
     (save-buffer)
     (let ((return-wconf (org-capture-get :return-to-wconf 'local))
@@ -783,9 +808,11 @@ already gone.  Any prefix argument will be passed to the refile command."
   ;; store the current point
   (org-capture-put :initial-target-position (point)))
 
+(defvar org-time-was-given) ; dynamically scoped parameter
 (defun org-capture-set-target-location (&optional target)
-  "Find target buffer and position and store then in the property list."
-  (let ((target-entry-p t))
+  "Find TARGET buffer and position.
+Store them in the capture property list."
+  (let ((target-entry-p t) decrypted-hl-pos)
     (setq target (or target (org-capture-get :target)))
     (save-excursion
       (cond
@@ -864,11 +891,22 @@ already gone.  Any prefix argument will be passed to the refile command."
 	    (let ((prompt-time (org-read-date
 				nil t nil "Date for tree entry:"
 				(current-time))))
-	      (org-capture-put :prompt-time prompt-time
-			       :default-time prompt-time)
+	      (org-capture-put
+	       :default-time
+	       (cond ((and (not org-time-was-given)
+			   (not (= (time-to-days prompt-time) (org-today))))
+		      ;; Use 00:00 when no time is given for another date than today?
+		      (apply 'encode-time (append '(0 0 0) (cdddr (decode-time prompt-time)))))
+		     ((string-match "\\([^ ]+\\)--?[^ ]+[ ]+\\(.*\\)" org-read-date-final-answer)
+		      ;; Replace any time range by its start
+		      (apply 'encode-time
+			     (org-read-date-analyze
+			      (replace-match "\\1 \\2" nil nil org-read-date-final-answer)
+			      prompt-time (decode-time prompt-time))))
+		     (t prompt-time)))
 	      (time-to-days prompt-time)))
 	   (t
-	    ;; current date, possible corrected for late night workers
+	    ;; current date, possibly corrected for late night workers
 	    (org-today))))))
 
        ((eq (car target) 'file+function)
@@ -895,8 +933,14 @@ already gone.  Any prefix argument will be passed to the refile command."
 
        (t (error "Invalid capture target specification")))
 
+      (when (and (featurep 'org-crypt) (org-at-encrypted-entry-p))
+	(org-decrypt-entry)
+	(setq decrypted-hl-pos
+	      (save-excursion (and (org-back-to-heading t) (point)))))
+
       (org-capture-put :buffer (current-buffer) :pos (point)
-		       :target-entry-p target-entry-p))))
+		       :target-entry-p target-entry-p
+		       :decrypted decrypted-hl-pos))))
 
 (defun org-capture-expand-file (file)
   "Expand functions and symbols for FILE.
@@ -1237,7 +1281,7 @@ Point will remain at the first line after the inserted text."
     (goto-char pos)))
 
 (defvar org-clock-marker) ; Defined in org.el
-;;;###autoload
+
 (defun org-capture-insert-template-here ()
   (let* ((template (org-capture-get :template))
 	 (type  (org-capture-get :type))
@@ -1471,7 +1515,7 @@ The template may still contain \"%?\" for cursor positioning."
       ;; Interactive template entries
       (goto-char (point-min))
       (while (and (re-search-forward "%^\\({\\([^}]*\\)}\\)?\\([gGtTuUCLp]\\)?" nil t)
-		  (not (get-text-property (point) 'org-protected)))
+		  (not (get-text-property (1- (point)) 'org-protected)))
 	(unless (org-capture-escaped-%)
 	  (setq char (if (match-end 3) (match-string-no-properties 3))
 		prompt (if (match-end 2) (match-string-no-properties 2)))

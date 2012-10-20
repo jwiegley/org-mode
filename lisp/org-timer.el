@@ -130,7 +130,6 @@ the region 0:00:00."
 	       (org-timer-secs-to-hms (or delta 0)))
       (run-hooks 'org-timer-start-hook))))
 
-;;;###autoload
 (defun org-timer-pause-or-continue (&optional stop)
   "Pause or continue the relative timer.
 With prefix arg STOP, stop it entirely."
@@ -157,7 +156,6 @@ With prefix arg STOP, stop it entirely."
     (org-timer-set-mode-line 'pause)
     (message "Timer paused at %s" (org-timer-value-string)))))
 
-;;;###autoload
 (defun org-timer-stop ()
   "Stop the relative timer."
   (interactive)
@@ -304,10 +302,14 @@ VALUE can be `on', `off', or `pause'."
     (when org-timer-mode-line-timer
       (cancel-timer org-timer-mode-line-timer)
       (setq org-timer-mode-line-timer nil))
-    (setq global-mode-string
-	  (delq 'org-timer-mode-line-string global-mode-string))
-    (setq frame-title-format
-	  (delq 'org-timer-mode-line-string frame-title-format))
+    (when (or (eq org-timer-display 'mode-line)
+	      (eq org-timer-display 'both))
+      (setq global-mode-string
+	    (delq 'org-timer-mode-line-string global-mode-string)))
+    (when (or (eq org-timer-display 'frame-title)
+	      (eq org-timer-display 'both))
+      (setq frame-title-format
+	    (delq 'org-timer-mode-line-string frame-title-format)))
     (force-mode-line-update))
    ((equal value 'pause)
     (when org-timer-mode-line-timer
@@ -438,5 +440,9 @@ replace any running timer."
 	  (message "No timer set"))))))
 
 (provide 'org-timer)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-timer.el ends here

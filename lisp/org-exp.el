@@ -29,7 +29,6 @@
 (require 'org)
 (require 'org-macs)
 (require 'org-agenda)
-(require 'org-exp-blocks)
 (require 'ob-exp)
 (require 'org-src)
 
@@ -48,6 +47,7 @@
 (declare-function org-table-colgroup-line-p "org-table" (line))
 (declare-function org-pop-to-buffer-same-window "org-compat"
 		  (&optional buffer-or-name norecord label))
+(declare-function org-unescape-code-in-region "org-src" (beg end))
 
 (autoload 'org-export-generic "org-export-generic" "Export using the generic exporter" t)
 
@@ -974,6 +974,8 @@ Pressing `1' will switch between these two options."
   (let* ((bg (org-xor (equal arg '(16)) org-export-run-in-background))
 	 (subtree-p (or (org-region-active-p)
 			(eq org-export-initial-scope 'subtree)))
+	 (regb (and (org-region-active-p) (region-beginning)))
+	 (rege (and (org-region-active-p) (region-end)))
 	 (help "[t]   insert the export option template
 \[v]   limit export to visible part of outline tree
 \[1]   switch buffer/subtree export
@@ -1054,6 +1056,10 @@ Pressing `1' will switch between these two options."
 		((not subtree-p)
 		 (setq subtree-p t)
 		 (setq bpos (point))
+		 (org-mark-subtree)
+		 (org-activate-mark)
+		 (setq regb (and (org-region-active-p) (region-beginning)))
+		 (setq rege (and (org-region-active-p) (region-end)))
 		 (message "Export subtree: "))))
 	(when (eq r1 ?\ )
 	  (let ((case-fold-search t)
@@ -1091,8 +1097,9 @@ Pressing `1' will switch between these two options."
 		  "-f" (symbol-name (nth 1 ass)))))
 	  (set-process-sentinel p 'org-export-process-sentinel)
 	  (message "Background process \"%s\": started" p))
-      ;; background processing not requested, or not possible
-      (if subtree-p (progn (org-mark-subtree) (org-activate-mark)))
+      ;; set the mark correctly when exporting a subtree
+      (if subtree-p (let (deactivate-mark) (push-mark rege t t) (goto-char regb)))
+
       (call-interactively (nth 1 ass))
       (when (and bpos (get-buffer-window cbuf))
 	(let ((cw (selected-window)))
@@ -1476,8 +1483,10 @@ the current file."
 	    "^[ \t]*:HTML_CONTAINER_CLASS:[ \t]+\\(.+\\)$" nil t)
       (setq class (match-string 1))
       (save-excursion
-	(org-back-to-heading t)
-	(put-text-property (point-at-bol) (point-at-eol) 'html-container-class class)))))
+	(when (re-search-backward "^\\*" (point-min) t)
+	  (org-back-to-heading t)
+	  (put-text-property (point-at-bol) (point-at-eol)
+			     'html-container-class class))))))
 
 (defvar org-export-format-drawer-function nil
   "Function to be called to format the contents of a drawer.
@@ -1781,7 +1790,7 @@ from the buffer."
 		 beg-content end-content
 		 `(org-protected t original-indentation ,ind org-native-text t))
 		;; strip protective commas
-		(org-strip-protective-commas beg-content end-content)
+		(org-unescape-code-in-region beg-content end-content)
 		(delete-region (match-beginning 0) (match-end 0))
 		(save-excursion
 		  (goto-char beg)
@@ -3221,7 +3230,6 @@ Does include HTML export options as well as TODO and CATEGORY stuff."
    org-archive-location
    "org file:~/org/%s.org"))
 
-;;;###autoload
 (defun org-insert-export-options-template ()
   "Insert into the buffer a template with information for exporting."
   (interactive)
@@ -3338,5 +3346,9 @@ The depends on the variable `org-export-copy-to-kill-ring'."
     (message "%s export done, pushed to kill ring and clipboard" format)))
 
 (provide 'org-exp)
+
+;; Local variables:
+;; generated-autoload-file: "org-loaddefs.el"
+;; End:
 
 ;;; org-exp.el ends here
