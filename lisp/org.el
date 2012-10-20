@@ -205,6 +205,7 @@ requirements) is loaded."
 		 (const :tag "Ledger" ledger)
 		 (const :tag "Lilypond" lilypond)
 		 (const :tag "Lisp" lisp)
+		 (const :tag "Makefile" makefile)
 		 (const :tag "Maxima" maxima)
 		 (const :tag "Matlab" matlab)
 		 (const :tag "Mscgen" mscgen)
@@ -12765,7 +12766,7 @@ D      Show deadlines and scheduled items between a date range."
      ((equal ans ?D)
       (call-interactively 'org-check-dates-range))
      ((equal ans ?t)
-      (org-show-todo-tree nil))
+      (call-interactively 'org-show-todo-tree))
      ((equal ans ?T)
       (org-show-todo-tree '(4)))
      ((member ans '(?T ?m))
@@ -16265,7 +16266,12 @@ When PREFER is `future', return a date that is either CURRENT or future.
 When SHOW-ALL is nil, only return the current occurrence of a time stamp."
   ;; Make the proper lists from the dates
   (catch 'exit
-    (let ((a1 '(("d" . day) ("w" . week) ("m" . month) ("y" . year)))
+    (let ((a1 '(("h" . hour)
+		("d" . day)
+		("w" . week)
+		("m" . month)
+		("y" . year)))
+	  (shour (nth 2 (org-parse-time-string start)))
 	  dn dw sday cday n1 n2 n0
 	  d m y y1 y2 date1 date2 nmonths nm ny m2)
 
@@ -16285,6 +16291,13 @@ When SHOW-ALL is nil, only return the current occurrence of a time stamp."
 	(error "Invalid change specifier: %s" change))
       (if (eq dw 'week) (setq dw 'day dn (* 7 dn)))
       (cond
+       ((eq dw 'hour)
+	(let ((missing-hours
+	       (mod (+ (- (* 24 (- cday sday)) shour) org-extend-today-until)
+		    dn)))
+	  (setq n1 (if (zerop missing-hours) cday
+		     (- cday (1+ (floor (/ missing-hours 24)))))
+		n2 (+ cday (floor (/ (- dn missing-hours) 24))))))
        ((eq dw 'day)
 	(setq n1 (+ sday (* dn (floor (/ (- cday sday) dn))))
 	      n2 (+ n1 dn)))
@@ -20011,7 +20024,6 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
   (interactive "P")
   (require 'loadhist)
   (let* ((org-dir     (org-find-library-dir "org"))
-	 (babel-dir   (or (org-find-library-dir "ob") org-dir))
 	 (contrib-dir (or (org-find-library-dir "org-contribdir") org-dir))
 	 (feature-re "^\\(org\\|ob\\)\\(-.*\\)?")
 	 (remove-re (mapconcat 'identity
@@ -20039,25 +20051,25 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
 		  'string-lessp)
 		 (list "org-version" "org")))
 	 (load-suffixes (if uncompiled (reverse load-suffixes) load-suffixes))
-	 (load-misses ()))
+	 load-uncore load-misses)
     (setq load-misses
 	  (delq 't
 		(mapcar (lambda (f)
-			  (or
-			   (load (concat org-dir f) 'noerror nil nil 'mustsuffix)
-			   (unless (string= org-dir babel-dir)
-			     (load (concat babel-dir f) 'noerror nil nil 'mustsuffix))
-			   (unless (string= org-dir contrib-dir)
-			     (load (concat contrib-dir f) 'noerror nil nil 'mustsuffix))
-			   (and (load (concat (org-find-library-dir f) f) 'noerror nil nil 'mustsuffix)
-				;; fallback to load-path, report as a possible error
-				(message "Had to fall back onto load-path, something is not quite right...")
-				f)))
+			  (or (load (concat org-dir f) 'noerror nil nil 'mustsuffix)
+			      (and (string= org-dir contrib-dir)
+				   (load (concat contrib-dir f) 'noerror nil nil 'mustsuffix))
+			      (and (load (concat (org-find-library-dir f) f) 'noerror nil nil 'mustsuffix)
+				   (add-to-list 'load-uncore f 'append)
+				   't)
+			      f))
 			lfeat)))
-    (if (not load-misses)
-	(message "Successfully reloaded Org\n%s" (org-version nil 'full))
-      (message "Some error occured while reloading Org features\n%s\nPlease check *Messages*!\n%s"
-	       load-misses (org-version nil 'full)))))
+    (if load-uncore
+	(message "The following feature%s found in load-path, please check if that's correct:\n%s"
+		 (if (> (length load-uncore) 1) "s were" " was") load-uncore))
+    (if load-misses
+	(message "Some error occured while reloading Org feature%s\n%s\nPlease check *Messages*!\n%s"
+		 (if (> (length load-misses) 1) "s" "") load-misses (org-version nil 'full))
+      (message "Successfully reloaded Org\n%s" (org-version nil 'full)))))
 
 ;;;###autoload
 (defun org-customize ()
@@ -21349,7 +21361,10 @@ a footnote definition, try to fill the first paragraph within."
   ;; Check if auto-filling is meaningful.
   (let ((fc (current-fill-column)))
     (when (and fc (> (current-column) fc))
-      (let ((fill-prefix (org-adaptive-fill-function)))
+      (let* ((fill-prefix (org-adaptive-fill-function))
+	     ;; Enforce empty fill prefix, if required.  Otherwise, it
+	     ;; will be computed again.
+	     (adaptive-fill-mode (not (equal fill-prefix ""))))
 	(when fill-prefix (do-auto-fill))))))
 
 (defun org-comment-line-break-function (&optional soft)
@@ -21600,45 +21615,43 @@ beyond the end of the headline."
 
 (defun org-end-of-line (&optional arg)
   "Go to the end of the line.
-If this is a headline, and `org-special-ctrl-a/e' is set, ignore tags on the
-first attempt, and only move to after the tags when the cursor is already
-beyond the end of the headline."
+If this is a headline, and `org-special-ctrl-a/e' is set, ignore
+tags on the first attempt, and only move to after the tags when
+the cursor is already beyond the end of the headline."
   (interactive "P")
-  (let ((special (if (consp org-special-ctrl-a/e)
-		     (cdr org-special-ctrl-a/e)
-		   org-special-ctrl-a/e)))
+  (let ((special (if (consp org-special-ctrl-a/e) (cdr org-special-ctrl-a/e)
+		   org-special-ctrl-a/e))
+        (type (org-element-type
+               (save-excursion (beginning-of-line) (org-element-at-point)))))
     (cond
-     ((or (not special) arg
-	  (not (or (org-at-heading-p) (org-at-item-p) (org-at-drawer-p))))
+     ((or (not special) arg)
       (call-interactively
-       (cond ((org-bound-and-true-p line-move-visual) 'end-of-visual-line)
-	     ((fboundp 'move-end-of-line) 'move-end-of-line)
-	     (t 'end-of-line))))
-     ((org-at-heading-p)
+       (if (fboundp 'move-end-of-line) 'move-end-of-line 'end-of-line)))
+     ((memq type '(headline inlinetask))
       (let ((pos (point)))
-	(beginning-of-line 1)
-	(if (looking-at (org-re ".*?\\(?:\\([ \t]*\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*\\)?$"))
-	    (if (eq special t)
-		(if (or (< pos (match-beginning 1))
-			(= pos (match-end 0)))
-		    (goto-char (match-beginning 1))
-		  (goto-char (match-end 0)))
-	      (if (or (< pos (match-end 0)) (not (eq this-command last-command)))
-		  (goto-char (match-end 0))
-		(goto-char (match-beginning 1))))
-	  (call-interactively (if (fboundp 'move-end-of-line)
-				  'move-end-of-line
-				'end-of-line)))))
-     ((org-at-drawer-p)
-      (move-end-of-line 1)
-      (when (overlays-at (1- (point))) (backward-char 1)))
-     ;; At an item: Move before any hidden text.
-     (t (call-interactively
-	 (cond ((org-bound-and-true-p line-move-visual) 'end-of-visual-line)
-	       ((fboundp 'move-end-of-line) 'move-end-of-line)
-	       (t 'end-of-line)))))
-    (org-no-warnings
-     (and (featurep 'xemacs) (setq zmacs-region-stays t)))))
+        (beginning-of-line 1)
+        (if (looking-at (org-re ".*?\\(?:\\([ \t]*\\)\\(:[[:alnum:]_@#%:]+:\\)?[ \t]*\\)?$"))
+            (if (eq special t)
+                (if (or (< pos (match-beginning 1)) (= pos (match-end 0)))
+                    (goto-char (match-beginning 1))
+                  (goto-char (match-end 0)))
+              (if (or (< pos (match-end 0))
+                      (not (eq this-command last-command)))
+                  (goto-char (match-end 0))
+                (goto-char (match-beginning 1))))
+          (call-interactively
+           (if (fboundp 'move-end-of-line) 'move-end-of-line 'end-of-line)))))
+     ((memq type
+            '(center-block comment-block drawer dynamic-block example-block
+                           export-block item plain-list property-drawer
+                           quote-block special-block src-block verse-block))
+      ;; Never move past the ellipsis.
+      (or (eolp) (move-end-of-line 1))
+      (when (org-invisible-p2) (backward-char)))
+     (t
+      (call-interactively
+       (if (fboundp 'move-end-of-line) 'move-end-of-line 'end-of-line))))
+    (org-no-warnings (and (featurep 'xemacs) (setq zmacs-region-stays t)))))
 
 (define-key org-mode-map "\C-a" 'org-beginning-of-line)
 (define-key org-mode-map "\C-e" 'org-end-of-line)

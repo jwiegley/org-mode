@@ -200,6 +200,22 @@
 	      (end-of-line)
 	      (org-auto-fill-function)
 	      (buffer-string)))))
+  ;; A hash within a line isn't a comment.
+  (should-not
+   (equal "12345 # 7890\n# 1"
+	  (org-test-with-temp-text "12345 # 7890 1"
+	    (let ((fill-column 12))
+	      (end-of-line)
+	      (org-auto-fill-function)
+	      (buffer-string)))))
+  ;; Correctly interpret empty prefix.
+  (should-not
+   (equal "# a\n# b\nRegular\n# paragraph"
+	  (org-test-with-temp-text "# a\n# b\nRegular paragraph"
+	    (let ((fill-column 12))
+	      (end-of-line 3)
+	      (org-auto-fill-function)
+	      (buffer-string)))))
   ;; Comment block: auto fill contents.
   (should
    (equal "#+BEGIN_COMMENT\n12345\n7890\n#+END_COMMENT"
@@ -448,6 +464,43 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
 
  
 ;;; Navigation
+
+(ert-deftest test-org/end-of-line ()
+  "Test `org-end-of-line' specifications."
+  ;; Standard test.
+  (should
+   (org-test-with-temp-text "Some text\nSome other text"
+     (progn (org-end-of-line) (eolp))))
+  ;; At an headline with special movement.
+  (should
+   (org-test-with-temp-text "* Headline :tag:"
+     (let ((org-special-ctrl-a/e t))
+       (and (progn (org-end-of-line) (looking-at " :tag:"))
+	    (progn (org-end-of-line) (eolp))
+	    (progn (org-end-of-line) (looking-at " :tag:"))))))
+  ;; At an headline without special movement.
+  (should
+   (org-test-with-temp-text "* Headline :tag:"
+     (let ((org-special-ctrl-a/e nil))
+       (and (progn (org-end-of-line) (eolp))
+	    (progn (org-end-of-line) (eolp))))))
+  ;; At an headline, with reversed movement.
+  (should
+   (org-test-with-temp-text "* Headline :tag:"
+     (let ((org-special-ctrl-a/e 'reversed)
+	   (this-command last-command))
+       (and (progn (org-end-of-line) (eolp))
+	    (progn (org-end-of-line) (looking-at " :tag:"))))))
+  ;; At a block without hidden contents.
+  (should
+   (org-test-with-temp-text "#+BEGIN_CENTER\nContents\n#+END_CENTER"
+     (progn (org-end-of-line) (eolp))))
+  ;; At a block with hidden contents.
+  (should-not
+   (org-test-with-temp-text "#+BEGIN_CENTER\nContents\n#+END_CENTER"
+     (progn (org-hide-block-toggle)
+	    (org-end-of-line)
+	    (eolp)))))
 
 (ert-deftest test-org/forward-element ()
   "Test `org-forward-element' specifications."
