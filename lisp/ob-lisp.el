@@ -1,10 +1,10 @@
 ;;; ob-lisp.el --- org-babel functions for common lisp evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2013 Free Software Foundation, Inc.
 
-;; Author: Joel Boehland
-;;	Eric Schulte
-;;	David T. O'Toole <dto@gnu.org>
+;; Authors: Joel Boehland
+;;	 Eric Schulte
+;;	 David T. O'Toole <dto@gnu.org>
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
 
@@ -41,7 +41,7 @@
 (add-to-list 'org-babel-tangle-lang-exts '("lisp" . "lisp"))
 
 (defvar org-babel-default-header-args:lisp '())
-(defvar org-babel-header-arg-names:lisp '(package))
+(defvar org-babel-header-args:lisp '((package . :any)))
 
 (defcustom org-babel-lisp-dir-fmt
   "(let ((*default-pathname-defaults* #P%S)) %%s)"
@@ -49,6 +49,7 @@
 For example a value of \"(progn ;; %s\\n   %%s)\" would ignore the
 current directory string."
   :group 'org-babel
+  :version "24.1"
   :type 'string)
 
 (defun org-babel-expand-body:lisp (body params)
@@ -75,8 +76,8 @@ current directory string."
   (require 'slime)
   (org-babel-reassemble-table
    ((lambda (result)
-      (if (member "output" (cdr (assoc :result-params params)))
-	  (car result)
+      (org-babel-result-cond (cdr (assoc :result-params params))
+	(car result)
 	(condition-case nil
 	    (read (org-babel-lisp-vector-to-list (cadr result)))
 	  (error (cadr result)))))
@@ -84,8 +85,8 @@ current directory string."
       (insert (org-babel-expand-body:lisp body params))
       (slime-eval `(swank:eval-and-grab-output
 		    ,(let ((dir (if (assoc :dir params)
-					    (cdr (assoc :dir params))
-					  default-directory)))
+				    (cdr (assoc :dir params))
+				  default-directory)))
 		       (format
 			(if dir (format org-babel-lisp-dir-fmt dir) "(progn %s)")
 			(buffer-substring-no-properties

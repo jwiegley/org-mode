@@ -1,19 +1,26 @@
 ;;; test-ob-lilypond.el --- tests for ob-lilypond.el
 
-;; Copyright (c) 2010 Martyn Jago
+;; Copyright (c) 2010-2013 Martyn Jago
 ;; Authors: Martyn Jago
 
-;; Released under the GNU General Public License version 3
-;; see: http://www.gnu.org/licenses/gpl-3.0.html
+;; This file is not part of GNU Emacs.
 
-(let ((load-path (cons (expand-file-name
-			".." (file-name-directory
-			      (or load-file-name buffer-file-name)))
-		       load-path)))
-  (require 'org-test)
-  (require 'org-test-ob-consts))
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 
-(require 'ob-lilypond)
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Code:
+(unless (featurep 'ob-lilypond)
+  (signal 'missing-test-dependency "Support for Lilypond code blocks"))
 
 (save-excursion
   (set-buffer (get-buffer-create "test-ob-lilypond.el"))
@@ -23,10 +30,10 @@
 
 (ert-deftest ob-lilypond/assert ()
   (should t))
- 
+
 (ert-deftest ob-lilypond/feature-provision ()
   (should (featurep 'ob-lilypond)))
-  
+
 (ert-deftest ob-lilypond/check-lilypond-alias ()
   (should (fboundp 'lilypond-mode)))
 
@@ -38,20 +45,10 @@
         (setq found t))
       (setq list (cdr list)))
     (should found)))
-     
+
 (ert-deftest ob-lilypond/org-babel-prep-session:lilypond ()
   (should-error (org-babel-prep-session:lilypond nil nil))
   :type 'error)
-
-(ert-deftest ob-lilypond/ly-version-const () 
-  (should (boundp 'ly-version)))
-
-(ert-deftest ob-lilypond/ly-version-command ()
-  (should (equal "ob-lilypond version 0.3" (ly-version)))
-  (with-temp-buffer
-    (ly-version t)
-    (should (equal "ob-lilypond version 0.3"
-                   (buffer-substring (point-min) (point-max))))))
 
 (ert-deftest ob-lilypond/ly-compile-lilyfile ()
   (should (equal
@@ -60,7 +57,8 @@
              "*lilypond*"               ;buffer
              t                          ;display
              ,(if ly-gen-png  "--png"  "") ;&rest...
-             ,(if ly-gen-html "--html" "")   
+             ,(if ly-gen-html "--html" "")
+             ,(if ly-gen-pdf "--pdf" "")
              ,(if ly-use-eps  "-dbackend=eps" "")
              ,(if ly-gen-svg  "-dbackend=svg" "")
              "--output=test-file"
@@ -100,17 +98,17 @@
   (should (boundp 'ly-nix-midi-path))
   (should (stringp ly-nix-midi-path)))
 
-(ert-deftest ob-lilypond/ly-win32-ly-path ()
-  (should (boundp 'ly-win32-ly-path))
-  (should (stringp ly-win32-ly-path)))
+(ert-deftest ob-lilypond/ly-w32-ly-path ()
+  (should (boundp 'ly-w32-ly-path))
+  (should (stringp ly-w32-ly-path)))
 
-(ert-deftest ob-lilypond/ly-win32-pdf-path ()
-  (should (boundp 'ly-win32-pdf-path))
-  (should (stringp ly-win32-pdf-path)))
+(ert-deftest ob-lilypond/ly-w32-pdf-path ()
+  (should (boundp 'ly-w32-pdf-path))
+  (should (stringp ly-w32-pdf-path)))
 
-(ert-deftest ob-lilypond/ly-win32-midi-path ()
-  (should (boundp 'ly-win32-midi-path))
-  (should (stringp ly-win32-midi-path)))
+(ert-deftest ob-lilypond/ly-w32-midi-path ()
+  (should (boundp 'ly-w32-midi-path))
+  (should (stringp ly-w32-midi-path)))
 
 (ert-deftest ob-lilypond/ly-gen-png ()
   (should (boundp 'ly-gen-png)))
@@ -120,6 +118,9 @@
 
 (ert-deftest ob-lilypond/ly-gen-html ()
   (should (boundp 'ly-gen-html)))
+
+(ert-deftest ob-lilypond/ly-gen-html ()
+  (should (boundp 'ly-gen-pdf)))
 
 (ert-deftest ob-lilypond/use-eps ()
   (should (boundp 'ly-use-eps)))
@@ -173,7 +174,7 @@
   (should (equal (+ 238 (length "line 25")) (point)))
   (kill-buffer "*lilypond*")
   (kill-buffer "ob-lilypond-broken.org"))
-   
+
 (ert-deftest ob-lilypond/ly-mark-error-line ()
   (let ((file-name (concat
                     ly-here
@@ -184,7 +185,7 @@
     (find-file-other-window file-name)
     (ly-mark-error-line file-name line)
     (should (equal expected-point-min (point)))
-  
+
     (exchange-point-and-mark)
     (should (= expected-point-max (point)))
     (kill-buffer (file-name-nondirectory file-name))))
@@ -198,7 +199,7 @@
     (goto-char (point-min))
     (search-forward "error:")
     (should (equal 25 (ly-parse-line-num (current-buffer))))))
-  
+
 (ert-deftest ob-lilypond/ly-parse-error-line ()
   (let ((ly-file (concat
                   ly-here
@@ -206,7 +207,7 @@
     (should (equal "line 20"
                    (ly-parse-error-line ly-file 20)))
     (should (not (ly-parse-error-line ly-file 0)))))
-    
+
 (ert-deftest ob-lilypond/ly-attempt-to-open-pdf ()
   (let ((post-tangle ly-display-pdf-post-tangle)
         (ly-file (concat
@@ -219,7 +220,7 @@
     (when (not (file-exists-p pdf-file))
       (set-buffer (get-buffer-create (file-name-nondirectory pdf-file)))
       (write-file pdf-file))
-    (should (equal 
+    (should (equal
              (concat
               (ly-determine-pdf-path) " " pdf-file)
              (ly-attempt-to-open-pdf ly-file t)))
@@ -256,24 +257,24 @@
 (ert-deftest ob-lilypond/ly-determine-ly-path ()
   (should (equal ly-OSX-ly-path
                  (ly-determine-ly-path "darwin")))
-  (should (equal ly-win32-ly-path
-                 (ly-determine-ly-path "win32")))
+  (should (equal ly-w32-ly-path
+                 (ly-determine-ly-path "windows-nt")))
   (should (equal ly-nix-ly-path
                  (ly-determine-ly-path "nix"))))
 
 (ert-deftest ob-lilypond/ly-determine-pdf-path ()
   (should (equal ly-OSX-pdf-path
                  (ly-determine-pdf-path "darwin")))
-  (should (equal ly-win32-pdf-path
-                 (ly-determine-pdf-path "win32")))
+  (should (equal ly-w32-pdf-path
+                 (ly-determine-pdf-path "windows-nt")))
   (should (equal ly-nix-pdf-path
                  (ly-determine-pdf-path "nix"))))
 
 (ert-deftest ob-lilypond/ly-determine-midi-path ()
   (should (equal ly-OSX-midi-path
                  (ly-determine-midi-path "darwin")))
-  (should (equal ly-win32-midi-path
-                 (ly-determine-midi-path "win32")))
+  (should (equal ly-w32-midi-path
+                 (ly-determine-midi-path "windows-nt")))
   (should (equal ly-nix-midi-path
                  (ly-determine-midi-path "nix"))))
 
@@ -301,6 +302,18 @@
     (ly-toggle-pdf-display)
     (should (not ly-display-pdf-post-tangle))))
 
+(ert-deftest ob-lilypond/ly-toggle-pdf-generation-toggles-flag ()
+  (if ly-gen-pdf
+      (progn
+        (ly-toggle-pdf-generation)
+         (should (not ly-gen-pdf))
+        (ly-toggle-pdf-generation)
+        (should ly-gen-pdf))
+    (ly-toggle-pdf-generation)
+    (should ly-gen-pdf)
+    (ly-toggle-pdf-generation)
+    (should (not ly-gen-pdf))))
+
 (ert-deftest ob-lilypond/ly-toggle-arrange-mode ()
   (if ly-arrange-mode
       (progn
@@ -324,7 +337,7 @@
     (should ly-gen-png)
     (ly-toggle-png-generation)
     (should (not ly-gen-png))))
- 
+
 (ert-deftest ob-lilypond/ly-toggle-html-generation-toggles-flag ()
   (if ly-gen-html
       (progn
@@ -353,6 +366,7 @@
   (should (equal '((:tangle . "yes")
                    (:noweb . "yes")
                    (:results . "silent")
+                   (:cache . "yes")
                    (:comments . "yes"))
                  (ly-set-header-args t)))
   (should (equal '((:results . "file")
@@ -364,14 +378,14 @@
   (should (equal '((:tangle . "yes")
                    (:noweb . "yes")
                    (:results . "silent")
+                   (:cache . "yes")
                    (:comments . "yes"))
                  org-babel-default-header-args:lilypond))
   (ly-set-header-args nil)
   (should (equal '((:results . "file")
                    (:exports . "results"))
                  org-babel-default-header-args:lilypond)))
-                 
+
 (provide 'test-ob-lilypond)
 
 ;;; test-ob-lilypond.el ends here
- 

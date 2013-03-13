@@ -1,12 +1,22 @@
-;;; test-ob-lob.el
+;;; test-ob-lob.el --- test for ob-lob.el
 
-;; Copyright (c) 2010 Eric Schulte
+;; Copyright (c) 2010-2013 Eric Schulte
 ;; Authors: Eric Schulte
 
-;; Released under the GNU General Public License version 3
-;; see: http://www.gnu.org/licenses/gpl-3.0.html
+;; This file is not part of GNU Emacs.
 
-;;;; Comments:
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 ;;; Tests
@@ -70,37 +80,31 @@
   "Test the export of a variety of library babel call lines."
   (org-test-at-id "72ddeed3-2d17-4c7f-8192-a575d535d3fc"
     (org-narrow-to-subtree)
-    (let ((html (org-export-as-html nil nil nil 'string 'body-only)))
-      ;; check the location of each exported number
+    (let ((buf (current-buffer))
+	  (string (buffer-string)))
       (with-temp-buffer
-	(insert html) (goto-char (point-min))
-	;; 0 should be on a line by itself
-	(should (re-search-forward "0" nil t))
-	(should (string= "0" (buffer-substring (point-at-bol) (point-at-eol))))
-	;; 2 should be in <code> tags
-	(should (re-search-forward "2" nil t))
-	(should (re-search-forward (regexp-quote "</code>") (point-at-eol) t))
-	(should (re-search-backward (regexp-quote "<code>") (point-at-bol) t))
-	;; 4 should not be exported
-	(should (not (re-search-forward "4" nil t)))
-	;; 6 should also be inline
-	(should (re-search-forward "6" nil t))
-	(should (re-search-forward (regexp-quote "</code>") (point-at-eol) t))
-	(should (re-search-backward (regexp-quote "<code>") (point-at-bol) t))
-	;; 8 should not be quoted
-	(should (re-search-forward "8" nil t))
-	(should (not (= ?= (char-after (point)))))
-	(should (not (= ?= (char-before (- (point) 1)))))
-	;; 10 should export
-	(should (re-search-forward "10" nil t))))))
+	(org-mode)
+	(insert string)
+	(let ((org-current-export-file buf))
+	  (org-babel-exp-process-buffer))
+	(message (buffer-string))
+	(should (re-search-forward "^: 0" nil t))
+	(should (re-search-forward "call =2= stuck" nil t))
+	(should (re-search-forward
+		 "exported =call_double(it=2)= because" nil t))
+	(should (re-search-forward "^=6= because" nil t))
+	(should (re-search-forward "results 8 should" nil t))
+	(should (re-search-forward "following 2\\*5==10= should" nil t))))))
 
 (ert-deftest test-ob-lob/do-not-eval-lob-lines-in-example-blocks-on-export ()
+  (require 'ox)
   (org-test-with-temp-text-in-file "
 for export
 #+begin_example
 #+call: rubbish()
 #+end_example"
-    (org-export-as-html nil)))
+    (should (progn (org-export-execute-babel-code) t))))
+
 
 (provide 'test-ob-lob)
 

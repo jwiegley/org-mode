@@ -1,6 +1,6 @@
 ;;; ob-ledger.el --- org-babel functions for ledger evaluation
 
-;; Copyright (C) 2010-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2010-2013 Free Software Foundation, Inc.
 
 ;; Author: Eric S Fraga
 ;; Keywords: literate programming, reproducible research, accounting
@@ -29,7 +29,7 @@
 ;;
 ;; 1) there is no such thing as a "session" in ledger
 ;;
-;; 2) we are generally only going to return output from the leger program
+;; 2) we are generally only going to return output from the ledger program
 ;;
 ;; 3) we are adding the "cmdline" header argument
 ;;
@@ -52,8 +52,8 @@ called by `org-babel-execute-src-block'."
 	(out-file (org-babel-temp-file "ledger-output-")))
     (with-temp-file in-file (insert body))
     (message "%s" (concat "ledger"
-		     " -f " (org-babel-process-file-name in-file)
-		     " " cmdline))
+			  " -f " (org-babel-process-file-name in-file)
+			  " " cmdline))
     (with-output-to-string
       (shell-command (concat "ledger"
 			     " -f " (org-babel-process-file-name in-file)

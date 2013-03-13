@@ -1,5 +1,5 @@
 ;;; org-eval.el --- Display result of evaluating code in various languages
-;; Copyright (C) 2008-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2013 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -88,8 +88,7 @@
        (:foreground "yellow"))))
   "Face for command output that is included into an Org-mode buffer."
   :group 'org-eval
-  :group 'org-faces
-  :version "22.1")
+  :group 'org-faces)
 
 (defvar org-eval-regexp nil)
 
@@ -105,7 +104,7 @@
 (defcustom org-eval-interpreters '("lisp")
   "Interpreters allows for evaluation tags.
 This is a list of program names (as strings) that can evaluate code and
-insert the output into an Org-mode buffer.  Valid choices are 
+insert the output into an Org-mode buffer.  Valid choices are
 
 lisp    Interpret Emacs Lisp code and display the result
 shell   Pass command to the shell and display the result
@@ -120,7 +119,7 @@ ruby    The ruby interpreter"
 	      (const "python")
 	      (const "ruby")
 	      (const "shell")))
-  
+
 (defun org-eval-handle-snippets (limit &optional replace)
   "Evaluate code snippets and display the results as display property.
 When REPLACE is non-nil, replace the code region with the result (used
@@ -212,9 +211,8 @@ This should go into the `org-export-preprocess-hook'."
   (with-temp-buffer
     (insert code)
     (shell-command-on-region (point-min) (point-max) cmd nil 'replace)
-    (buffer-string)))  
+    (buffer-string)))
 
 (provide 'org-eval)
 
 ;;; org-eval.el ends here
-

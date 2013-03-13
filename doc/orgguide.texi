@@ -3,8 +3,7 @@
 @setfilename ../../info/orgguide
 @settitle The compact Org-mode Guide
 
-@set VERSION 7.8.02
-@set DATE December 2011
+@include org-version.inc
 
 @c Use proper quote and backtick for code sections in PDF output
 @c Cf. Texinfo manual 14.2
@@ -14,9 +13,9 @@
 @c Version and Contact Info
 @set MAINTAINERSITE @uref{http://orgmode.org,maintainers webpage}
 @set AUTHOR Carsten Dominik
-@set MAINTAINER Carsten Dominik
-@set MAINTAINEREMAIL @email{carsten at orgmode dot org}
-@set MAINTAINERCONTACT @uref{mailto:carsten at orgmode dot org,contact the maintainer}
+@set MAINTAINER Bastien Guerry
+@set MAINTAINEREMAIL @email{bzg at gnu dot org}
+@set MAINTAINERCONTACT @uref{mailto:bzg at gnu dot org,contact the maintainer}
 @c %**end of header
 @finalout
 
@@ -40,7 +39,7 @@
 @end macro
 @copying
 
-Copyright @copyright{} 2010 Free Software Foundation
+Copyright @copyright{} 2010--2013 Free Software Foundation
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -51,13 +50,7 @@ and with the Back-Cover Texts as in (a) below.  A copy of the license
 is included in the section entitled ``GNU Free Documentation License.''
 
 (a) The FSF's Back-Cover Text is: ``You have the freedom to copy and
-modify this GNU manual.  Buying copies from the FSF supports it in
-developing GNU and promoting software freedom.''
-
-This document is part of a collection distributed under the GNU Free
-Documentation License.  If you want to distribute this document
-separately from the collection, you can do so by adding a copy of the
-license to the document, as described in section 6 of the license.
+modify this GNU manual.''
 @end quotation
 @end copying
 
@@ -104,6 +97,8 @@ license to the document, as described in section 6 of the license.
 * Publishing::			Create a web site of linked Org files
 * Working With Source Code::	Source code snippets embedded in Org
 * Miscellaneous::		All the rest which did not fit elsewhere
+
+* GNU Free Documentation License:: This manual license.
 
 @detailmenu
  --- The Detailed Node Listing ---
@@ -164,7 +159,7 @@ Dates and Times
 Capture - Refile - Archive
 
 * Capture::			
-* Refiling notes::		Moving a tree from one place to another
+* Refile and copy::		Moving a tree from one place to another
 * Archiving::			What to do with finished projects
 
 Capture
@@ -195,7 +190,7 @@ Markup for rich export
 * Images and tables::		Tables and Images will be included
 * Literal examples::		Source code examples with special formatting
 * Include files::		Include additional files into a document
-* Embedded LaTeX::		LaTeX can be freely used inside Org documents
+* Embedded @LaTeX{}::		@LaTeX{} can be freely used inside Org documents
 
 Structural markup elements
 
@@ -212,9 +207,9 @@ Exporting
 * The export dispatcher::	How to access exporter commands
 * ASCII/Latin-1/UTF-8 export::	Exporting to flat files with encoding
 * HTML export::			Exporting to HTML
-* LaTeX and PDF export::	Exporting to La@TeX{}, and processing to PDF
+* @LaTeX{} and PDF export::	Exporting to @LaTeX{}, and processing to PDF
 * DocBook export::		Exporting to DocBook
-* iCalendar export::		
+* iCalendar export::
 
 Miscellaneous
 
@@ -272,13 +267,6 @@ command:
 make
 @end smallexample
 
-Then add the following line to @file{.emacs}.  It is needed so that
-Emacs can autoload functions that are located in files not immediately loaded
-when Org-mode starts.
-@smalllisp
-(require 'org-install)
-@end smalllisp
-
 @node Activation, Feedback, Installation, Introduction
 @section Activation
 
@@ -288,7 +276,7 @@ yourself.
 
 @smalllisp
 ;; The following lines are always needed.  Choose your own keys.
-(add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode))
+(add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode)) ; not needed since Emacs 22.2
 (add-hook 'org-mode-hook 'turn-on-font-lock) ; not needed when global-font-lock-mode is on
 (global-set-key "\C-cl" 'org-store-link)
 (global-set-key "\C-ca" 'org-agenda)
@@ -439,7 +427,7 @@ Promote/demote the current subtree by one level.
 Move subtree up/down (swap with previous/next subtree of same
 level).
 @item C-c C-w
-Refile entry or region to a different location.  @xref{Refiling notes}.
+Refile entry or region to a different location.  @xref{Refile and copy}.
 @item C-x n s/w
 Narrow buffer to current subtree / widen it again
 @end table
@@ -941,7 +929,7 @@ like this:
 The keywords should all be different, this helps Org mode to keep track of
 which subsequence should be used for a given entry.  The example also shows
 how to define keys for fast access of a particular state, by adding a letter
-in parenthesis after each keyword - you will be prompted for the key after
+in parenthesis after each keyword---you will be prompted for the key after
 @kbd{C-c C-t}.
 
 To define TODO keywords that are valid only in a single file, use the
@@ -961,7 +949,7 @@ the line to make the changes known to Org mode.
 
 Org mode can automatically record a timestamp and possibly a note when
 you mark a TODO item as DONE, or even each time you change the state of
-a TODO item.  This system is highly configurable, settings can be on a
+a TODO item.  This system is highly configurable; settings can be on a
 per-keyword basis and can be localized to a file or even a subtree.  For
 information on how to clock working time for a task, see @ref{Clocking
 work time}.
@@ -1068,7 +1056,7 @@ cookie.  For example:
 @section Checkboxes
 
 Every item in a plain list (@pxref{Plain lists}) can be made into a checkbox
-by starting it with the string @samp{[ ]}.  Checkboxes are not included into
+by starting it with the string @samp{[ ]}.  Checkboxes are not included in
 the global TODO list, so they are often great to split a task into a number
 of simple steps.
 Here is an example of a checkbox list.
@@ -1237,7 +1225,7 @@ Sacha Chua's article about tagging in Org-mode}}
 @node Properties, Dates and Times, Tags, Top
 @chapter Properties
 
-Properties are key-value pairs associates with and entry.  They live in a
+Properties are key-value pairs associated with an entry.  They live in a
 special drawer with the name @code{PROPERTIES}.  Each
 property is specified on a single line, with the key (surrounded by colons)
 first, and the value after it:
@@ -1325,8 +1313,10 @@ A simple timestamp just assigns a date/time to an item.  This is just
 like writing down an appointment or event in a paper agenda.
 
 @smallexample
-* Meet Peter at the movies <2006-11-01 Wed 19:15>
-* Discussion on climate change <2006-11-02 Thu 20:00-22:00>
+* Meet Peter at the movies
+  <2006-11-01 Wed 19:15>
+* Discussion on climate change
+  <2006-11-02 Thu 20:00-22:00>
 @end smallexample
 
 @noindent @b{Timestamp with repeater interval}@*
@@ -1335,7 +1325,8 @@ applies not only on the given date, but again and again after a certain
 interval of N days (d), weeks (w), months (m), or years (y).  The
 following will show up in the agenda every Wednesday:
 @smallexample
-* Pick up Sam at school <2007-05-16 Wed 12:30 +1w>
+* Pick up Sam at school
+  <2007-05-16 Wed 12:30 +1w>
 @end smallexample
 
 @noindent @b{Diary-style sexp entries}@*
@@ -1360,7 +1351,8 @@ angular ones.  These timestamps are inactive in the sense that they do
 @emph{not} trigger an entry to show up in the agenda.
 
 @smallexample
-* Gillian comes late for the fifth time [2006-11-01 Wed]
+* Gillian comes late for the fifth time
+  [2006-11-01 Wed]
 @end smallexample
 
 
@@ -1526,17 +1518,17 @@ projects need to be moved around.  Moving completed project trees to an
 archive file keeps the system compact and fast.
 
 @menu
-* Capture::			
+* Capture::
 * Refiling notes::		Moving a tree from one place to another
 * Archiving::			What to do with finished projects
 @end menu
 
-@node Capture, Refiling notes, Capture - Refile - Archive, Capture - Refile - Archive
+@node Capture, Refile and copy, Capture - Refile - Archive, Capture - Refile - Archive
 @section Capture
 
 Org's method for capturing new items is heavily inspired by John Wiegley
-excellent remember package.  It lets you store quick notes with little
-interruption of your work flow.  Org lets you define templates for new
+excellent @file{remember.el} package.  It lets you store quick notes with
+little interruption of your work flow.  Org lets you define templates for new
 entries and associate them with different targets for storing notes.
 
 @menu
@@ -1571,7 +1563,7 @@ Once you are done entering information into the capture buffer,
 @kbd{C-c C-c} will return you to the window configuration before the capture
 process, so that you can resume your work without further distraction.
 @item C-c C-w
-Finalize by moving the entry to a refile location (@pxref{Refiling notes}).
+Finalize by moving the entry to a refile location (@pxref{Refile and copy}).
 @item C-c C-k
 Abort the capture process and return to the previous state.
 @end table
@@ -1613,21 +1605,24 @@ allow dynamic insertion of content.  Here is a small selection of the
 possibilities, consult the manual for more.
 @smallexample
 %a          @r{annotation, normally the link created with @code{org-store-link}}
-%i          @r{initial content, the region when remember is called with C-u.}
+%i          @r{initial content, the region when capture is called with C-u.}
 %t          @r{timestamp, date only}
 %T          @r{timestamp with date and time}
 %u, %U      @r{like the above, but inactive timestamps}
 @end smallexample
 
-@node Refiling notes, Archiving, Capture, Capture - Refile - Archive
-@section Refiling notes
+@node Refile and copy, Archiving, Capture, Capture - Refile - Archive
+@section Refile and copy
 
-When reviewing the captured data, you may want to refile some of the entries
-into a different list, for example into a project.  Cutting, finding the
-right location, and then pasting the note is cumbersome.  To simplify this
-process, you can use the following special command:
+When reviewing the captured data, you may want to refile or copy some of the
+entries into a different list, for example into a project.  Cutting, finding
+the right location, and then pasting the note is cumbersome.  To simplify
+this process, you can use the following special command:
 
 @table @kbd
+@item C-c M-x
+Copy the entry or region at point.  This command behaves like
+@code{org-refile}, except that the original note will not be deleted.
 @item C-c C-w
 Refile the entry or region at point.  This command offers possible locations
 for refiling the entry and lets you select one with completion.  The item (or
@@ -1641,7 +1636,7 @@ Use the refile interface to jump to a heading.
 Jump to the location where @code{org-refile} last moved a tree to.
 @end table
 
-@node Archiving,  , Refiling notes, Capture - Refile - Archive
+@node Archiving,  , Refile and copy, Capture - Refile - Archive
 @section Archiving
 
 When a project represented by a (sub)tree is finished, you may want
@@ -1674,8 +1669,6 @@ setting this variable, for example
 @seealso{
 @uref{http://orgmode.org/manual/Capture-_002d-Refile-_002d-Archive.html#Capture-_002d-Refile-_002d-Archive,
 Chapter 9 of the manual}@*
-@uref{http://members.optusnet.com.au/~charles57/GTD/remember.html, Charles
-Cave's remember tutorial}@*
 @uref{http://orgmode.org/worg/org-tutorials/org-protocol-custom-handler.php,
 Sebastian Rose's tutorial for capturing from a web browser}}@uref{}@*
 
@@ -1906,7 +1899,7 @@ outline, not only the heading.
 @c
 @itemx @key{TAB}
 Go to the original location of the item in another window.  Under Emacs
-22, @kbd{mouse-1} will also works for this.
+22, @kbd{mouse-1} will also work for this.
 @c
 @itemx @key{RET}
 Go to the original location of the item and delete other windows.
@@ -1953,7 +1946,7 @@ Narrow the current agenda filter by an additional condition.
 
 @tsubheading{Remote editing (see the manual for many more commands)}
 
-@item 0-9
+@item 0--9
 Digit argument.
 @c
 @item t
@@ -2047,7 +2040,7 @@ John Wiegley's setup}}
 
 When exporting Org-mode documents, the exporter tries to reflect the
 structure of the document as accurately as possible in the backend.  Since
-export targets like HTML, La@TeX{}, or DocBook allow much richer formatting,
+export targets like HTML, @LaTeX{}, or DocBook allow much richer formatting,
 Org mode has rules on how to prepare text for rich export.  This section
 summarizes the markup rules used in an Org-mode buffer.
 
@@ -2056,7 +2049,7 @@ summarizes the markup rules used in an Org-mode buffer.
 * Images and tables::		Tables and Images will be included
 * Literal examples::		Source code examples with special formatting
 * Include files::		Include additional files into a document
-* Embedded LaTeX::		LaTeX can be freely used inside Org documents
+* Embedded @LaTeX{}::		@LaTeX{} can be freely used inside Org documents
 @end menu
 
 @node Structural markup elements, Images and tables, Markup, Markup
@@ -2157,11 +2150,11 @@ consisting of only dashes, and at least 5 of them.
 @node Comment lines,  , Emphasis and monospace, Structural markup elements
 @subheading Comment lines
 
-Lines starting with @samp{#} in column zero are treated as comments and will
-never be exported.  If you want an indented line to be treated as a comment,
-start it with @samp{#+ }.  Also entire subtrees starting with the word
-@samp{COMMENT} will never be exported.  Finally, regions surrounded by
-@samp{#+BEGIN_COMMENT} ... @samp{#+END_COMMENT} will not be exported.
+Lines starting with zero or more whitespace characters followed by @samp{#}
+are treated as comments and will never be exported.  Also entire subtrees
+starting with the word @samp{COMMENT} will never be exported.  Finally,
+regions surrounded by @samp{#+BEGIN_COMMENT} ... @samp{#+END_COMMENT} will
+not be exported.
 
 @table @kbd
 @item C-c ;
@@ -2183,7 +2176,7 @@ the text you can refer to the object with @code{\ref@{tab:basic-data@}}:
    |-----|----|
 @end smallexample
 
-Some backends (HTML, La@TeX{}, and DocBook) allow you to directly include
+Some backends (HTML, @LaTeX{}, and DocBook) allow you to directly include
 images into the exported document.  Org does this, if a link to an image
 files does not have a description part, for example @code{[[./img/a.jpg]]}.
 If you wish to define a caption for the image and maybe a label for internal
@@ -2238,7 +2231,7 @@ look like the fontified Emacs buffer
 To edit the example in a special buffer supporting this language, use
 @kbd{C-c '} to both enter and leave the editing buffer.
 
-@node Include files, Embedded LaTeX, Literal examples, Markup
+@node Include files, Embedded @LaTeX{}, Literal examples, Markup
 @section Include files
 
 During export, you can include the content of another file.  For example, to
@@ -2254,13 +2247,13 @@ language for formatting the contents.  The markup is optional, if it is not
 given, the text will be assumed to be in Org mode format and will be
 processed normally. @kbd{C-c '} will visit the included file.
 
-@node Embedded LaTeX,  , Include files, Markup
-@section Embedded La@TeX{}
+@node Embedded @LaTeX{},  , Include files, Markup
+@section Embedded @LaTeX{}
 
 For scientific notes which need to be able to contain mathematical symbols
-and the occasional formula, Org-mode supports embedding La@TeX{} code into
+and the occasional formula, Org-mode supports embedding @LaTeX{} code into
 its files.  You can directly use TeX-like macros for special symbols, enter
-formulas and entire LaTeX environments.
+formulas and entire @LaTeX{} environments.
 
 @smallexample
 Angles are written as Greek letters \alpha, \beta and \gamma.  The mass if
@@ -2274,7 +2267,7 @@ x=\sqrt@{b@}
 @end smallexample
 @noindent  With
 @uref{http://orgmode.org/manual/LaTeX-fragments.html#LaTeX-fragments,special
-setup}, LaTeX snippets will be included as images when exporting to HTML.
+setup}, @LaTeX{} snippets will be included as images when exporting to HTML.
 
 @seealso{
 @uref{http://orgmode.org/manual/Markup.html#Markup, Chapter 11 of the manual}}
@@ -2283,7 +2276,7 @@ setup}, LaTeX snippets will be included as images when exporting to HTML.
 @chapter Exporting
 
 Org-mode documents can be exported into a variety of other formats: ASCII
-export for inclusion into emails, HTML to publish on the web, La@TeX{}/PDF
+export for inclusion into emails, HTML to publish on the web, @LaTeX{}/PDF
 for beautiful printed documents and DocBook to enter the world of many other
 formats using DocBook tools.  There is also export to iCalendar format so
 that planning information can be incorporated into desktop calendars.
@@ -2293,9 +2286,9 @@ that planning information can be incorporated into desktop calendars.
 * The export dispatcher::	How to access exporter commands
 * ASCII/Latin-1/UTF-8 export::	Exporting to flat files with encoding
 * HTML export::			Exporting to HTML
-* LaTeX and PDF export::	Exporting to La@TeX{}, and processing to PDF
+* @LaTeX{} and PDF export::	Exporting to @LaTeX{}, and processing to PDF
 * DocBook export::		Exporting to DocBook
-* iCalendar export::		
+* iCalendar export::
 @end menu
 
 @node Export options, The export dispatcher, Exporting, Exporting
@@ -2319,12 +2312,10 @@ Insert template with export options, see example below.
 #+DESCRIPTION: the page description, e.g.@: for the XHTML meta tag
 #+KEYWORDS:    the page keywords, e.g.@: for the XHTML meta tag
 #+LANGUAGE:    language for HTML, e.g.@: @samp{en} (@code{org-export-default-language})
-#+TEXT:        Some descriptive text to be inserted at the beginning.
-#+TEXT:        Several lines may be given.
 #+OPTIONS:     H:2 num:t toc:t \n:nil @@:t ::t |:t ^:t f:t TeX:t ...
 #+LINK_UP:     the ``up'' link of an exported page
 #+LINK_HOME:   the ``home'' link of an exported page
-#+LATEX_HEADER: extra line(s) for the LaTeX header, like \usepackage@{xyz@}
+#+LATEX_HEADER: extra line(s) for the @LaTeX{} header, like \usepackage@{xyz@}
 @end smallexample
 
 @node The export dispatcher, ASCII/Latin-1/UTF-8 export, Export options, Exporting
@@ -2357,7 +2348,7 @@ Like the above commands, but use Latin-1 encoding.
 Like the above commands, but use UTF-8 encoding.
 @end table
 
-@node HTML export, LaTeX and PDF export, ASCII/Latin-1/UTF-8 export, Exporting
+@node HTML export, @LaTeX{} and PDF export, ASCII/Latin-1/UTF-8 export, Exporting
 @section HTML export
 
 @table @kbd
@@ -2380,28 +2371,28 @@ All lines between these markers are exported literally
 #+END_HTML
 @end smallexample
 
-@node LaTeX and PDF export, DocBook export, HTML export, Exporting
-@section La@TeX{} and PDF export
+@node @LaTeX{} and PDF export, DocBook export, HTML export, Exporting
+@section @LaTeX{} and PDF export
 
 @table @kbd
 @item C-c C-e l
-Export as La@TeX{} file @file{myfile.tex}.
+Export as @LaTeX{} file @file{myfile.tex}.
 @item C-c C-e p
-Export as La@TeX{} and then process to PDF.
+Export as @LaTeX{} and then process to PDF.
 @item C-c C-e d
-Export as La@TeX{} and then process to PDF, then open the resulting PDF file.
+Export as @LaTeX{} and then process to PDF, then open the resulting PDF file.
 @end table
 
-By default, the La@TeX{} output uses the class @code{article}.  You can
+By default, the @LaTeX{} output uses the class @code{article}.  You can
 change this by adding an option like @code{#+LaTeX_CLASS: myclass} in your
-file.  The class must be listed in @code{org-export-latex-classes}.
+file.  The class must be listed in @code{org-latex-classes}.
 
-Embedded La@TeX{} as described in @ref{Embedded LaTeX}, will be correctly
-inserted into the La@TeX{} file.  Similarly to the HTML exporter, you can use
+Embedded @LaTeX{} as described in @ref{Embedded @LaTeX{}}, will be correctly
+inserted into the @LaTeX{} file.  Similarly to the HTML exporter, you can use
 @code{#+LaTeX:} and @code{#+BEGIN_LaTeX ... #+END_LaTeX} construct to add
-verbatim LaTeX code.
+verbatim @LaTeX{} code.
 
-@node DocBook export, iCalendar export, LaTeX and PDF export, Exporting
+@node DocBook export, iCalendar export, @LaTeX{} and PDF export, Exporting
 @section DocBook export
 
 @table @kbd
@@ -2409,8 +2400,8 @@ verbatim LaTeX code.
 Export as DocBook file.
 @end table
 
-Similarly to the HTML exporter, you can use @code{#+DocBook:} and
-@code{#+BEGIN_DocBook ... #+END_DocBook} construct to add verbatim LaTeX
+Similarly to the HTML exporter, you can use @code{#+DOCBOOK:} and
+@code{#+BEGIN_DOCBOOK ... #+END_DOCBOOK} construct to add verbatim @LaTeX{}
 code.
 
 @node iCalendar export,  , DocBook export, Exporting
@@ -2492,10 +2483,10 @@ results in several formats.
 The structure of code blocks is as follows:
 
 @example
-#+srcname: <name>
-#+begin_src <language> <switches> <header arguments>
+#+NAME: <name>
+#+BEGIN_SRC <language> <switches> <header arguments>
   <body>
-#+end_src
+#+END_SRC
 @end example
 
 Where @code{<name>} is a string used to name the code block,
@@ -2520,11 +2511,11 @@ in many languages.  For a complete list of supported languages see the
 manual.  The following shows a code block and its results.
 
 @example
-#+begin_src emacs-lisp
+#+BEGIN_SRC emacs-lisp
   (+ 1 2 3 4)
-#+end_src
+#+END_SRC
 
-#+results:
+#+RESULTS:
 : 10
 @end example
 
@@ -2597,7 +2588,7 @@ Chapter 11.3 of the manual}@*
 @uref{http://orgmode.org/worg/org-contrib/babel/index.php,
 The Babel site on Worg}}
 
-@node Miscellaneous,  , Working With Source Code, Top
+@node Miscellaneous, GNU Free Documentation License, Working With Source Code, Top
 @chapter Miscellaneous
 
 @menu
@@ -2663,10 +2654,17 @@ indentation for each level.  To get this support in a file, use
 @node MobileOrg,  , Clean view, Miscellaneous
 @section MobileOrg
 
-@i{MobileOrg} is an application originally developed for the @i{iPhone/iPod
-Touch} series of devices, developed by Richard Moreland.  There is also an
-independent implementation for Android devices, by Matt Jones.
-For details, see the Org-mode manual.
+@i{MobileOrg} is the name of the mobile companion app for Org mode, currently
+available for iOS and for Android.  @i{MobileOrg} offers offline viewing and
+capture support for an Org mode system rooted on a ``real'' computer.  It
+does also allow you to record changes to existing entries.
+
+The @uref{http://mobileorg.ncogni.to/, iOS implementation} for the
+@i{iPhone/iPod Touch/iPad} series of devices, was developed by Richard
+Moreland. Android users should check out
+@uref{http://wiki.github.com/matburt/mobileorg-android/, MobileOrg Android}
+by Matt Jones.  The two implementations are not identical but offer similar
+features.
 
 @seealso{
 @uref{http://orgmode.org/manual/Miscellaneous.html#Miscellaneous, Chapter 15
@@ -2674,6 +2672,12 @@ of the manual}@*
 @uref{http://orgmode.org/manual/MobileOrg.html#MobileOrg, Appendix B of the
 manual}@*
 @uref{http://orgmode.org/orgcard.pdf,Key reference card}}
+
+
+@node GNU Free Documentation License,  , Miscellaneous, Top
+@appendix GNU Free Documentation License
+@include doclicense.texi
+
 
 @bye
 

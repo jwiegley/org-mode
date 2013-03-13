@@ -1,6 +1,6 @@
 ;;; ob-haskell.el --- org-babel functions for haskell evaluation
 
-;; Copyright (C) 2009-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2013 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -40,7 +40,6 @@
 
 ;;; Code:
 (require 'ob)
-(require 'ob-comint)
 (require 'comint)
 (eval-when-compile (require 'cl))
 
@@ -79,7 +78,7 @@
                    (cdr (member org-babel-haskell-eoe
                                 (reverse (mapcar #'org-babel-trim raw)))))))
     (org-babel-reassemble-table
-     (cond 
+     (cond
       ((equal result-type 'output)
        (mapconcat #'identity (reverse (cdr results)) "\n"))
       ((equal result-type 'value)
@@ -125,12 +124,12 @@ then create one.  Return the initialized session."
       (current-buffer))))
 
 (defun org-babel-variable-assignments:haskell (params)
-  "Return list of haskell statements assigning the block's variables"
+  "Return list of haskell statements assigning the block's variables."
   (mapcar (lambda (pair)
 	    (format "let %s = %s"
 		    (car pair)
 		    (org-babel-haskell-var-to-haskell (cdr pair))))
-   (mapcar #'cdr (org-babel-get-header params :var))))
+	  (mapcar #'cdr (org-babel-get-header params :var))))
 
 (defun org-babel-haskell-table-or-string (results)
   "Convert RESULTS to an Emacs-lisp table or string.
@@ -147,6 +146,9 @@ specifying a variable of the same value."
     (format "%S" var)))
 
 (defvar org-src-preserve-indentation)
+(declare-function org-export-to-file "ox"
+		  (backend file
+			   &optional subtreep visible-only body-only ext-plist))
 (defun org-babel-haskell-export-to-lhs (&optional arg)
   "Export to a .lhs file with all haskell code blocks escaped.
 When called with a prefix argument the resulting
@@ -190,7 +192,11 @@ constructs (header arguments, no-web syntax etc...) are ignored."
         (indent-code-rigidly (match-beginning 0) (match-end 0) indentation)))
     (save-excursion
       ;; export to latex w/org and save as .lhs
-      (find-file tmp-org-file) (funcall 'org-export-as-latex nil)
+      (require 'ox-latex)
+      (find-file tmp-org-file)
+      ;; Ensure we do not clutter kill ring with incomplete results.
+      (let (org-export-copy-to-kill-ring)
+	(org-export-to-file 'latex tmp-tex-file))
       (kill-buffer nil)
       (delete-file tmp-org-file)
       (find-file tmp-tex-file)

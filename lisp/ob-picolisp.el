@@ -1,8 +1,9 @@
 ;;; ob-picolisp.el --- org-babel functions for picolisp evaluation
 
-;; Copyright (C) 2010-2011  Free Software Foundation, Inc.
+;; Copyright (C) 2010-2013 Free Software Foundation, Inc.
 
-;; Authors: Thorsten Jolitz and Eric Schulte
+;; Authors: Thorsten Jolitz
+;;	 Eric Schulte
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
 
@@ -24,16 +25,16 @@
 ;;; Commentary:
 
 ;; This library enables the use of PicoLisp in the multi-language
-;; programming framework Org-Babel. PicoLisp is a minimal yet
+;; programming framework Org-Babel.  PicoLisp is a minimal yet
 ;; fascinating lisp dialect and a highly productive application
 ;; framework for web-based client-server applications on top of
-;; object-oriented databases. A good way to learn PicoLisp is to first
+;; object-oriented databases.  A good way to learn PicoLisp is to first
 ;; read Paul Grahams essay "The hundred year language"
 ;; (http://www.paulgraham.com/hundred.html) and then study the various
 ;; documents and essays published in the PicoLisp wiki
 ;; (http://picolisp.com/5000/-2.html). PicoLisp is included in some
 ;; GNU/Linux Distributions, and can be downloaded here:
-;; http://software-lab.de/down.html. It ships with a picolisp-mode and
+;; http://software-lab.de/down.html.  It ships with a picolisp-mode and
 ;; a inferior-picolisp-mode for Emacs (to be found in the /lib/el/
 ;; directory).
 
@@ -44,21 +45,20 @@
 
 ;; PicoLisp _is_ an object-oriented database with a Prolog-based query
 ;; language implemented in PicoLisp (Pilog). Database objects are
-;; first-class members of the language. 
+;; first-class members of the language.
 
 ;; PicoLisp is an extremely productive framework for the development
-;; of interactive web-applications (on top of a database). 
+;; of interactive web-applications (on top of a database).
 
 ;;; Requirements:
 
 ;;; Code:
 (require 'ob)
-(require 'ob-eval)
-(require 'ob-comint)
 (require 'comint)
 (eval-when-compile (require 'cl))
 
 (declare-function run-picolisp "ext:inferior-picolisp" (cmd))
+(defvar org-babel-tangle-lang-exts) ;; Autoloaded
 
 ;; optionally define a file extension for this language
 (add-to-list 'org-babel-tangle-lang-exts '("picolisp" . "l"))
@@ -75,6 +75,7 @@
 (defcustom org-babel-picolisp-cmd "pil"
   "Name of command used to evaluate picolisp blocks."
   :group 'org-babel
+  :version "24.1"
   :type 'string)
 
 (defun org-babel-expand-body:picolisp (body params &optional processed-params)
@@ -95,7 +96,7 @@
 
 (defun org-babel-execute:picolisp (body params)
   "Execute a block of Picolisp code with org-babel.  This function is
- called by `org-babel-execute-src-block'"           
+ called by `org-babel-execute-src-block'"
   (message "executing Picolisp source code block")
   (let* (
 	 ;; name of the session or "none"
@@ -118,15 +119,10 @@
            ((member "value" result-params)
             (format "(out \"/dev/null\" %s)" full-body))
            (t full-body))))
-    
+
     ((lambda (result)
-       (if (or (member "verbatim" result-params)
-               (member "scalar" result-params)
-               (member "output" result-params)
-               (member "code" result-params)
-               (member "pp" result-params)
-               (= (length result) 0))
-           result
+       (org-babel-result-cond result-params
+	 result
          (read result)))
      (if (not (string= session-name "none"))
          ;; session based evaluation

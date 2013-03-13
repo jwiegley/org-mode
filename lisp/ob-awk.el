@@ -1,6 +1,6 @@
 ;;; ob-awk.el --- org-babel functions for awk evaluation
 
-;; Copyright (C) 2011  Free Software Foundation, Inc.
+;; Copyright (C) 2011-2013 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -24,15 +24,15 @@
 ;;; Commentary:
 
 ;; Babel's awk can use special header argument:
-;; 
+;;
 ;; - :in-file takes a path to a file of data to be processed by awk
-;;   
+;;
 ;; - :stdin takes an Org-mode data or code block reference, the value
 ;;          of which will be passed to the awk process through STDIN
 
 ;;; Code:
 (require 'ob)
-(require 'ob-eval)
+(require 'org-compat)
 (eval-when-compile (require 'cl))
 
 (declare-function org-babel-ref-resolve "ob-ref" (ref))
@@ -77,10 +77,8 @@ called by `org-babel-execute-src-block'"
     (org-babel-reassemble-table
      ((lambda (results)
 	(when results
-	  (if (or (member "scalar" result-params)
-		  (member "verbatim" result-params)
-		  (member "output" result-params))
-	      results
+	  (org-babel-result-cond result-params
+	    results
 	    (let ((tmp (org-babel-temp-file "awk-results-")))
 	      (with-temp-file tmp (insert results))
 	      (org-babel-import-elisp-from-file tmp)))))
@@ -96,13 +94,13 @@ called by `org-babel-execute-src-block'"
 
 (defun org-babel-awk-var-to-awk (var &optional sep)
   "Return a printed value of VAR suitable for parsing with awk."
-  (flet ((echo-var (v) (if (stringp v) v (format "%S" v))))
+  (let ((echo-var (lambda (v) (if (stringp v) v (format "%S" v)))))
     (cond
      ((and (listp var) (listp (car var)))
-      (orgtbl-to-generic var  (list :sep (or sep "\t") :fmt #'echo-var)))
+      (orgtbl-to-generic var  (list :sep (or sep "\t") :fmt echo-var)))
      ((listp var)
-      (mapconcat #'echo-var var "\n"))
-     (t (echo-var var)))))
+      (mapconcat echo-var var "\n"))
+     (t (funcall echo-var var)))))
 
 (defun org-babel-awk-table-or-string (results)
   "If the results look like a table, then convert them into an

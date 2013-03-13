@@ -1,6 +1,6 @@
 ;;; org-entities.el --- Support for special entities in Org-mode
 
-;; Copyright (C) 2010-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2013 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>,
 ;;         Ulf Stegemann <ulf at zeitform dot de>
@@ -44,6 +44,7 @@
 For example, this will replace \"\\nsup\" with \"[not a superset of]\"
 in backends where the corresponding character is not available."
   :group 'org-entities
+  :version "24.1"
   :type 'boolean)
 
 (defcustom org-entities-user nil
@@ -65,9 +66,10 @@ ASCII replacement    Plain ASCII, no extensions.  Symbols that cannot be
 Latin1 replacement   Use the special characters available in latin1.
 utf-8 replacement    Use the special characters available in utf-8.
 
-If you define new entities here that require specific LaTeX packages to be
-loaded, add these packages to `org-export-latex-packages-alist'."
+If you define new entities here that require specific LaTeX
+packages to be loaded, add these packages to `org-latex-packages-alist'."
   :group 'org-entities
+  :version "24.1"
   :type '(repeat
 	  (list
 	   (string :tag "name  ")
@@ -250,7 +252,7 @@ loaded, add these packages to `org-export-latex-packages-alist'."
 
     "* Other"
     "** Misc. (often used)"
-    ("circ" "\\circ" t "&circ;" "^" "^" "ˆ")
+    ("circ" "\\^{}" nil "&circ;" "^" "^" "ˆ")
     ("vert" "\\vert{}" t "&#124;" "|" "|" "|")
     ("brvbar" "\\textbrokenbar{}" nil "&brvbar;" "|" "¦" "¦")
     ("sect" "\\S" nil "&sect;" "paragraph" "§" "§")
@@ -258,6 +260,11 @@ loaded, add these packages to `org-export-latex-packages-alist'."
     ("lt" "\\textless{}" nil "&lt;" "<" "<" "<")
     ("gt" "\\textgreater{}" nil "&gt;" ">" ">" ">")
     ("tilde" "\\~{}" nil "&tilde;" "~" "~" "~")
+    ("slash" "/" nil "/" "/" "/" "/")
+    ("plus" "+" nil "+" "+" "+" "+")
+    ("under" "\\_" nil "_" "_" "_" "_")
+    ("equal" "=" nil "=" "=" "=" "=")
+    ("asciicirc" "\\textasciicircum{}" nil "^" "^" "^" "^")
     ("dagger" "\\textdagger{}" nil "&dagger;" "[dagger]" "[dagger]" "†")
     ("Dagger" "\\textdaggerdbl{}" nil "&Dagger;" "[doubledagger]" "[doubledagger]" "‡")
 
@@ -311,6 +318,7 @@ loaded, add these packages to `org-export-latex-packages-alist'."
     ("prop" "\\propto" t "&prop;" "[proportional to]" "[proportional to]" "∝")
     ("proptp" "\\propto" t "&prop;" "[proportional to]" "[proportional to]" "∝")
     ("not" "\\textlnot{}" nil "&not;" "[angled dash]" "¬" "¬")
+    ("neg" "\\neg{}" t "&not;" "[angled dash]" "¬" "¬")
     ("land" "\\land" t "&and;" "[logical and]" "[logical and]" "∧")
     ("wedge" "\\wedge" t "&and;" "[logical and]" "[logical and]" "∧")
     ("lor" "\\lor" t "&or;" "[logical or]" "[logical or]" "∨")
@@ -490,34 +498,31 @@ Kind can be any of `latex', `html', `ascii', `latin1', or `utf8'."
 ;; Helpfunctions to create a table for orgmode.org/worg/org-symbols.org
 
 (defun org-entities-create-table ()
-  "Create an org-mode table with all entities."
+  "Create an Org mode table with all entities."
   (interactive)
-  (let ((ll org-entities)
-	(pos (point))
-	e latex mathp html latin utf8 name ascii)
+  (let ((pos (point)) e latex mathp html latin utf8 name ascii)
     (insert "|Name|LaTeX code|LaTeX|HTML code |HTML|ASCII|Latin1|UTF-8\n|-\n")
-    (while ll
-      (when (listp e)
-	(setq e (pop ll))
-	(setq name (car e)
-	      latex (nth 1 e)
-	      mathp (nth 2 e)
-	      html (nth 3 e)
-	      ascii (nth 4 e)
-	      latin (nth 5 e)
-	      utf8 (nth 6 e))
-	(if (equal ascii "|") (setq ascii "\\vert"))
-	(if (equal latin "|") (setq latin "\\vert"))
-	(if (equal utf8  "|") (setq utf8  "\\vert"))
-	(if (equal ascii "=>") (setq ascii "= >"))
-	(if (equal latin "=>") (setq latin "= >"))
-	(insert "|" name
-		"|" (format "=%s=" latex)
-		"|" (format (if mathp "$%s$" "$\\mbox{%s}$")
-			    latex)
-		"|" (format "=%s=" html) "|" html
-		"|" ascii "|" latin "|" utf8
-		"|\n")))
+    (mapc (lambda (e) (when (listp e)
+			(setq name (car e)
+			      latex (nth 1 e)
+			      mathp (nth 2 e)
+			      html (nth 3 e)
+			      ascii (nth 4 e)
+			      latin (nth 5 e)
+			      utf8 (nth 6 e))
+			(if (equal ascii "|") (setq ascii "\\vert"))
+			(if (equal latin "|") (setq latin "\\vert"))
+			(if (equal utf8  "|") (setq utf8  "\\vert"))
+			(if (equal ascii "=>") (setq ascii "= >"))
+			(if (equal latin "=>") (setq latin "= >"))
+			(insert "|" name
+				"|" (format "=%s=" latex)
+				"|" (format (if mathp "$%s$" "$\\mbox{%s}$")
+					    latex)
+				"|" (format "=%s=" html) "|" html
+				"|" ascii "|" latin "|" utf8
+				"|\n")))
+	  org-entities)
     (goto-char pos)
     (org-table-align)))
 

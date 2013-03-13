@@ -1,6 +1,6 @@
 ;;; org-toc.el --- Table of contents for Org-mode buffer
 
-;; Copyright 2007-2011 Free Software Foundation, Inc.
+;; Copyright 2007-2013 Free Software Foundation, Inc.
 ;;
 ;; Author: Bastien Guerry <bzg AT gnu DOT org>
 ;; Keywords: Org table of contents
@@ -110,7 +110,7 @@ echo-area. The COLUMNS property is always exluded."
   (setq major-mode 'org-toc-mode))
 
 ;; toggle modes
-(define-key org-toc-mode-map "f" 'org-toc-follow-mode)
+(define-key org-toc-mode-map "F" 'org-toc-follow-mode)
 (define-key org-toc-mode-map "S" 'org-toc-show-subtree-mode)
 (define-key org-toc-mode-map "s" 'org-toc-store-config)
 (define-key org-toc-mode-map "g" 'org-toc-restore-config)
@@ -120,8 +120,10 @@ echo-area. The COLUMNS property is always exluded."
 ;; navigation keys
 (define-key org-toc-mode-map "p" 'org-toc-previous)
 (define-key org-toc-mode-map "n" 'org-toc-next)
-(define-key org-toc-mode-map [(left)] 'org-toc-previous)
-(define-key org-toc-mode-map [(right)] 'org-toc-next)
+(define-key org-toc-mode-map "f" 'org-toc-forward)
+(define-key org-toc-mode-map "b" 'org-toc-back)
+(define-key org-toc-mode-map [(left)] 'org-toc-back)
+(define-key org-toc-mode-map [(right)] 'org-toc-forward)
 (define-key org-toc-mode-map [(up)] 'org-toc-previous)
 (define-key org-toc-mode-map [(down)] 'org-toc-next)
 (define-key org-toc-mode-map "1" (lambda() (interactive) (org-toc-show 1 (point))))
@@ -278,7 +280,7 @@ specified, then make `org-toc-recenter' use this value."
 ;;; Navigation functions:
 (defun org-toc-goto (&optional jump cycle)
   "From Org TOC buffer, follow the targeted subtree in the Org window.
-If JUMP is non-nil, go to the base buffer.  
+If JUMP is non-nil, go to the base buffer.
 If JUMP is 'delete, go to the base buffer and delete other windows.
 If CYCLE is non-nil, cycle the targeted subtree in the Org window."
   (interactive)
@@ -329,6 +331,24 @@ If DELETE is non-nil, delete other windows when in the Org buffer."
   "Go to the next headline of the TOC."
   (interactive)
   (outline-next-visible-heading 1)
+  (if org-toc-info-mode (org-toc-info))
+  (if org-toc-follow-mode (org-toc-goto)))
+
+(defun org-toc-forward ()
+  "Go to the next headline at the same level in the TOC."
+  (interactive)
+  (condition-case nil
+      (outline-forward-same-level 1)
+    (error (message "No next headline at this level.")))
+  (if org-toc-info-mode (org-toc-info))
+  (if org-toc-follow-mode (org-toc-goto)))
+
+(defun org-toc-back ()
+  "Go to the previous headline at the same level in the TOC."
+  (interactive)
+  (condition-case nil
+      (outline-backward-same-level 1)
+    (error (message "No previous headline at this level.")))
   (if org-toc-info-mode (org-toc-info))
   (if org-toc-follow-mode (org-toc-goto)))
 
@@ -459,15 +479,16 @@ status."
 (defun org-toc-help ()
   "Display a quick help message in the echo-area for `org-toc-mode'."
   (interactive)
-  (let ((st-start 0) 
+  (let ((st-start 0)
 	(help-message
 	 "\[space\]   show heading                     \[1-4\] hide headlines below this level
-\[TAB\]     jump to heading                  \[f\]   toggle follow mode (currently %s)
+\[TAB\]     jump to heading                  \[F\]   toggle follow mode (currently %s)
 \[return\]  jump and delete others windows   \[i\]   toggle info mode (currently %s)
 \[S-TAB\]   cycle subtree (in Org)           \[S\]   toggle show subtree mode (currently %s)
-\[C-S-TAB\] global cycle (in Org)            \[r\]   toggle recenter mode (currently %s)   
+\[C-S-TAB\] global cycle (in Org)            \[r\]   toggle recenter mode (currently %s)
 \[:\]       cycle subtree (in TOC)           \[c\]   toggle column view (currently %s)
-\[n/p\]     next/previous heading            \[s\]   save TOC configuration 
+\[n/p\]     next/previous heading            \[s\]   save TOC configuration
+\[f/b\]     next/previous heading of same level
 \[q\]       quit the TOC                     \[g\]   restore last TOC configuration"))
     (while (string-match "\\[[^]]+\\]" help-message st-start)
       (add-text-properties (match-beginning 0)

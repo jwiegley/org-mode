@@ -1,6 +1,6 @@
 ;;; org-macs.el --- Top-level definitions for Org-mode
 
-;; Copyright (C) 2004-2011 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -54,21 +54,14 @@
 
 (defmacro org-called-interactively-p (&optional kind)
   (if (featurep 'xemacs)
-       `(interactive-p)
-     (if (or (> emacs-major-version 23)
-	     (and (>= emacs-major-version 23)
-		  (>= emacs-minor-version 2)))
-	 `(with-no-warnings (called-interactively-p ,kind)) ;; defined with no argument in <=23.1
-       `(interactive-p))))
+      `(interactive-p)
+    (if (or (> emacs-major-version 23)
+	    (and (>= emacs-major-version 23)
+		 (>= emacs-minor-version 2)))
+	;; defined with no argument in <=23.1
+	`(with-no-warnings (called-interactively-p ,kind))
+      `(interactive-p))))
 (def-edebug-spec org-called-interactively-p (&optional ("quote" symbolp)))
-
-(when (and (not (fboundp 'with-silent-modifications))
-	 (or (< emacs-major-version 23)
-	     (and (= emacs-major-version 23)
-		  (< emacs-minor-version 2))))
-    (defmacro with-silent-modifications (&rest body)
-      `(org-unmodified ,@body))
-    (def-edebug-spec with-silent-modifications (body)))
 
 (defmacro org-bound-and-true-p (var)
   "Return the value of symbol VAR if it is bound, else nil."
@@ -85,16 +78,6 @@
   "If V not nil, and also not the string \"nil\", then return V.
 Otherwise return nil."
   (and v (not (equal v "nil")) v))
-
-(defmacro org-unmodified (&rest body)
-  "Execute body without changing `buffer-modified-p'.
-Also, do not record undo information."
-  `(set-buffer-modified-p
-    (prog1 (buffer-modified-p)
-      (let ((buffer-undo-list t)
-	    before-change-functions after-change-functions)
-	,@body))))
-(def-edebug-spec org-unmodified (body))
 
 (defun org-substitute-posix-classes (re)
   "Substitute posix classes in regular expression RE."
@@ -125,19 +108,32 @@ Also, do not record undo information."
 	 (org-move-to-column ,col)))))
 (def-edebug-spec org-preserve-lc (body))
 
+;; Use `org-with-silent-modifications' to ignore cosmetic changes and
+;; `org-unmodified' to ignore real text modifications
+(defmacro org-unmodified (&rest body)
+  "Run BODY while preserving the buffer's `buffer-modified-p' state."
+  (org-with-gensyms (was-modified)
+    `(let ((,was-modified (buffer-modified-p)))
+       (unwind-protect
+           (let ((buffer-undo-list t)
+		 (inhibit-modification-hooks t))
+	     ,@body)
+	 (set-buffer-modified-p ,was-modified)))))
+(def-edebug-spec org-unmodified (body))
+
 (defmacro org-without-partial-completion (&rest body)
   `(if (and (boundp 'partial-completion-mode)
 	    partial-completion-mode
 	    (fboundp 'partial-completion-mode))
-     (unwind-protect
-	 (progn
-	   (partial-completion-mode -1)
-	   ,@body)
-       (partial-completion-mode 1))
+       (unwind-protect
+	   (progn
+	     (partial-completion-mode -1)
+	     ,@body)
+	 (partial-completion-mode 1))
      ,@body))
 (def-edebug-spec org-without-partial-completion (body))
 
-;; FIXME: Slated for removal. Current Org mode does not support Emacs < 22
+;; FIXME: Slated for removal.  Current Org mode does not support Emacs < 22
 (defmacro org-maybe-intangible (props)
   "Add '(intangible t) to PROPS if Emacs version is earlier than Emacs 22.
 In Emacs 21, invisible text is not avoided by the command loop, so the
@@ -165,34 +161,6 @@ We use a macro so that the test can happen at compilation time."
 (defmacro org-no-warnings (&rest body)
   (cons (if (fboundp 'with-no-warnings) 'with-no-warnings 'progn) body))
 (def-edebug-spec org-no-warnings (body))
-
-(defmacro org-if-unprotected (&rest body)
-  "Execute BODY if there is no `org-protected' text property at point."
-  `(unless (get-text-property (point) 'org-protected)
-     ,@body))
-(def-edebug-spec org-if-unprotected (body))
-
-(defmacro org-if-unprotected-1 (&rest body)
-  "Execute BODY if there is no `org-protected' text property at point-1."
-  `(unless (get-text-property (1- (point)) 'org-protected)
-     ,@body))
-(def-edebug-spec org-if-unprotected-1 (body))
-
-(defmacro org-if-unprotected-at (pos &rest body)
-  "Execute BODY if there is no `org-protected' text property at POS."
-  `(unless (get-text-property ,pos 'org-protected)
-     ,@body))
-(def-edebug-spec org-if-unprotected-at (form body))
-(put 'org-if-unprotected-at 'lisp-indent-function 1)
-
-(defun org-re-search-forward-unprotected (&rest args)
-  "Like re-search-forward, but stop only in unprotected places."
-  (catch 'exit
-    (while t
-      (unless (apply 're-search-forward args)
-	(throw 'exit nil))
-      (unless (get-text-property (match-beginning 0) 'org-protected)
-	(throw 'exit (point))))))
 
 ;; FIXME: Normalize argument names
 (defmacro org-with-remote-undo (_buffer &rest _body)
@@ -238,17 +206,23 @@ We use a macro so that the test can happen at compilation time."
 	s)
     (match-string-no-properties num string)))
 
-(defsubst org-no-properties (s)
+(defsubst org-no-properties (s &optional restricted)
+  "Remove all text properties from string S.
+When RESTRICTED is non-nil, only remove the properties listed
+in `org-rm-props'."
   (if (fboundp 'set-text-properties)
       (set-text-properties 0 (length s) nil s)
-    (remove-text-properties 0 (length s) org-rm-props s))
+    (if restricted
+	(remove-text-properties 0 (length s) org-rm-props s)
+      (set-text-properties 0 (length s) nil s)))
   s)
 
 (defsubst org-get-alist-option (option key)
   (cond ((eq key t) t)
 	((eq option t) t)
 	((assoc key option) (cdr (assoc key option)))
-	(t (cdr (assq 'default option)))))
+	(t (let ((r (cdr (assq 'default option))))
+	     (if (listp r) (delq nil r) r)))))
 
 (defsubst org-check-external-command (cmd &optional use no-error)
   "Check if external program CMD for USE exists, error if not.
@@ -363,18 +337,19 @@ point nowhere."
 (def-edebug-spec org-save-outline-visibility (form body))
 
 (defmacro org-with-wide-buffer (&rest body)
- "Execute body while temporarily widening the buffer."
- `(save-excursion
-    (save-restriction
+  "Execute body while temporarily widening the buffer."
+  `(save-excursion
+     (save-restriction
        (widen)
        ,@body)))
 (def-edebug-spec org-with-wide-buffer (body))
 
 (defmacro org-with-limited-levels (&rest body)
   "Execute BODY with limited number of outline levels."
-  `(let* ((org-outline-regexp (org-get-limited-outline-regexp))
+  `(let* ((org-called-with-limited-levels t)
+	  (org-outline-regexp (org-get-limited-outline-regexp))
 	  (outline-regexp org-outline-regexp)
-	  (org-outline-regexp-at-bol (concat "^" org-outline-regexp)))
+	  (org-outline-regexp-bol (concat "^" org-outline-regexp)))
      ,@body))
 (def-edebug-spec org-with-limited-levels (body))
 
@@ -384,14 +359,14 @@ point nowhere."
 (defun org-get-limited-outline-regexp ()
   "Return outline-regexp with limited number of levels.
 The number of levels is controlled by `org-inlinetask-min-level'"
-  (if (or (not (eq major-mode 'org-mode)) (not (featurep 'org-inlinetask)))
+  (if (or (not (derived-mode-p 'org-mode)) (not (featurep 'org-inlinetask)))
       org-outline-regexp
     (let* ((limit-level (1- org-inlinetask-min-level))
 	   (nstars (if org-odd-levels-only (1- (* limit-level 2)) limit-level)))
       (format "\\*\\{1,%d\\} " nstars))))
 
 (defun org-format-seconds (string seconds)
-  "Compatibility function replacing format-seconds"
+  "Compatibility function replacing format-seconds."
   (if (fboundp 'format-seconds)
       (format-seconds string seconds)
     (format-time-string string (seconds-to-time seconds))))
@@ -403,12 +378,19 @@ The number of levels is controlled by `org-inlinetask-min-level'"
 
 (defun org-make-parameter-alist (flat)
   "Return alist based on FLAT.
-FLAT is a list with alternating symbol names and values. The
+FLAT is a list with alternating symbol names and values.  The
 returned alist is a list of lists with the symbol name in car and
 the value in cdr."
   (when flat
     (cons (list (car flat) (cadr flat))
-         (org-make-parameter-alist (cddr flat)))))
+	  (org-make-parameter-alist (cddr flat)))))
+
+;;;###autoload
+(defmacro org-load-noerror-mustsuffix (file)
+  "Load FILE with optional arguments NOERROR and MUSTSUFFIX.  Drop the MUSTSUFFIX argument for XEmacs, which doesn't recognize it."
+  (if (featurep 'xemacs)
+      `(load ,file 'noerror)
+    `(load ,file 'noerror nil nil 'mustsuffix)))
 
 (provide 'org-macs)
 
