@@ -36,11 +36,14 @@
 
 ;;; Code:
 (require 'ob)
+(require 'ob-comint)
 (require 'comint)
 (eval-when-compile (require 'cl))
 
+(declare-function typerex-run-caml "ext:typerex" ())
+(declare-function typerex-interactive-send-input "ext:typerex" ())
+
 (declare-function tuareg-run-caml "ext:tuareg" ())
-(declare-function tuareg-run-ocaml "ext:tuareg" ())
 (declare-function tuareg-interactive-send-input "ext:tuareg" ())
 
 (defvar org-babel-tangle-lang-exts)
@@ -64,7 +67,9 @@
 		(insert
 		 (concat
 		  (org-babel-chomp full-body)"\n"org-babel-ocaml-eoe-indicator))
-		(tuareg-interactive-send-input)))
+		(if (fboundp 'typerex-interactive-send-input)
+		    (typerex-interactive-send-input)
+		  (tuareg-interactive-send-input))))
 	 (clean
 	  (car (let ((re (regexp-quote org-babel-ocaml-eoe-output)) out)
 		 (delq nil (mapcar (lambda (line)
@@ -80,18 +85,29 @@
      (org-babel-pick-name
       (cdr (assoc :rowname-names params)) (cdr (assoc :rownames params))))))
 
+(defvar typerex-interactive-buffer-name)
 (defvar tuareg-interactive-buffer-name)
 (defun org-babel-prep-session:ocaml (session params)
   "Prepare SESSION according to the header arguments in PARAMS."
-  (require 'tuareg)
-  (let ((tuareg-interactive-buffer-name (if (and (not (string= session "none"))
-                                                 (not (string= session "default"))
-                                                 (stringp session))
-                                            session
-                                          tuareg-interactive-buffer-name)))
-    (save-window-excursion
-      (if (fboundp 'tuareg-run-caml) (tuareg-run-caml) (tuareg-run-ocaml))
-      (get-buffer tuareg-interactive-buffer-name))))
+  (require 'typerex nil 'noerror)
+  (if (featurep 'typerex)
+      (let ((typerex-interactive-buffer-name (if (and (not (string= session "none"))
+						     (not (string= session "default"))
+						     (stringp session))
+						session
+					      typerex-interactive-buffer-name)))
+	(save-window-excursion (typerex-run-caml)
+			       (get-buffer typerex-interactive-buffer-name)))
+    (progn
+      (require 'tuareg)
+      (let ((tuareg-interactive-buffer-name (if (and (not (string= session "none"))
+						     (not (string= session "default"))
+						     (stringp session))
+						session
+					      tuareg-interactive-buffer-name)))
+	(save-window-excursion (tuareg-run-caml)
+			       (get-buffer tuareg-interactive-buffer-name)))      
+      )))
 
 (defun org-babel-variable-assignments:ocaml (params)
   "Return list of ocaml statements assigning the block's variables."
