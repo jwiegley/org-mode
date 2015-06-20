@@ -358,6 +358,11 @@ task buckets, while still sharing the same resources pool."
   :group 'org-export-taskjuggler
   :type 'boolean)
 
+(defcustom org-taskjuggler-default-project-configuration
+  '("")
+  "This string variable can be used to customize additional project fields"
+  :group 'org-export-taskjuggler
+  :type '(repeat (string :tag "Project config")))
 
 
 ;;; Hooks
@@ -471,7 +476,10 @@ doesn't have any start date defined."
 ITEM is a headline.  Return value is a string or nil if ITEM
 doesn't have any end date defined."
   (let ((deadline (org-element-property :deadline item)))
-    (and deadline (org-timestamp-format deadline "%Y-%02m-%02d"))))
+    (or
+     (and deadline (org-timestamp-format deadline "%Y-%02m-%02d"))
+     (and (memq 'end org-taskjuggler-valid-task-attributes)
+	  (org-element-property :END item)))))
 
 
 
@@ -715,7 +723,7 @@ PROJECT is a headline.  INFO is a plist used as a communication
 channel.  If no start date is specified, start today.  If no end
 date is specified, end `org-taskjuggler-default-project-duration'
 days from now."
-  (format "project %s \"%s\" \"%s\" %s %s {\n}\n"
+  (format "project %s \"%s\" \"%s\" %s %s {%s\n}\n"
           (org-taskjuggler-get-id project info)
           (org-taskjuggler-get-name project)
           ;; Version is obtained through :TASKJUGGLER_VERSION:
@@ -726,7 +734,10 @@ days from now."
               (format-time-string "%Y-%m-%d"))
           (let ((end (org-taskjuggler-get-end project)))
             (or (and end (format "- %s" end))
-                (format "+%sd" org-taskjuggler-default-project-duration)))))
+                (format "+%sd" org-taskjuggler-default-project-duration)))
+	  (mapconcat
+	   'org-element-normalize-string
+	   org-taskjuggler-default-project-configuration "")))
 
 (defun org-taskjuggler--build-resource (resource info)
   "Return a resource declaration.
@@ -806,7 +817,7 @@ a unique id will be associated to it."
          (milestone
           (or (org-element-property :MILESTONE task)
               (not (or (org-element-map (org-element-contents task) 'headline
-			 'identity info t)  ; Has task any child?
+			 'identity info t) ; Has task any child?
 		       effort
 		       (org-element-property :LENGTH task)
 		       (org-element-property :DURATION task)
@@ -828,11 +839,15 @@ a unique id will be associated to it."
           (format "  depends %s\n"
                   (org-taskjuggler-format-dependencies depends task info)))
      (and allocate
-          (format "  purge %s\n  allocate %s\n"
-                  ;; Compatibility for previous TaskJuggler versions.
-                  (if (>= org-taskjuggler-target-version 3.0) "allocate"
-                    "allocations")
-                  allocate))
+       (concat (format "  purge %s\n"
+		       ;; Compatibility for previous TaskJuggler versions.
+		       (if (>= org-taskjuggler-target-version 3.0) "allocate"
+			 "allocations"))
+	       ;;support for several allocations divided by separator
+	       (mapconcat #'(lambda (allocation)
+			      (format "  allocate %s\n" allocation))
+			  (org-split-string allocate "[ ,]* +")
+			  "")))
      (and complete (format "  complete %s\n" complete))
      (and effort
           (format "  effort %s\n"
