@@ -14052,7 +14052,7 @@ src_<language>[<header arguments>]@{<body>@}
 @end example
 
 @table @code
-@item <#+NAME: name>
+@item #+NAME: <name>
 This line associates a name with the code block.  This is similar to the
 @code{#+NAME: Name} lines that can be used to name tables in Org mode
 files.  Referencing the name of a code block makes it possible to evaluate
