@@ -924,11 +924,12 @@ fontification of code blocks see `org-src-fontify-block' and
 	      (put-text-property
 	       (+ start (1- pos)) (1- (+ start next)) 'face
 	       (get-text-property pos 'face) org-buffer)
-	      (setq pos next)))
+	      (setq pos next))
+	    (set-buffer-modified-p nil))
 	  (add-text-properties
 	   start end
 	   '(font-lock-fontified t fontified t font-lock-multiline t))
-	  (set-buffer-modified-p modified)))))
+	  (set-buffer-modified-p nil)))))
 
 (defun org-src-fontify-block ()
   "Fontify code block at point."
