@@ -23099,7 +23099,8 @@ This version does not only check the character property, but also
     (null (re-search-backward org-outline-regexp-bol nil t))))
 
 (defun org-at-heading-p (&optional ignored)
-  (outline-on-heading-p t))
+  (and (derived-mode-p 'org-mode)
+       (outline-on-heading-p t)))
 ;; Compatibility alias with Org versions < 7.8.03
 (defalias 'org-on-heading-p 'org-at-heading-p)
 
