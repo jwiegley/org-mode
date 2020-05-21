@@ -255,7 +255,7 @@ manner suitable for prepending to a user-specified script."
                                          (format "%d:" ind)) "")
 				(+ 1 col)
 				(if text-ind (format ":xticlabel(%d)" ind) "")
-				with
+				(if (stringp with) with (nth col with))
 				(or (nth col col-labels) (format "%d" (+ 1 col))))
 			plot-lines)))))
 	('3d
@@ -311,7 +311,8 @@ line directly before or after the table."
 				table data-file params)))
 		 (when y-labels (plist-put params :ylabels y-labels)))))
       ;; check for timestamp ind column
-      (let ((ind (- (plist-get params :ind) 1)))
+      (let ((ind (- (plist-get params :ind) 1))
+	    (with (plist-get params :with)))
 	(when (and (>= ind 0) (equal '2d (plist-get params :plot-type)))
 	  (if (= (length
 		  (delq 0 (mapcar
@@ -321,7 +322,7 @@ line directly before or after the table."
 			   (mapcar (lambda (row) (nth ind row)) table)))) 0)
 	      (plist-put params :timeind t)
 	    ;; check for text ind column
-	    (if (or (string= (plist-get params :with) "hist")
+	    (if (or (and (stringp with) (string= with "hist"))
 		    (> (length
 			(delq 0 (mapcar
 				 (lambda (el)
