@@ -12358,26 +12358,36 @@ the document if before the first headline.  If it is not given,
 it will be found.  If the drawer does not exist, create it if
 FORCE is non-nil, or return nil."
   (org-with-wide-buffer
-   (let ((beg (cond (beg (goto-char beg))
-		    ((or (not (featurep 'org-inlinetask))
-			 (org-inlinetask-in-task-p))
-		     (org-back-to-heading-or-point-min t) (point))
-		    (t (org-with-limited-levels
-			(org-back-to-heading-or-point-min t))
-		       (point)))))
+   (let* ((beg (cond (beg (goto-char beg))
+		     ((or (not (featurep 'org-inlinetask))
+			  (org-inlinetask-in-task-p))
+		      (org-back-to-heading-or-point-min t) (point))
+		     (t (org-with-limited-levels
+			 (org-back-to-heading-or-point-min t))
+		        (point))))
+          (end (save-excursion
+                 (outline-next-heading)
+                 (point))))
      ;; Move point to its position according to its positional rules.
      (cond ((org-before-first-heading-p)
 	    (while (and (org-at-comment-p) (bolp)) (forward-line)))
 	   (t (forward-line)
 	      (when (looking-at-p org-planning-line-re) (forward-line))))
-     (cond ((looking-at org-property-drawer-re)
-	    (forward-line)
-	    (cons (point) (progn (goto-char (match-end 0))
-				 (line-beginning-position))))
-	   (force
-	    (goto-char beg)
-	    (org-insert-property-drawer)
-	    (let ((pos (save-excursion (re-search-forward org-property-drawer-re)
+     (cond ((and (< (point) end)
+                 (if org-allow-properties-at-end
+                     (and (re-search-forward org-property-drawer-re
+                                             (save-excursion
+                                               (outline-next-heading)
+                                               (point)) t)
+                          (goto-char (match-beginning 0)))
+                   (looking-at org-property-drawer-re)))
+            (forward-line)
+            (cons (point) (progn (goto-char (match-end 0))
+			         (line-beginning-position))))
+           (force
+            (goto-char beg)
+            (org-insert-property-drawer)
+            (let ((pos (save-excursion (re-search-forward org-property-drawer-re)
 				       (line-beginning-position))))
 	      (cons pos pos)))))))
 
@@ -20629,7 +20639,8 @@ properties, clocking lines and logbook drawers."
   ;; Skip planning information.
   (when (looking-at-p org-planning-line-re) (forward-line))
   ;; Skip property drawer.
-  (when (looking-at org-property-drawer-re)
+  (when (and (not org-allow-properties-at-end)
+             (looking-at org-property-drawer-re))
     (goto-char (match-end 0))
     (forward-line))
   ;; When FULL is not nil, skip more.

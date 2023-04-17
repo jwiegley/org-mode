@@ -1018,6 +1018,20 @@ CONTENTS is the contents of the footnote-definition."
 
 ;;;; Headline
 
+(defcustom org-allow-properties-at-end t
+  "Allow the PROPERTIES drawer to appear at the end of an entry.
+Normally, for reasons of efficiency, the PROPERTIES drawer is
+expected to appear only at the beginning of an entry, after any
+scheduling lines. This avoids having to scan through a large
+entry in order to find its properties.
+
+When this option is non-nil, the PROPERIES drawer may also appear
+at the end of an entry. Note that this may adversely affect the
+speed of many operations, such as building the agenda."
+  :group 'org-todo
+  :type 'boolean
+  :package-version '(Org . "9.6.2"))
+
 (defun org-element--get-node-properties (&optional at-point-p?)
   "Return node properties for headline or property drawer at point.
 Upcase property names.  It avoids confusion between properties
@@ -1030,7 +1044,13 @@ parse properties for property drawer at point."
     (unless at-point-p?
       (forward-line)
       (when (looking-at-p org-element-planning-line-re) (forward-line)))
-    (when (looking-at org-property-drawer-re)
+    (when (if org-allow-properties-at-end
+              (and (re-search-forward org-property-drawer-re
+                                      (save-excursion
+                                        (outline-next-heading)
+                                        (point)) t)
+                   (goto-char (match-beginning 0)))
+            (looking-at org-property-drawer-re))
       (forward-line)
       (let ((end (match-end 0)) properties)
 	(while (< (line-end-position) end)
@@ -1158,8 +1178,14 @@ Assume point is at beginning of the headline."
                                             0)
                                           (point)))))
            (robust-end (and robust-begin
-                            (when (> (- contents-end 2) robust-begin)
-                              (- contents-end 2)))))
+                            (if (> (- contents-end 2) robust-begin)
+                                (min
+                                 (- contents-end 2)
+                                 (if (and org-allow-properties-at-end
+                                          (re-search-forward org-property-drawer-re
+                                                             contents-end t))
+                                     (- (match-beginning 0) 2)
+                                   (point-max)))))))
       (unless robust-end (setq robust-begin nil))
       (let ((headline
 	     (list 'headline
@@ -1189,9 +1215,9 @@ Assume point is at beginning of the headline."
 			  :post-affiliated begin)
 		    time-props
 		    standard-props))))
-	(org-element-put-property
-	 headline :title
-	 (if raw-secondary-p raw-value
+        (org-element-put-property
+         headline :title
+         (if raw-secondary-p raw-value
 	   (org-element--parse-objects
 	    (progn (goto-char title-start)
 		   (skip-chars-forward " \t")
@@ -4246,13 +4272,14 @@ element it has to parse."
 	          (looking-at org-element-planning-line-re))
 	     (org-element-planning-parser limit))
             ;; Property drawer.
-            ((and (pcase mode
-	            (`planning (eq ?* (char-after (line-beginning-position 0))))
-	            ((or `property-drawer `top-comment)
-		     (save-excursion
-		       (beginning-of-line 0)
-		       (not (looking-at "[[:blank:]]*$"))))
-	            (_ nil))
+            ((and (or org-allow-properties-at-end
+                      (pcase mode
+	                (`planning (eq ?* (char-after (line-beginning-position 0))))
+	                ((or `property-drawer `top-comment)
+		         (save-excursion
+		           (beginning-of-line 0)
+		           (not (looking-at "[[:blank:]]*$"))))
+	                (_ nil)))
 	          (looking-at org-property-drawer-re))
 	     (org-element-property-drawer-parser limit))
             ;; When not at bol, point is at the beginning of an item or
